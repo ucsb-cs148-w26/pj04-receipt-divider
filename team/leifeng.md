@@ -1,0 +1,1 @@
+I'm Leifeng Chen, a second-year CS major. My main vision for this project is an app that allows users to easily take images of receipts, which is then divided into item names and prices, which can be organized and separated. Ideally, we can add a video function to scan longer receipts as well.
