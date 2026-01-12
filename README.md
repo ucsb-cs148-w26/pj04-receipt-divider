@@ -9,7 +9,7 @@ Roy Lee (roy-lee7473)\
 Edward Garcia (ELEXG)\
 Mason Le (masonle6080)\
 Ken Thampiratwong (ken-tummada)\
-Charlie nava (gupperfisher)\
+Charlie nava (gupperfisher)
 
 
 Audience: Our ideal users are people with roommates. There are two different types of users, the user who bought the items and took the picture of the receipt and the users who got 
