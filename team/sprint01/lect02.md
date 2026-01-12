@@ -21,7 +21,7 @@ Roy finished HW1 and got to step 5 on Lab01. No current roadblocks.
 
 Yiheng finished HW1 and got to step 5 on Lab01. No current roadblocks.
 
-Leifeng finished HW1 and got to step 5 on Lab01, tried to build an IOS app from a non-Apple computer. No current roadblocks.
+Leifeng finished HW1 and got to step 5 on Lab01, tried to build an IOS app from a non-Apple computer. Looked at current existing similar products and comiled ways to make ours better. No current roadblocks.
 
 Edward finished HW1 and got to step 5 on Lab01. No current roadblocks.
 
