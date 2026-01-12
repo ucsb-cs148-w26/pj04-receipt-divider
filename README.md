@@ -3,13 +3,13 @@ Title: Eezy Reeceeept
 Description: Take a picture of a receipt and then drag each item on the receipt to the respective buyer.
 
 Members: 
-Yiheng Feng (1274613951)
-Leifeng Chen (Redstoneweewee)
-Roy Lee (roy-lee7473)
-Edward Garcia (ELEXG)
-Mason Le (masonle6080)
-Ken Thampiratwong (ken-tummada)
-Charlie nava (gupperfisher)
+Yiheng Feng (1274613951)\
+Leifeng Chen (Redstoneweewee)\
+Roy Lee (roy-lee7473)\
+Edward Garcia (ELEXG)\
+Mason Le (masonle6080)\
+Ken Thampiratwong (ken-tummada)\
+Charlie nava (gupperfisher)\
 
 
 Audience: Our ideal users are people with roommates. There are two different types of users, the user who bought the items and took the picture of the receipt and the users who got 
