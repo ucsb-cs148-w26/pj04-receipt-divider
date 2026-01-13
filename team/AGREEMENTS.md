@@ -1,11 +1,8 @@
 Team Members:
-Yiheng Feng 
-Leifeng Chen 
-Roy Lee
-Edward Garcia
-Mason Le
-Ken Thampiratwong
-Charlie Nava 
+
+Yiheng Feng, Leifeng Chen, Roy Lee, Edward Garcia, Mason Le, Ken Thampiratwong, Charlie Nava 
+
+
 
 
 Agreements:
