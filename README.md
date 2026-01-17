@@ -21,4 +21,4 @@ React because it's for both IOS, Android, and the web.
 Firebase database to store data - no sql, FREE.
 
 Application Flow Diagram:
-![Wireframe](./resources/UI outline.png)
+![Wireframe](./resources/UI%20outline.png)
