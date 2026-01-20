@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "HelloWorld",
-    "slug": "HelloWorld",
+    "slug": "receipt-divider",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.receiptdivider.receiptdivider",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +23,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.receiptdivider.receiptdivider"
     },
     "web": {
       "output": "static",
@@ -47,9 +52,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "84003b59-4f34-4a75-8c51-8f0d51803232"
+        "projectId": "b09923f5-39af-4d5e-ab7f-6b15d0651741"
       }
     },
-    "owner": "burneraccount"
+    "owner": "receipt-divider"
   }
 }
