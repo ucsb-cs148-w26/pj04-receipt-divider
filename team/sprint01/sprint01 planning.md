@@ -1,3 +1,20 @@
+Project: Receipt Divider
+
+Mentor: Self-Mentored ;)
+
+Meeting Time: lab02
+
+Type of meeting: sprint planning
+
+Team: 
+- Edward Garcia [x]
+- Leifeng Chen [x]
+- Roy Lee [x]
+- Yiheng Feng [x]
+- Mason Le [x]
+- Ken Thampiratwong [x]
+- Charlie Nava [x]
+
 ## Sprint planning:  
 We are planning a 2 week sprint in which will focus on identifying some basic functionalities of the app that we want to implement. We all are going to get more familiar with react native and identify some features that we want to work on. In future scrum meetings we will further discuss the how we want to design the app and assign issues to individual members. 
 

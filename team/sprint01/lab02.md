@@ -4,7 +4,7 @@ Mentor: Self-Mentored ;)
 
 Meeting Time: lab02
 
-Type of meeting: daily scrum and sprint planning
+Type of meeting: daily scrum
 
 Team: 
 - Edward Garcia [x]
