@@ -1,51 +1,30 @@
-# Welcome to your Expo app 👋
+# Welcome to Reciept Divider!
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+>[!Note]
+> IN PROGRESS
 
-## Get started
+> [!Note]
+> CMPSC 148
+> Winter 2026
+> pj04-receipt-divider
+> Yiheng Feng (1274613951), Leifeng Chen (Redstoneweewee), Roy Lee (roy-lee7473), Edward Garcia (ELEXG), Mason Le (masonle6080), Ken Thampiratwong (ken-tummada), Charlie Nava (gupperfisher)
 
-1. Install dependencies
+## Description 📝
+This project is a mobile (IOS & Android) application that allows groups who shop together to easily split the reciept.
 
-   ```bash
-   npm install
-   npx expo install
-   ```
+This helps speed up assigning items and totaling up who owes who.
 
-2. Start the app
+## Demo
+- Live Demo: In Progress
+- Screenshots: In progress
 
-   ```bash
-   npx expo start
-   ```
+## Features
+- Upload/take photo
+- Parses items
+- Drag to assign items
+- Tracks individual dues
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Tech Stack
+- React Native
+- Expo
+- Firebase database to store data - no sql, FREE.
