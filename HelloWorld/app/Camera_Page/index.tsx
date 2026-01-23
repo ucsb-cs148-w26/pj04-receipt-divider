@@ -15,9 +15,9 @@ export default function CameraScreen() {
   const openCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") return;
-
+    const mediaTypes: ImagePicker.MediaType[] = ['images'];
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes,
       quality: 1,
     });
 
