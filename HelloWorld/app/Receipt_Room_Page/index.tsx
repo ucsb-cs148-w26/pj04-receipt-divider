@@ -1,18 +1,29 @@
-import { router } from 'expo-router';
-import React from 'react';
-import { Button, StyleSheet, View } from "react-native";
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useState } from 'react';
+import { Button, StyleSheet, View, Text } from "react-native";
 
 export default function ReceiptRoomScreen() {
+  const params = useLocalSearchParams();
+  
+  const [roomId] = useState(() => {
+    // Check if room ID was passed in URL (i.e. from QR code scan to join a receipt room)
+    if (params.roomId && typeof params.roomId === 'string') {
+      return params.roomId;
+    }
+    // Otherwise create new room ID for this receipt session
+    return Math.random().toString(36).substring(2, 9);
+  });
+
   return (
        <View 
        style={styles.container}>
         <Button 
         title="QR" 
-        onPress={() => router.push('../QR_Page')} 
+        onPress={() => router.push(`/QR_Page?roomId=${roomId}`)}
         />
         <Button 
         title="Settings" 
-        onPress={() => router.push('../Settings_Page')} 
+        onPress={() => router.push('../Settings_Page')}
         />
         <Button
         title="Your Items"
