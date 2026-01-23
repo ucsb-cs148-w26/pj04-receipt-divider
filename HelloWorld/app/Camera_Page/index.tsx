@@ -11,7 +11,7 @@ export default function CameraScreen() {
         onPress={() => router.push('../Receipt_Room_Page')} 
         />
         <Button
-        title="Cancle"
+        title="Cancel"
         onPress={() => router.push('../Home_Page')}
         />
         </View>
