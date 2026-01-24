@@ -1,12 +1,12 @@
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import * as ImagePicker from "expo-image-picker";
 import {
+  Image,
   StyleSheet,
-  View,
   Text,
   TouchableOpacity,
-  Image,
+  View,
 } from "react-native";
 
 export default function CameraScreen() {
@@ -54,6 +54,12 @@ export default function CameraScreen() {
         </View>
       )
       }
+      <TouchableOpacity
+        style={styles.secondaryButton}
+        onPress={() => router.push('../Receipt_Room_Page')}
+      >
+        <Text style={styles.secondaryText}>Next</Text>
+      </TouchableOpacity>
     </View >
   );
 }
