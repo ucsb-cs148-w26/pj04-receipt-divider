@@ -11,6 +11,10 @@ export default function ReceiptRoomScreen() {
         onPress={() => router.push('../QR_Page')} 
         />
         <Button 
+        title="Participants" 
+        onPress={() => router.push('../Participants_Page')} 
+        />
+        <Button 
         title="Settings" 
         onPress={() => router.push('../Settings_Page')} 
         />
