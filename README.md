@@ -26,6 +26,9 @@ Expo
 Firebase database to store data - no sql, FREE.
 
 ## MVP Expanded Description:
-Take a picture(s) of a receipt and upload it into the app. Once uploaded, the user will be able to create as many baskets as they need, and each basket will represent someone that the user shopped with. Then, the user will be able to drag each item on the receipt to the respective basket of the person who bought that item. Once all items have been dragged, the total cost of the items in each basket will be calculated.
+Take a picture(s) of a receipt and upload it into the app. Once uploaded, the user will be able to create as many baskets as they need, 
+and each basket will represent someone that the user shopped with. Then, the user will be able to drag each item on the receipt to the respective basket 
+of the person who bought that item. Once all items have been dragged, the total cost of the items in each basket will be calculated.
 
-
+Application Flow Diagram:
+![Wireframe](./resources/UI%20outline.png)
