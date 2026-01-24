@@ -2,7 +2,7 @@
 
 | Team | 4 |
 | :---- | :---- |
-| Date of Retrospective | 1/22/25 |
+| Date of Retrospective | 1/23/25 |
 | Retro Leader | Charlie Nava |
 
 The purpose is to identify team practices that need to either *stop, start, or continue* in the team. Your observations can focus on (but not limited to) the following areas:
@@ -129,12 +129,6 @@ Then,  copy/paste each of the three "winning" rows (the ones with the most votes
 
 In your discussions, try to rely on logical reasoning, data, and observations.  You may consider including an analysis of pros/cons of stopping/starting/continuing this item.  You might also include a discussion of alternative strategies for achieving the same goal.
 
-**For example:**
-
-| Discussion item 1: Stop/Start/Continue Action Votes *Start  start doing more pair programming* xxxxxxx Observations/Data that support taking this action:Some team members are getting stuck on things and the team is falling behind.Pros/Cons of stopping/starting/continuing this item: Pros: We will get through each issue fasterCons: We won't be taking on as many issues at the same time Alternative ways to get to the same goal (if any): We could continue to solo program, and make better use of the slack channel  Other Discussion (if any): Pair programming will result in knowledge sharing, and faster error detection. But it will need intensive coordination and onboarding prep before the session. Individual programming will cut tech debt faster, but reduce code quality and require scheduling regular code reviews. Final Conclusion:Our final conclusion was that the benefits of pair programming outweigh the cons and should  try to start doing more of it. |
-| :---- |
-
-### 
 
 ### **Discussion item 1:**
 
