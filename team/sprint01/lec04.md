@@ -1,6 +1,6 @@
 Project: Receipt Divider
 
-Mentor: None
+Mentor: James
 
 Meeting Time: lect04
 
