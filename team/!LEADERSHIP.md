@@ -1,0 +1,70 @@
+
+# Leadership roles:
+| Date      | Name              | Activity                                               |
+|-----------|-------------------|--------------------------------------------------------|
+| Mon 01/13 | Mason             | Led team discussion to define MVP                      | 
+| Fri 01/16 | Leifeng           | Led team discussion of Sprint01 Planning               | 
+| Fri 01/23 | Charlie           | Will lead Retro 00                                     | 
+
+# Planned Roles:
+
+| Role                            | Name              | 
+|---------------------------------|-------------------|
+| Product Owner                   | Mason Le          | 
+| Scrum Master                    | Leifeng Chen      | 
+| Testing/QA Coordinator          | TBA               | 
+| UX Coordinator                  | TBA               |
+| Design Document Coordinator     | TBA               |
+| Deployment Document Coordinator | TBA               |
+| User Manual Coordinator         | TBA               |
+| Final Presentation Leader       | TBA               |
+| Retro 00 leader                 | Charlie           | 
+| Retro 01 leader                 | TBA               | 
+| Retro 02 leader                 | TBA               | 
+| Retro 03 leader                 | TBA               | 
+
+# Weekly Roles:
+| **Date**    | **Name**          | **Activity**                                      |
+|-------------|-------------------|---------------------------------------------------|
+| **Week 2**  |                   |                                                   | 
+| Mon 01/12   | Edward            | Scribe for Lec02 Scrum                            | 
+| Wed 01/14   | Mason             | Scribe for Lec03 Scrum                            | 
+| Fri 01/16   | Roy               | Scribe for Lab02 Scrum                            | 
+| **Week 3**  |                   |                                                   | 
+|             | Charlie           | Code/PR reviewer for the week                     | 
+| Wed 01/21   | Leifeng           | Scribe for Lec04 Scrum                            | 
+| Fri 01/23   | Yiheng            | Scribe for Lab03 Scrum                            | 
+| **Week 4**  |                   |                                                   | 
+|             | Mason             | Code/PR reviewer for the week                     | 
+| Mon 01/26   | TBA               | Scribe for Lec05 Scrum                            | 
+| Wed 01/28   | TBA               | Scribe for Lec06 Scrum                            | 
+| Fri 01/30   | TBA               | Scribe for Lab04 Scrum                            | 
+| **Week 5**  |                   |                                                   | 
+|             | TBA               | Code/PR reviewer for the week                     | 
+| Mon 02/2    | TBA               | Scribe for Lec07 Scrum                            | 
+| Wed 02/4    | TBA               | Scribe for Lec08 Scrum                            | 
+| Fri 02/6    | TBA               | Scribe for Lab05 Scrum                            | 
+| **Week 6**  |                   |                                                   | 
+|             | TBA               | Code/PR reviewer for the week                     | 
+| Mon 02/9    | TBA               | Scribe for Lec09 Scrum                            | 
+| Wed 02/11   | TBA               | Scribe for Lec10 Scrum                            | 
+| Fri 02/13   | TBA               | Scribe for Lab06 Scrum                            | 
+| **Week 7**  |                   |                                                   | 
+|             | TBA               | Code/PR reviewer for the week                     | 
+| Wed 02/17   | TBA               | Scribe for Lec11 Scrum                            | 
+| Fri 02/19   | TBA               | Scribe for LAB07 Scrum                            | 
+| **Week 8**  |                   |                                                   | 
+|             | TBA               | Code/PR reviewer for the week                     | 
+| Mon 02/22   | TBA               | Scribe for Lec12 Scrum                            | 
+| Wed 02/24   | TBA               | Scribe for Lec13 Scrum                            | 
+| Fri 02/26   | TBA               | Scribe for Lab08 Scrum                            | 
+| **Week 9**  |                   |                                                   | 
+|             | TBA               | Code/PR reviewer for the week                     | 
+| Mon 03/2    | TBA               | Scribe for Lec14 Scrum                            | 
+| Wed 03/4    | TBA               | Scribe for Lec15 Scrum                            | 
+| Fri 03/6    | TBA               | Scribe for Lab09 Scrum                            | 
+| **Week 10** |                   |                                                   | 
+|             | TBA               | Code/PR reviewer for the week                     | 
+| Mon 03/9    | TBA               | Scribe for Lec16 Scrum                            | 
+| Wed 03/11   | TBA               | Scribe for Lec17 Scrum                            | 
+| Fri 03/13   | TBA               | Scribe for Lab10 Scrum                            | 
