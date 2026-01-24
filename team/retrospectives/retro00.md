@@ -259,3 +259,31 @@ Closing statement(s):
   * Sample commits and compare to a criteria  
   * Sample issues and compare to a criteria  
   * General poll for how communicative everyone feels others are (Anonymous)
+ 
+# # Retro Assessment 
+Description: 
+
+For this retro, I, Charlie, chose the stop/start/continue outline. The outline asks all the participants to come up with 3 items, one that you want the team to start doing, one that you want the team to stop doing, and one item that you want the team to continue doing. We then picked the 3 most popular items, regardless of type, and discussed their benefits, cost, and implementation. 
+
+Assessment: 
+
+I think we overall had a good retro. We went through the process fully and agreed on some changes. However, we rushed the retro in the later parts, due to time constraints. 
+
+Advice:
+
+If you choose to do this retro format, then you should be prepared to help your members come up with ideas. Try to remind them of different scenarios where they could get inspiration. It is important that you get everyone to get engaged with coming up with items, since this is the core of the format. 
+
+## Experiemnt/Change
+Description: 
+
+After this retrospective, our team will implement three main changes. First, we will begin writing clear acceptance criteria for every ticket, so that each task has well-defined goals and expectations before work begins. Second, team members will be more vocal about which issues they are picking up. Finally, we will adopt conventional commits for all future commits. This will standardize our commit messages, making the project history easier to understand, debug, and maintain over time. 
+
+We will measure our progress by taking a sample size of our commits, announcements, and tickets, and then comparing them to a criteria that the team agreed on.
+
+Results:
+
+[WIP]
+
+Decision:
+
+[WIP]
