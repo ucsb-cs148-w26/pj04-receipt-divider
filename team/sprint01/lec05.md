@@ -7,13 +7,13 @@ Meeting Time: lect04
 Type of meeting: daily scrum
 
 Team: 
-Ken Thampiratwong [x]
-Yiheng Feng []
-Leifeng Chen [x]
-Roy Lee [x]
-Edward Garcia [x]
-Mason Le [X]
-Charlie Nava [x]
+- [x] Ken Thampiratwong
+- [ ]Yiheng Feng
+- [x] Leifeng Chen
+- [x] Roy Lee
+- [x] Edward Garcia
+- [x] Mason Le
+- [x] Charlie Nava
 
 Scribed Discussion: 
 - Everyone met on Sunday to discuss logistics
