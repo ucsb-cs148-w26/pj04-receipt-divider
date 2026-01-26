@@ -3,7 +3,7 @@ import { ReceiptItem, ReceiptItemType } from '@/components/Item';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Button, StyleSheet, View, Text, ScrollView, TouchableOpacity } from "react-native";
-
+import Participant from '../../components/Participant';
 
 interface NativeThemeColorType {
   primary: string;
@@ -18,6 +18,14 @@ export default function ReceiptRoomScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams();
+
+  const [participants, setParticipants] = useState<number[]>([]);
+
+
+  const addParticipant = () => {
+    const newID = participants.length + 1;
+    setParticipants([...participants, newID]);
+    };
 
   /**---------------- QR Code ---------------- */
   const [roomId] = useState(() => {
@@ -105,13 +113,22 @@ export default function ReceiptRoomScreen() {
         </View>
       </ScrollView>
 
+        <ScrollView
+            horizontal = {true}
+            contentContainerStyle = {styles.participantsScrollContent}>
+            {participants.map((id) => (
+                <Participant key = {id} id = {id} />
+            ))}
+        </ScrollView>
+
+        <Button 
+            title="Add Participant"      
+            onPress = {addParticipant}
+        /> 
+
       <Button
         title="QR"
         onPress={() => router.push(`/QR_Page?roomId=${roomId}`)}
-      />
-      <Button
-        title="Participants"
-        onPress={() => router.push('../Participants_Page')}
       />
       <Button
         title="Settings"
@@ -205,5 +222,10 @@ const createStyles = (colors: NativeThemeColorType) =>
     addUserButtonText: {
       fontSize: 32,
       color: colors.text,
+    },
+    participantsScrollContent: {
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        gap: 10,
     },
   });
