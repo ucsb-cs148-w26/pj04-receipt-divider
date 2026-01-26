@@ -36,8 +36,8 @@
 | Fri 01/23   | Yiheng            | Scribe for Lab03 Scrum                            | 
 | **Week 4**  |                   |                                                   | 
 |             | Mason             | Code/PR reviewer for the week                     | 
-| Mon 01/26   | TBA               | Scribe for Lec05 Scrum                            | 
-| Wed 01/28   | TBA               | Scribe for Lec06 Scrum                            | 
+| Mon 01/26   | Ken               | Scribe for Lec05 Scrum                            | 
+| Wed 01/28   | Charlie           | Scribe for Lec06 Scrum                            | 
 | Fri 01/30   | TBA               | Scribe for Lab04 Scrum                            | 
 | **Week 5**  |                   |                                                   | 
 |             | TBA               | Code/PR reviewer for the week                     | 
