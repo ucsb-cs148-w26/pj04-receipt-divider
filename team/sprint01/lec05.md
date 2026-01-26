@@ -8,7 +8,7 @@ Type of meeting: daily scrum
 
 Team: 
 - [x] Ken Thampiratwong
-- [ ]Yiheng Feng
+- [ ] Yiheng Feng
 - [x] Leifeng Chen
 - [x] Roy Lee
 - [x] Edward Garcia
