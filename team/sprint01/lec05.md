@@ -7,29 +7,30 @@ Meeting Time: lect04
 Type of meeting: daily scrum
 
 Team: 
+Ken Thampiratwong [x]
 Yiheng Feng []
 Leifeng Chen [x]
 Roy Lee [x]
 Edward Garcia [x]
 Mason Le [X]
-Ken Thampiratwong [x]
 Charlie Nava [x]
 
-Scribed Discussion:
+Scribed Discussion: 
+- Everyone met on Sunday to discuss logistics
 
-Leifeng: 
+Leifeng: Should be done with MVP by next week. Roadblock: finish moving participants into the receipt page. Add the climbing system.
 
-Mason: 
+Mason: Merged the dev init branch. Will work on Leifeng's blocker. No roadblocks.
 
-Roy: 
+Roy: Will do the Gradescope homework (y), fix participant bugs, and the CATME survey. No roadblocks.
 
-Yiheng: In legal court, not here.
+Yiheng: In legal court, not here. W.
 
-Charlie: 
+Charlie: Reviewed some PR. Made some issues on the Kanban board. Work on your item page. Roadblock: CS130B exam
 
-Ken: 
+Ken: Init the repo with dev-related stuff that was discussed on Sunday. Will integrate the LLM to extract ORC output text. Blocker: OCR pipeline.
 
-Edward: 
+Edward: Did Gradescope homework, worked on QR code scanning (and will continue working on it).
 
 
 Example: Did nothing. Will work on lab02, identify issue to work on. No roadblocks.
