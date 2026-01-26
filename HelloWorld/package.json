@@ -9,8 +9,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "format": "npx prettier -c .",
-    "format:fix": "npx prettier -w ."
+    "format": "npx prettier -c './**/*.{js,ts,jsx,tsx}'",
+    "format:fix": "npx prettier -w './**/*.{js,ts,jsx,tsx}'"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
