@@ -1,20 +1,14 @@
-import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
-import React, { useState } from "react";
-import {
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function CameraScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [extractedText, setExtractedText] = useState<string | null>(null);
   const openCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") return;
+    if (status !== 'granted') return;
     const mediaTypes: ImagePicker.MediaType[] = ['images'];
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes,
@@ -30,9 +24,7 @@ export default function CameraScreen() {
     <View style={styles.container}>
       <View style={styles.card}>
         <Text style={styles.title}>Take a Photo</Text>
-        <Text style={styles.subtitle}>
-          Use your camera to capture an image
-        </Text>
+        <Text style={styles.subtitle}>Use your camera to capture an image</Text>
 
         <TouchableOpacity style={styles.primaryButton} onPress={openCamera}>
           <Text style={styles.primaryText}>Open Camera</Text>
@@ -52,30 +44,29 @@ export default function CameraScreen() {
             {imageUri}
           </Text>
         </View>
-      )
-      }
+      )}
       <TouchableOpacity
         style={styles.secondaryButton}
         onPress={() => router.push('../Receipt_Room_Page')}
       >
         <Text style={styles.secondaryText}>Next</Text>
       </TouchableOpacity>
-    </View >
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
-    justifyContent: "center",
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
     padding: 20,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 24,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 4,
@@ -83,52 +74,51 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: "600",
+    fontWeight: '600',
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: "#64748B",
+    color: '#64748B',
     marginBottom: 20,
   },
   primaryButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: '#2563EB',
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: "center",
+    alignItems: 'center',
     marginBottom: 12,
   },
   primaryText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   secondaryButton: {
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: "center",
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: '#E2E8F0',
   },
   secondaryText: {
     fontSize: 16,
-    color: "#334155",
+    color: '#334155',
   },
   previewCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 12,
-    alignItems: "center",
+    alignItems: 'center',
   },
   previewImage: {
-    width: "100%",
+    width: '100%',
     height: 200,
     borderRadius: 12,
     marginBottom: 8,
   },
   uriText: {
     fontSize: 12,
-    color: "#64748B",
+    color: '#64748B',
   },
 });
-
