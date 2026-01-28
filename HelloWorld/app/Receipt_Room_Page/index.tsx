@@ -10,6 +10,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Participant from '../../components/Participant';
 
 interface NativeThemeColorType {
@@ -96,7 +97,7 @@ export default function ReceiptRoomScreen() {
   const regularItems = receiptItems.filter((item) => item.id !== 'tax');
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Middle part - scrollable receipt items */}
       <ScrollView
         style={styles.itemsContainer}
@@ -150,7 +151,7 @@ export default function ReceiptRoomScreen() {
         onPress={() => router.push('../Your_Items_Page')}
       />
       <Button title='Close Room' onPress={() => router.push('../Home_Page')} />
-    </View>
+    </SafeAreaView>
   );
 }
 
