@@ -2,7 +2,14 @@ import { useTheme } from '@react-navigation/native';
 import { ReceiptItem, ReceiptItemType } from '@/components/Item';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Button, StyleSheet, View, Text, ScrollView, TouchableOpacity } from "react-native";
+import {
+  Button,
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
 import Participant from '../../components/Participant';
 
 interface NativeThemeColorType {
@@ -21,11 +28,10 @@ export default function ReceiptRoomScreen() {
 
   const [participants, setParticipants] = useState<number[]>([]);
 
-
   const addParticipant = () => {
     const newID = participants.length + 1;
     setParticipants([...participants, newID]);
-    };
+  };
 
   /**---------------- QR Code ---------------- */
   const [roomId] = useState(() => {
@@ -37,11 +43,10 @@ export default function ReceiptRoomScreen() {
     return Math.random().toString(36).substring(2, 9);
   });
 
-
   /**---------------- Receipt Items ---------------- */
   // Lift state up from AppScreen so it persists across navigation
   const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>([
-    { id: '1', name: 'Burger', price: '12.99', userTags: [] }
+    { id: '1', name: 'Burger', price: '12.99', userTags: [] },
   ]);
 
   const addReceiptItem = () => {
@@ -52,45 +57,51 @@ export default function ReceiptRoomScreen() {
       userTags: [],
     };
     // Insert before tax item
-    const taxIndex = receiptItems.findIndex(item => item.id === 'tax');
+    const taxIndex = receiptItems.findIndex((item) => item.id === 'tax');
     if (taxIndex !== -1) {
       const newItems = [...receiptItems];
       newItems.splice(taxIndex, 0, newItem);
       setReceiptItems(newItems);
-    }
-    else {
+    } else {
       setReceiptItems([...receiptItems, newItem]);
     }
   };
 
   const updateReceiptItem = (id: string, updates: Partial<ReceiptItemType>) => {
-    setReceiptItems(receiptItems.map(item =>
-      item.id === id ? { ...item, ...updates } : item
-    ));
+    setReceiptItems(
+      receiptItems.map((item) =>
+        item.id === id ? { ...item, ...updates } : item,
+      ),
+    );
   };
 
   const deleteReceiptItem = (id: string) => {
-    setReceiptItems(receiptItems.filter(item => item.id !== id));
+    setReceiptItems(receiptItems.filter((item) => item.id !== id));
   };
 
   const removeItemFromUser = (itemId: string, userIndex: number) => {
-    setReceiptItems(receiptItems.map(item => {
-      if (item.id === itemId) {
-        return { ...item, userTags: item.userTags?.filter(tag => tag !== userIndex) };
-      }
-      return item;
-    }));
+    setReceiptItems(
+      receiptItems.map((item) => {
+        if (item.id === itemId) {
+          return {
+            ...item,
+            userTags: item.userTags?.filter((tag) => tag !== userIndex),
+          };
+        }
+        return item;
+      }),
+    );
   };
   //const taxItem = receiptItems.find(item => item.id === 'tax');
-  const regularItems = receiptItems.filter(item => item.id !== 'tax');
-
+  const regularItems = receiptItems.filter((item) => item.id !== 'tax');
 
   return (
-    <View
-      style={styles.container}>
-
+    <View style={styles.container}>
       {/* Middle part - scrollable receipt items */}
-      <ScrollView style={styles.itemsContainer} contentContainerStyle={styles.itemsContent}>
+      <ScrollView
+        style={styles.itemsContainer}
+        contentContainerStyle={styles.itemsContent}
+      >
         <View style={styles.itemsList}>
           {regularItems.map((item, index) => (
             <ReceiptItem
@@ -99,49 +110,46 @@ export default function ReceiptRoomScreen() {
               index={index}
               onUpdate={(updates) => updateReceiptItem(item.id, updates)}
               onDelete={() => deleteReceiptItem(item.id)}
-              onRemoveFromUser={(userIndex) => removeItemFromUser(item.id, userIndex)}
+              onRemoveFromUser={(userIndex) =>
+                removeItemFromUser(item.id, userIndex)
+              }
             />
           ))}
 
           <TouchableOpacity
             onPress={addReceiptItem}
             style={styles.addItemButton}
-            accessibilityLabel="Add receipt item"
+            accessibilityLabel='Add receipt item'
           >
             <Text style={styles.addItemButtonText}>➕ Add Receipt Item</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-        <ScrollView
-            horizontal = {true}
-            contentContainerStyle = {styles.participantsScrollContent}>
-            {participants.map((id) => (
-                <Participant key = {id} id = {id} />
-            ))}
-        </ScrollView>
+      <ScrollView
+        horizontal={true}
+        contentContainerStyle={styles.participantsScrollContent}
+      >
+        {participants.map((id) => (
+          <Participant key={id} id={id} />
+        ))}
+      </ScrollView>
 
-        <Button 
-            title="Add Participant"      
-            onPress = {addParticipant}
-        /> 
+      <Button title='Add Participant' onPress={addParticipant} />
 
       <Button
-        title="QR"
+        title='QR'
         onPress={() => router.push(`/QR_Page?roomId=${roomId}`)}
       />
       <Button
-        title="Settings"
+        title='Settings'
         onPress={() => router.push('../Settings_Page')}
       />
       <Button
-        title="Your Items"
+        title='Your Items'
         onPress={() => router.push('../Your_Items_Page')}
       />
-      <Button
-        title="Close Room"
-        onPress={() => router.push('../Home_Page')}
-      />
+      <Button title='Close Room' onPress={() => router.push('../Home_Page')} />
     </View>
   );
 }
@@ -224,8 +232,8 @@ const createStyles = (colors: NativeThemeColorType) =>
       color: colors.text,
     },
     participantsScrollContent: {
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        gap: 10,
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      gap: 10,
     },
   });
