@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import Participant from '../../components/Participant';
+import { DraggableView } from '@/components/draggable';
 
 interface NativeThemeColorType {
   primary: string;
@@ -134,6 +135,7 @@ export default function ReceiptRoomScreen() {
           <Participant key={id} id={id} />
         ))}
       </ScrollView>
+      <DraggableView />
 
       <Button title='Add Participant' onPress={addParticipant} />
 
