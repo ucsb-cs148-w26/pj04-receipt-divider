@@ -1,9 +1,9 @@
 // src/services/OcrService.js
 
-const GOOGLE_API_KEY = 'API'; 
-const GOOGLE_URL = `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_API_KEY}`;
-
 export const analyzeReceipt = async (base64Image) => {
+  const googleURL = new URL(process.env.GOOGLE_URL);
+  googleURL.searchParams.set("key", process.env.GOOGLE_API_KEY);
+
   if (!base64Image) return [];
 
   try {
@@ -15,7 +15,7 @@ export const analyzeReceipt = async (base64Image) => {
       }],
     };
 
-    const response = await fetch(GOOGLE_URL, {
+    const response = await fetch(googleURL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
