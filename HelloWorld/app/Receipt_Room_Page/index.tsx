@@ -26,7 +26,7 @@ export const ITEMCONTAINERPADDING = 16;
 
 interface DragState {
   isDragging: boolean;
-  itemId: string | null;
+  itemId: number | null;
   initialPosition: { x: number; y: number } | null;
   isOverParticipant: boolean;
 }
@@ -57,7 +57,7 @@ export default function ReceiptRoomScreen() {
   };
 
   /**---------------- Drag Functions ---------------- */
-  const handleItemDragStart = (itemId: string, initialPosition?: { x: number; y: number }) => {
+  const handleItemDragStart = (itemId: number, initialPosition?: { x: number; y: number }) => {
     setDragState({
       isDragging: true,
       itemId,
@@ -94,29 +94,22 @@ export default function ReceiptRoomScreen() {
   /**---------------- Receipt Items State ---------------- */
   // Lift state up from AppScreen so it persists across navigation
   const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>([
-    { id: '1', name: 'Burger', price: '12.99', userTags: [] },
+    { id: 1, name: 'Burger', price: '12.99', userTags: [] },
   ]);
 
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
     const newItem: ReceiptItemType = {
-      id: Date.now().toString(),
+      id: receiptItems.length + 1,
       name: '',
       price: '',
       userTags: [],
     };
-    // Insert before tax item
-    const taxIndex = receiptItems.findIndex((item) => item.id === 'tax');
-    if (taxIndex !== -1) {
-      const newItems = [...receiptItems];
-      newItems.splice(taxIndex, 0, newItem);
-      setReceiptItems(newItems);
-    } else {
-      setReceiptItems([...receiptItems, newItem]);
-    }
+    setReceiptItems([...receiptItems, newItem]);
+    console.log('All receipt items:', receiptItems)
   };
 
-  const updateReceiptItem = (id: string, updates: Partial<ReceiptItemType>) => {
+  const updateReceiptItem = (id: number, updates: Partial<ReceiptItemType>) => {
     setReceiptItems(
       receiptItems.map((item) =>
         item.id === id ? { ...item, ...updates } : item,
@@ -124,11 +117,11 @@ export default function ReceiptRoomScreen() {
     );
   };
 
-  const deleteReceiptItem = (id: string) => {
+  const deleteReceiptItem = (id: number) => {
     setReceiptItems(receiptItems.filter((item) => item.id !== id));
   };
 
-  const removeItemFromUser = (itemId: string, userIndex: number) => {
+  const removeItemFromUser = (itemId: number, userIndex: number) => {
     setReceiptItems(
       receiptItems.map((item) => {
         if (item.id === itemId) {
@@ -141,8 +134,6 @@ export default function ReceiptRoomScreen() {
       }),
     );
   };
-  //const taxItem = receiptItems.find(item => item.id === 'tax');
-  const regularItems = receiptItems.filter((item) => item.id !== 'tax');
 
   /**---------------- Render ---------------- */
   return (
@@ -176,11 +167,10 @@ export default function ReceiptRoomScreen() {
           scrollEnabled={!dragState.isDragging}
         >
           <View style={styles.itemsList}>
-            {regularItems.map((item, index) => (
+            {receiptItems.map((item) => (
               <ReceiptItem
                 key={item.id}
                 item={item}
-                index={index}
                 onUpdate={(updates) => updateReceiptItem(item.id, updates)}
                 onDelete={() => deleteReceiptItem(item.id)}
                 onRemoveFromUser={(userIndex) =>
@@ -209,10 +199,9 @@ export default function ReceiptRoomScreen() {
 
       <View style={styles.overlayContainer}>
       {/* Dragged item overlay - rendered at root level */}
-      {dragState.itemId && dragState.initialPosition && regularItems.find(item => item.id === dragState.itemId) && (
+      {dragState.itemId && dragState.initialPosition && receiptItems.find(item => item.id === dragState.itemId) && (
         <ReceiptItem
-          item={regularItems.find(item => item.id === dragState.itemId)!}
-          index={-1}
+          item={receiptItems.find(item => item.id === dragState.itemId)!}
           onUpdate={(updates) => updateReceiptItem(dragState.itemId!, updates)}
           onDelete={() => {}}
           onRemoveFromUser={(userIndex) =>

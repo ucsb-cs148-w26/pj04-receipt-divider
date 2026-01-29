@@ -38,7 +38,7 @@ interface NativeThemeColorType {
 }
 
 export interface ReceiptItemType {
-  id: string;
+  id: number;
   name: string;
   price: string;
   userTags?: number[]; // Array of user indices that have this item in their basket
@@ -49,7 +49,7 @@ export interface ReceiptItemType {
 interface DragProps {
   participantLayouts?: Record<number, LayoutRectangle>;
   scrollOffset?: number;
-  onDragStart?: (itemId?: string, initialPosition?: { x: number; y: number }) => void;
+  onDragStart?: (itemId?: number, initialPosition?: { x: number; y: number }) => void;
   onDragEnd?: () => void;
   isDragging?: boolean;
   isDraggingOverlay?: boolean;
@@ -76,7 +76,6 @@ interface UIState {
 interface ReceiptItemProps extends DragProps {
   /** Core item data */
   item: ReceiptItemType;
-  index: number;
   
   /** Item update callbacks */
   onUpdate: (updates: {
@@ -92,7 +91,6 @@ interface ReceiptItemProps extends DragProps {
 export function ReceiptItem({
   // Core item data
   item,
-  index,
   // Item update callbacks
   onUpdate,
   onDelete,
