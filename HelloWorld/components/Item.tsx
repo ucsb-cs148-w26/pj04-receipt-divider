@@ -45,23 +45,8 @@ export interface ReceiptItemType {
   discount?: string; // Optional discount amount
 }
 
-interface ReceiptItemProps {
-  item: {
-    id: string;
-    name: string;
-    price: string;
-    userTags?: number[];
-    discount?: string;
-  };
-  index: number;
-  onUpdate: (updates: {
-    name?: string;
-    price?: string;
-    discount?: string;
-    userTags?: number[];
-  }) => void;
-  onDelete: () => void;
-  onRemoveFromUser: (userIndex: number) => void;
+/** Drag-related props grouped together */
+interface DragProps {
   participantLayouts?: Record<number, LayoutRectangle>;
   scrollOffset?: number;
   onDragStart?: (itemId?: string, initialPosition?: { x: number; y: number }) => void;
@@ -74,12 +59,45 @@ interface ReceiptItemProps {
   isInParticipantBoundsProp?: boolean;
 }
 
+/** Internal drag state */
+interface DragState {
+  isDragging: boolean;
+  isInParticipantBounds: boolean;
+  currentPosition: { x: number; y: number };
+}
+
+/** Internal UI state */
+interface UIState {
+  showDiscount: boolean;
+  isHovering: boolean;
+  newlyAddedTags: Set<number>;
+}
+
+interface ReceiptItemProps extends DragProps {
+  /** Core item data */
+  item: ReceiptItemType;
+  index: number;
+  
+  /** Item update callbacks */
+  onUpdate: (updates: {
+    name?: string;
+    price?: string;
+    discount?: string;
+    userTags?: number[];
+  }) => void;
+  onDelete: () => void;
+  onRemoveFromUser: (userIndex: number) => void;
+}
+
 export function ReceiptItem({
+  // Core item data
   item,
   index,
+  // Item update callbacks
   onUpdate,
   onDelete,
   onRemoveFromUser,
+  // Drag props
   participantLayouts = {},
   scrollOffset = 0,
   onDragStart,
@@ -91,17 +109,26 @@ export function ReceiptItem({
   onParticipantBoundsChange,
   isInParticipantBoundsProp,
 }: ReceiptItemProps) {
+  
+  /** ---------------- Theme ---------------- */
   const { colors, dark } = useTheme();
   const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
-  const [showDiscount, setShowDiscount] = useState(
-    !!item.discount && parseFloat(item.discount) > 0,
-  );
-  const [isHovering, setIsHovering] = useState(false);
-  const [newlyAddedTags, setNewlyAddedTags] = useState<Set<number>>(new Set());
+
+  /** ---------------- UI State ---------------- */
+  const [uiState, setUIState] = useState<UIState>({
+    showDiscount: !!item.discount && parseFloat(item.discount) > 0,
+    isHovering: false,
+    newlyAddedTags: new Set(),
+  });
   
-  // Drag state
-  const [isDragging, setIsDragging] = useState(false);
-  const [isInParticipantBoundsLocal, setIsInParticipantBoundsLocal] = useState(false);
+  /** ---------------- Drag State ---------------- */
+  const [dragState, setDragState] = useState<DragState>({
+    isDragging: false,
+    isInParticipantBounds: false,
+    currentPosition: { x: 0, y: 0 },
+  });
+
+  /** ---------------- Drag Refs ---------------- */
   // Create local pan first (always)
   const localPan = useRef(new Animated.ValueXY()).current;
   // Use external pan if provided (for overlay), otherwise use local pan
@@ -109,12 +136,18 @@ export function ReceiptItem({
   // Keep a ref to current pan so panResponder can access it
   const panRef = useRef(pan);
   panRef.current = pan;
-  const currentPositionRef = useRef({ x: 0, y: 0 });
   const viewRef = useRef<View>(null);
 
+  /** ---------------- Computed Values ---------------- */
   // Sort user tags in increasing order
   const sortedUserTags = item.userTags ? [...item.userTags].sort((a, b) => a - b) : [];
+  // Use prop for overlay, local state for original
+  const inParticipantBounds = isInParticipantBoundsProp !== undefined 
+    ? isInParticipantBoundsProp 
+    : dragState.isInParticipantBounds;
+  const isCurrentlyDragging = dragState.isDragging || isDraggingProp;
 
+  /** ---------------- Collision Detection ---------------- */
   const checkParticipantCollision = (x: number, y: number): number | null => {
     const draggableSize = 150;
 
@@ -139,14 +172,15 @@ export function ReceiptItem({
     return null;
   };
 
+  /** ---------------- Pan Responder ---------------- */
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponderCapture: () => isDragging,
+      onMoveShouldSetPanResponderCapture: () => dragState.isDragging,
       onPanResponderGrant: (e, gestureState) => {
-        setIsDragging(true);
+        setDragState(prev => ({ ...prev, isDragging: true }));
         // Measure the view's position and pass it to parent
         if (viewRef.current) {
           viewRef.current.measureInWindow((x, y, width, height) => {
@@ -163,15 +197,18 @@ export function ReceiptItem({
         const x = gestureState.x0 + gestureState.dx;
         const y = gestureState.y0 + gestureState.dy;
         
-        currentPositionRef.current = { x, y };
+        setDragState(prev => ({ ...prev, currentPosition: { x, y } }));
 
         const participantId = checkParticipantCollision(x, y);
         const inBounds = participantId !== null;
-        setIsInParticipantBoundsLocal(inBounds);
+        setDragState(prev => ({ ...prev, isInParticipantBounds: inBounds }));
         onParticipantBoundsChange?.(inBounds);
       },
       onPanResponderRelease: () => {
-        const participantId = checkParticipantCollision(currentPositionRef.current.x, currentPositionRef.current.y);
+        const participantId = checkParticipantCollision(
+          dragState.currentPosition.x, 
+          dragState.currentPosition.y
+        );
         
         if (participantId !== null) {
           // Add participant to userTags if not already there
@@ -182,8 +219,11 @@ export function ReceiptItem({
           }
         }
 
-        setIsDragging(false);
-        setIsInParticipantBoundsLocal(false);
+        setDragState({
+          isDragging: false,
+          isInParticipantBounds: false,
+          currentPosition: { x: 0, y: 0 },
+        });
         onDragEnd?.();
         
         Animated.spring(
@@ -194,33 +234,35 @@ export function ReceiptItem({
     })
   ).current;
 
+  /** ---------------- Input Handlers ---------------- */
   const handlePriceChange = (value: string) => {
     const numericValue = value.replace(/[^\d.]/g, '');
-    if (onUpdate) {
-      onUpdate({ price: numericValue });
-    }
+    onUpdate?.({ price: numericValue });
   };
 
   const handleDiscountChange = (value: string) => {
     const numericValue = value.replace(/[^\d.]/g, '');
-    if (onUpdate) {
-      onUpdate({ discount: numericValue });
-    }
+    onUpdate?.({ discount: numericValue });
   };
 
   const handleDiscountBlur = () => {
     const discountValue = parseFloat(item.discount || '0');
     if (discountValue <= 0 || !item.discount) {
-      setShowDiscount(false);
-      if (onUpdate) {
-        onUpdate({ discount: undefined });
-      }
+      setUIState(prev => ({ ...prev, showDiscount: false }));
+      onUpdate?.({ discount: undefined });
     }
   };
 
-  // Use prop for overlay, local state for original
-  const inParticipantBounds = isInParticipantBoundsProp !== undefined ? isInParticipantBoundsProp : isInParticipantBoundsLocal;
+  /** ---------------- UI State Handlers ---------------- */
+  const setShowDiscount = (show: boolean) => {
+    setUIState(prev => ({ ...prev, showDiscount: show }));
+  };
 
+  const setIsHovering = (hovering: boolean) => {
+    setUIState(prev => ({ ...prev, isHovering: hovering }));
+  };
+
+  /** ---------------- Render ---------------- */
   return (
     <Animated.View
       ref={viewRef}
@@ -232,18 +274,18 @@ export function ReceiptItem({
           left: initialPosition.x,
         },
         {
-          transform: (isDragging || isDraggingProp) ? pan.getTranslateTransform() : [],
-          width: (isDragging || isDraggingProp) && inParticipantBounds ? 150 : 'auto',
-          height: (isDragging || isDraggingProp) && inParticipantBounds ? 150 : 'auto',
-          zIndex: (isDragging || isDraggingProp) ? 9999 : 0,
-          elevation: (isDragging || isDraggingProp) ? 9999 : 0,
+          transform: isCurrentlyDragging ? pan.getTranslateTransform() : [],
+          width: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
+          height: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
+          zIndex: isCurrentlyDragging ? 9999 : 0,
+          elevation: isCurrentlyDragging ? 9999 : 0,
         },
       ]}
     >
       <Pressable
         style={[
-          (isDragging || isDraggingProp) && inParticipantBounds ? styles.containerShrunk : styles.container,
-          isHovering && !(isDragging || isDraggingProp) && styles.containerHover,
+          isCurrentlyDragging && inParticipantBounds ? styles.containerShrunk : styles.container,
+          uiState.isHovering && !isCurrentlyDragging && styles.containerHover,
         ]}
         onHoverIn={() => setIsHovering(true)}
         onHoverOut={() => setIsHovering(false)}
@@ -294,7 +336,7 @@ export function ReceiptItem({
           </View>
 
           {/* Discount section - right justified */}
-          {showDiscount ? (
+          {uiState.showDiscount ? (
             <View style={styles.discountContainer}>
               <Text style={styles.discountLabel}>Discount:</Text>
               <Text style={styles.discountDollar}>$</Text>
@@ -309,9 +351,7 @@ export function ReceiptItem({
             </View>
           ) : (
             <TouchableOpacity
-              onPress={() => {
-                setShowDiscount(true);
-              }}
+              onPress={() => setShowDiscount(true)}
               style={styles.addDiscountButton}
               accessibilityLabel='Add discount'
             >
@@ -323,22 +363,22 @@ export function ReceiptItem({
 
       {/* User tags - positioned at bottom extending below box */}
       {sortedUserTags.length > 0 && (
-                <View style={styles.userTagsContainer}>
-                    {sortedUserTags.map((userIndex) => {
-                        const color = USER_COLORS[(userIndex - 1) % USER_COLORS.length];
-                        const isNewlyAdded = newlyAddedTags.has(userIndex) && (item.userTags?.includes(userIndex)??false);
-                        return (
-                            <UserTag
-                                key={userIndex}
-                                userIndex={userIndex}
-                                color={color}
-                                onRemove={() => onRemoveFromUser && onRemoveFromUser(userIndex)}
-                                isNewlyAdded={isNewlyAdded}
-                            />
-                        );
-                    })}
-                </View>
-            )}
+        <View style={styles.userTagsContainer}>
+          {sortedUserTags.map((userIndex) => {
+            const color = USER_COLORS[(userIndex - 1) % USER_COLORS.length];
+            const isNewlyAdded = uiState.newlyAddedTags.has(userIndex) && (item.userTags?.includes(userIndex) ?? false);
+            return (
+              <UserTag
+                key={userIndex}
+                userIndex={userIndex}
+                color={color}
+                onRemove={() => onRemoveFromUser?.(userIndex)}
+                isNewlyAdded={isNewlyAdded}
+              />
+            );
+          })}
+        </View>
+      )}
       </Pressable>
     </Animated.View>
   );
