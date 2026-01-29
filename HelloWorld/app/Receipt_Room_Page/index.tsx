@@ -24,41 +24,64 @@ interface NativeThemeColorType {
 }
 export const ITEMCONTAINERPADDING = 16;
 
+interface DragState {
+  isDragging: boolean;
+  itemId: string | null;
+  initialPosition: { x: number; y: number } | null;
+  isOverParticipant: boolean;
+}
+
 export default function ReceiptRoomScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams();
 
+  /**---------------- Participants State ---------------- */
   const [participants, setParticipants] = useState<number[]>([]);
   const participantLayouts = useRef<Record<number, LayoutRectangle>>({});
   const [scrollOffset, setScrollOffset] = useState(0);
-  const [isDraggingItem, setIsDraggingItem] = useState(false);
-  const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
-  const [dragInitialPosition, setDragInitialPosition] = useState<{ x: number; y: number } | null>(null);
-  const [isOverParticipant, setIsOverParticipant] = useState(false);
+
+  /**---------------- Drag State ---------------- */
+  const [dragState, setDragState] = useState<DragState>({
+    isDragging: false,
+    itemId: null,
+    initialPosition: null,
+    isOverParticipant: false,
+  });
   const dragPan = useRef(new Animated.ValueXY()).current;
 
+  /**---------------- Participants Functions ---------------- */
   const addParticipant = () => {
     const newID = participants.length + 1;
     setParticipants([...participants, newID]);
   };
 
+  /**---------------- Drag Functions ---------------- */
   const handleItemDragStart = (itemId: string, initialPosition?: { x: number; y: number }) => {
-    setIsDraggingItem(true);
-    setDraggingItemId(itemId);
-    setDragInitialPosition(initialPosition || null);
+    setDragState({
+      isDragging: true,
+      itemId,
+      initialPosition: initialPosition || null,
+      isOverParticipant: false,
+    });
     dragPan.setValue({ x: 0, y: 0 });
   };
 
   const handleItemDragEnd = () => {
-    setIsDraggingItem(false);
-    setDraggingItemId(null);
-    setDragInitialPosition(null);
-    setIsOverParticipant(false);
+    setDragState({
+      isDragging: false,
+      itemId: null,
+      initialPosition: null,
+      isOverParticipant: false,
+    });
     Animated.spring(dragPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
   };
 
-  /**---------------- QR Code ---------------- */
+  const handleParticipantBoundsChange = (isOverParticipant: boolean) => {
+    setDragState(prev => ({ ...prev, isOverParticipant }));
+  };
+
+  /**---------------- QR Code State ---------------- */
   const [roomId] = useState(() => {
     // Check if room ID was passed in URL (i.e. from QR code scan to join a receipt room)
     if (params.roomId && typeof params.roomId === 'string') {
@@ -68,12 +91,13 @@ export default function ReceiptRoomScreen() {
     return Math.random().toString(36).substring(2, 9);
   });
 
-  /**---------------- Receipt Items ---------------- */
+  /**---------------- Receipt Items State ---------------- */
   // Lift state up from AppScreen so it persists across navigation
   const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>([
     { id: '1', name: 'Burger', price: '12.99', userTags: [] },
   ]);
 
+  /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
     const newItem: ReceiptItemType = {
       id: Date.now().toString(),
@@ -120,6 +144,7 @@ export default function ReceiptRoomScreen() {
   //const taxItem = receiptItems.find(item => item.id === 'tax');
   const regularItems = receiptItems.filter((item) => item.id !== 'tax');
 
+  /**---------------- Render ---------------- */
   return (
     <View style={styles.container}>
       <View style={styles.scrollArea}>
@@ -148,7 +173,7 @@ export default function ReceiptRoomScreen() {
         <ScrollView
           style={styles.itemsContainer}
           contentContainerStyle={styles.itemsContent}
-          scrollEnabled={!isDraggingItem}
+          scrollEnabled={!dragState.isDragging}
         >
           <View style={styles.itemsList}>
             {regularItems.map((item, index) => (
@@ -165,9 +190,9 @@ export default function ReceiptRoomScreen() {
                 scrollOffset={scrollOffset}
                 onDragStart={(itemId, initialPosition) => handleItemDragStart(item.id, initialPosition)}
                 onDragEnd={handleItemDragEnd}
-                isDragging={draggingItemId === item.id}
-                dragPan={draggingItemId === item.id ? dragPan : undefined}
-                onParticipantBoundsChange={setIsOverParticipant}
+                isDragging={dragState.itemId === item.id}
+                dragPan={dragState.itemId === item.id ? dragPan : undefined}
+                onParticipantBoundsChange={handleParticipantBoundsChange}
               />
             ))}
 
@@ -184,14 +209,14 @@ export default function ReceiptRoomScreen() {
 
       <View style={styles.overlayContainer}>
       {/* Dragged item overlay - rendered at root level */}
-      {draggingItemId && dragInitialPosition && regularItems.find(item => item.id === draggingItemId) && (
+      {dragState.itemId && dragState.initialPosition && regularItems.find(item => item.id === dragState.itemId) && (
         <ReceiptItem
-          item={regularItems.find(item => item.id === draggingItemId)!}
+          item={regularItems.find(item => item.id === dragState.itemId)!}
           index={-1}
-          onUpdate={(updates) => updateReceiptItem(draggingItemId, updates)}
+          onUpdate={(updates) => updateReceiptItem(dragState.itemId!, updates)}
           onDelete={() => {}}
           onRemoveFromUser={(userIndex) =>
-            removeItemFromUser(draggingItemId, userIndex)
+            removeItemFromUser(dragState.itemId!, userIndex)
           }
           participantLayouts={participantLayouts.current}
           scrollOffset={scrollOffset}
@@ -200,8 +225,8 @@ export default function ReceiptRoomScreen() {
           isDragging={true}
           isDraggingOverlay={true}
           dragPan={dragPan}
-          initialPosition={{x: dragInitialPosition.x-ITEMCONTAINERPADDING, y: dragInitialPosition.y-ITEMCONTAINERPADDING}}
-          isInParticipantBoundsProp={isOverParticipant}
+          initialPosition={{x: dragState.initialPosition.x-ITEMCONTAINERPADDING, y: dragState.initialPosition.y-ITEMCONTAINERPADDING}}
+          isInParticipantBoundsProp={dragState.isOverParticipant}
         />
       )}
       </View>
