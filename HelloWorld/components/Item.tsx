@@ -1,5 +1,5 @@
 import { useTheme } from '@react-navigation/native';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,21 +7,26 @@ import {
   TouchableOpacity,
   StyleSheet,
   Pressable,
+  Animated,
+  PanResponder,
+  LayoutRectangle,
 } from 'react-native';
+import UserTag from './user-tags';
+import { ITEMCONTAINERPADDING } from '@/app/Receipt_Room_Page';
 //import { USER_COLORS } from '@/app/components/AppScreen';
 
-// const USER_COLORS = [
-//   '#60a5fa',     // blue-400
-//   '#f87171',     // red-400
-//   '#4ade80',     // green-400
-//   '#fbbf24',     // yellow-400
-//   '#a78bfa',     // purple-400
-//   '#f472b6',     // pink-400
-//   '#818cf8',     // indigo-400
-//   '#fb923c',     // orange-400
-//   '#2dd4bf',     // teal-400
-//   '#22d3ee',     // cyan-400
-// ];
+const USER_COLORS = [
+  '#60a5fa',     // blue-400
+  '#f87171',     // red-400
+  '#4ade80',     // green-400
+  '#fbbf24',     // yellow-400
+  '#a78bfa',     // purple-400
+  '#f472b6',     // pink-400
+  '#818cf8',     // indigo-400
+  '#fb923c',     // orange-400
+  '#2dd4bf',     // teal-400
+  '#22d3ee',     // cyan-400
+];
 
 interface NativeThemeColorType {
   primary: string;
@@ -53,9 +58,20 @@ interface ReceiptItemProps {
     name?: string;
     price?: string;
     discount?: string;
+    userTags?: number[];
   }) => void;
   onDelete: () => void;
   onRemoveFromUser: (userIndex: number) => void;
+  participantLayouts?: Record<number, LayoutRectangle>;
+  scrollOffset?: number;
+  onDragStart?: (itemId?: string, initialPosition?: { x: number; y: number }) => void;
+  onDragEnd?: () => void;
+  isDragging?: boolean;
+  isDraggingOverlay?: boolean;
+  dragPan?: Animated.ValueXY;
+  initialPosition?: { x: number; y: number };
+  onParticipantBoundsChange?: (isInBounds: boolean) => void;
+  isInParticipantBoundsProp?: boolean;
 }
 
 export function ReceiptItem({
@@ -64,6 +80,16 @@ export function ReceiptItem({
   onUpdate,
   onDelete,
   onRemoveFromUser,
+  participantLayouts = {},
+  scrollOffset = 0,
+  onDragStart,
+  onDragEnd,
+  isDragging: isDraggingProp,
+  isDraggingOverlay,
+  dragPan: externalDragPan,
+  initialPosition,
+  onParticipantBoundsChange,
+  isInParticipantBoundsProp,
 }: ReceiptItemProps) {
   const { colors, dark } = useTheme();
   const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
@@ -71,11 +97,102 @@ export function ReceiptItem({
     !!item.discount && parseFloat(item.discount) > 0,
   );
   const [isHovering, setIsHovering] = useState(false);
-  //const [canDrag, setCanDrag] = useState(false);
-  //const [newlyAddedTags, setNewlyAddedTags] = useState<Set<number>>(new Set());
+  const [newlyAddedTags, setNewlyAddedTags] = useState<Set<number>>(new Set());
+  
+  // Drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const [isInParticipantBoundsLocal, setIsInParticipantBoundsLocal] = useState(false);
+  // Create local pan first (always)
+  const localPan = useRef(new Animated.ValueXY()).current;
+  // Use external pan if provided (for overlay), otherwise use local pan
+  const pan = externalDragPan || localPan;
+  // Keep a ref to current pan so panResponder can access it
+  const panRef = useRef(pan);
+  panRef.current = pan;
+  const currentPositionRef = useRef({ x: 0, y: 0 });
+  const viewRef = useRef<View>(null);
 
   // Sort user tags in increasing order
-  //const sortedUserTags = item.userTags ? [...item.userTags].sort((a, b) => a - b) : [];
+  const sortedUserTags = item.userTags ? [...item.userTags].sort((a, b) => a - b) : [];
+
+  const checkParticipantCollision = (x: number, y: number): number | null => {
+    const draggableSize = 150;
+
+    for (const [idStr, layout] of Object.entries(participantLayouts)) {
+      const id = Number(idStr);
+      
+      const adjustedLayout = {
+        ...layout,
+        x: layout.x - scrollOffset,
+      };
+
+      if (
+        x + draggableSize >= adjustedLayout.x &&
+        x <= adjustedLayout.x + adjustedLayout.width &&
+        y + draggableSize >= adjustedLayout.y &&
+        y <= adjustedLayout.y + adjustedLayout.height
+      ) {
+        return id;
+      }
+    }
+    
+    return null;
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => isDragging,
+      onPanResponderGrant: (e, gestureState) => {
+        setIsDragging(true);
+        // Measure the view's position and pass it to parent
+        if (viewRef.current) {
+          viewRef.current.measureInWindow((x, y, width, height) => {
+            onDragStart?.(item.id, { x, y });
+          });
+        } else {
+          onDragStart?.(item.id, { x: gestureState.x0, y: gestureState.y0 });
+        }
+      },
+      onPanResponderMove: (e, gestureState) => {
+        // Use panRef.current to get the current pan value
+        panRef.current.setValue({ x: gestureState.dx, y: gestureState.dy });
+        
+        const x = gestureState.x0 + gestureState.dx;
+        const y = gestureState.y0 + gestureState.dy;
+        
+        currentPositionRef.current = { x, y };
+
+        const participantId = checkParticipantCollision(x, y);
+        const inBounds = participantId !== null;
+        setIsInParticipantBoundsLocal(inBounds);
+        onParticipantBoundsChange?.(inBounds);
+      },
+      onPanResponderRelease: () => {
+        const participantId = checkParticipantCollision(currentPositionRef.current.x, currentPositionRef.current.y);
+        
+        if (participantId !== null) {
+          // Add participant to userTags if not already there
+          const updatedTags = item.userTags ? [...item.userTags] : [];
+          if (!updatedTags.includes(participantId)) {
+            updatedTags.push(participantId);
+            onUpdate({ userTags: updatedTags });
+          }
+        }
+
+        setIsDragging(false);
+        setIsInParticipantBoundsLocal(false);
+        onDragEnd?.();
+        
+        Animated.spring(
+          panRef.current,
+          { toValue: { x: 0, y: 0 }, useNativeDriver: false },
+        ).start();
+      },
+    })
+  ).current;
 
   const handlePriceChange = (value: string) => {
     const numericValue = value.replace(/[^\d.]/g, '');
@@ -101,14 +218,39 @@ export function ReceiptItem({
     }
   };
 
+  // Use prop for overlay, local state for original
+  const inParticipantBounds = isInParticipantBoundsProp !== undefined ? isInParticipantBoundsProp : isInParticipantBoundsLocal;
+
   return (
-    <Pressable
-      style={[styles.container, isHovering && styles.containerHover]}
-      onHoverIn={() => setIsHovering(true)}
-      onHoverOut={() => setIsHovering(false)}
-      onPressIn={() => setIsHovering(true)}
-      onPressOut={() => setIsHovering(false)}
+    <Animated.View
+      ref={viewRef}
+      {...panResponder.panHandlers}
+      style={[
+        isDraggingOverlay && styles.draggingOverlay,
+        isDraggingOverlay && initialPosition && {
+          top: initialPosition.y,
+          left: initialPosition.x,
+        },
+        {
+          transform: (isDragging || isDraggingProp) ? pan.getTranslateTransform() : [],
+          width: (isDragging || isDraggingProp) && inParticipantBounds ? 150 : 'auto',
+          height: (isDragging || isDraggingProp) && inParticipantBounds ? 150 : 'auto',
+          zIndex: (isDragging || isDraggingProp) ? 9999 : 0,
+          elevation: (isDragging || isDraggingProp) ? 9999 : 0,
+        },
+      ]}
     >
+      <Pressable
+        style={[
+          (isDragging || isDraggingProp) && inParticipantBounds ? styles.containerShrunk : styles.container,
+          isHovering && !(isDragging || isDraggingProp) && styles.containerHover,
+        ]}
+        onHoverIn={() => setIsHovering(true)}
+        onHoverOut={() => setIsHovering(false)}
+        onPressIn={() => setIsHovering(true)}
+        onPressOut={() => setIsHovering(false)}
+        {...panResponder.panHandlers}
+      >
       <View style={styles.header}>
         <View style={styles.leftSection}>
           {
@@ -180,7 +322,7 @@ export function ReceiptItem({
       </View>
 
       {/* User tags - positioned at bottom extending below box */}
-      {/* {sortedUserTags.length > 0 && (
+      {sortedUserTags.length > 0 && (
                 <View style={styles.userTagsContainer}>
                     {sortedUserTags.map((userIndex) => {
                         const color = USER_COLORS[(userIndex - 1) % USER_COLORS.length];
@@ -196,48 +338,22 @@ export function ReceiptItem({
                         );
                     })}
                 </View>
-            )} */}
-    </Pressable>
+            )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
-// Separate component for user tags with hover state
-// function UserTag({
-//     userIndex,
-//     color,
-//     onRemove,
-//     isNewlyAdded
-// }: {
-//     userIndex: number;
-//     color: string;
-//     onRemove: () => void;
-//     isNewlyAdded: boolean;
-// }) {
-//     const [isHovering, setIsHovering] = useState(false);
-
-//     return (
-//         <Pressable
-//             onPress={() => {
-//                 onRemove();
-//             }}
-//             onHoverIn={() => setIsHovering(true)}
-//             onHoverOut={() => setIsHovering(false)}
-//             onPressIn={() => setIsHovering(true)}
-//             onPressOut={() => setIsHovering(false)}
-//             style={[styles.userTag, { backgroundColor: color }, isNewlyAdded && styles.userTagNew]}
-//             accessibilityLabel={`Remove from user ${userIndex}`}
-//         >
-//             {isHovering ? (
-//                 <Text style={styles.userTagRemove}>✕</Text>
-//             ) : (
-//                 <Text style={styles.userTagText}>{userIndex}</Text>
-//             )}
-//         </Pressable>
-//     );
-// }
 
 const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
   StyleSheet.create({
+    draggingOverlay: {
+      minWidth: '100%',
+      position: 'absolute',
+      zIndex: 9999,
+      elevation: 9999,
+      padding: ITEMCONTAINERPADDING,
+    },
     container: {
       minWidth: '100%',
       backgroundColor: colors.card,
@@ -250,8 +366,30 @@ const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
       paddingBottom: 24,
       marginBottom: 8,
     },
+    containerShrunk: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 8,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
     containerHover: {
       transform: [{ scale: 1.03 }],
+    },
+    shrunkItemContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 8,
+    },
+    shrunkItemName: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: 'bold',
+      textAlign: 'center',
     },
     header: {
       flexDirection: 'row',
@@ -279,18 +417,6 @@ const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
       color: colors.text,
       fontSize: 20,
     },
-    // splitBadge: {
-    //     backgroundColor: '#e5e7eb',
-    //     paddingHorizontal: 8,
-    //     paddingVertical: 4,
-    //     borderRadius: 4,
-    //     marginTop: 4,
-    // },
-    // splitText: {
-    //     color: '#374151',
-    //     fontSize: 12,
-    //     fontWeight: 'bold',
-    // },
     nameContainer: {
       flex: 1,
       minWidth: 0,

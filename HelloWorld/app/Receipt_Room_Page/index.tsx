@@ -1,7 +1,7 @@
 import { useTheme } from '@react-navigation/native';
-import { ReceiptItem, ReceiptItemType } from '@/components/Item';
+import { ReceiptItem, ReceiptItemType } from '../../components/Item';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Button,
   StyleSheet,
@@ -9,9 +9,10 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  LayoutRectangle,
+  Animated,
 } from 'react-native';
 import Participant from '../../components/Participant';
-import { DraggableView } from '@/components/draggable';
 
 interface NativeThemeColorType {
   primary: string;
@@ -21,6 +22,7 @@ interface NativeThemeColorType {
   border: string;
   notification: string;
 }
+export const ITEMCONTAINERPADDING = 16;
 
 export default function ReceiptRoomScreen() {
   const { colors } = useTheme();
@@ -28,10 +30,32 @@ export default function ReceiptRoomScreen() {
   const params = useLocalSearchParams();
 
   const [participants, setParticipants] = useState<number[]>([]);
+  const participantLayouts = useRef<Record<number, LayoutRectangle>>({});
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const [isDraggingItem, setIsDraggingItem] = useState(false);
+  const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
+  const [dragInitialPosition, setDragInitialPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isOverParticipant, setIsOverParticipant] = useState(false);
+  const dragPan = useRef(new Animated.ValueXY()).current;
 
   const addParticipant = () => {
     const newID = participants.length + 1;
     setParticipants([...participants, newID]);
+  };
+
+  const handleItemDragStart = (itemId: string, initialPosition?: { x: number; y: number }) => {
+    setIsDraggingItem(true);
+    setDraggingItemId(itemId);
+    setDragInitialPosition(initialPosition || null);
+    dragPan.setValue({ x: 0, y: 0 });
+  };
+
+  const handleItemDragEnd = () => {
+    setIsDraggingItem(false);
+    setDraggingItemId(null);
+    setDragInitialPosition(null);
+    setIsOverParticipant(false);
+    Animated.spring(dragPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
   };
 
   /**---------------- QR Code ---------------- */
@@ -98,44 +122,89 @@ export default function ReceiptRoomScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Middle part - scrollable receipt items */}
-      <ScrollView
-        style={styles.itemsContainer}
-        contentContainerStyle={styles.itemsContent}
-      >
-        <View style={styles.itemsList}>
-          {regularItems.map((item, index) => (
-            <ReceiptItem
-              key={item.id}
-              item={item}
-              index={index}
-              onUpdate={(updates) => updateReceiptItem(item.id, updates)}
-              onDelete={() => deleteReceiptItem(item.id)}
-              onRemoveFromUser={(userIndex) =>
-                removeItemFromUser(item.id, userIndex)
-              }
-            />
+      <View style={styles.scrollArea}>
+        <ScrollView
+          horizontal={true}
+          style={styles.participantsContainer}
+          contentContainerStyle={styles.participantsScrollContent}
+          onScroll={(event) => {
+            setScrollOffset(event.nativeEvent.contentOffset.x);
+            console.log('Scroll Offset:', event.nativeEvent.contentOffset.x);
+          }}
+          scrollEventThrottle={16}
+        >
+          {participants.map((id) => (
+            <Participant 
+              key={id} 
+              id={id} 
+              onLayout={(layout) => {
+              participantLayouts.current[id] = layout;
+            }}/>
           ))}
+        </ScrollView>
 
-          <TouchableOpacity
-            onPress={addReceiptItem}
-            style={styles.addItemButton}
-            accessibilityLabel='Add receipt item'
-          >
-            <Text style={styles.addItemButtonText}>➕ Add Receipt Item</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+        
+        {/* Middle part - scrollable receipt items */}
+        <ScrollView
+          style={styles.itemsContainer}
+          contentContainerStyle={styles.itemsContent}
+          scrollEnabled={!isDraggingItem}
+        >
+          <View style={styles.itemsList}>
+            {regularItems.map((item, index) => (
+              <ReceiptItem
+                key={item.id}
+                item={item}
+                index={index}
+                onUpdate={(updates) => updateReceiptItem(item.id, updates)}
+                onDelete={() => deleteReceiptItem(item.id)}
+                onRemoveFromUser={(userIndex) =>
+                  removeItemFromUser(item.id, userIndex)
+                }
+                participantLayouts={participantLayouts.current}
+                scrollOffset={scrollOffset}
+                onDragStart={(itemId, initialPosition) => handleItemDragStart(item.id, initialPosition)}
+                onDragEnd={handleItemDragEnd}
+                isDragging={draggingItemId === item.id}
+                dragPan={draggingItemId === item.id ? dragPan : undefined}
+                onParticipantBoundsChange={setIsOverParticipant}
+              />
+            ))}
 
-      <ScrollView
-        horizontal={true}
-        contentContainerStyle={styles.participantsScrollContent}
-      >
-        {participants.map((id) => (
-          <Participant key={id} id={id} />
-        ))}
-      </ScrollView>
-      <DraggableView />
+            <TouchableOpacity
+              onPress={addReceiptItem}
+              style={styles.addItemButton}
+              accessibilityLabel='Add receipt item'
+            >
+              <Text style={styles.addItemButtonText}>➕ Add Receipt Item</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+
+      <View style={styles.overlayContainer}>
+      {/* Dragged item overlay - rendered at root level */}
+      {draggingItemId && dragInitialPosition && regularItems.find(item => item.id === draggingItemId) && (
+        <ReceiptItem
+          item={regularItems.find(item => item.id === draggingItemId)!}
+          index={-1}
+          onUpdate={(updates) => updateReceiptItem(draggingItemId, updates)}
+          onDelete={() => {}}
+          onRemoveFromUser={(userIndex) =>
+            removeItemFromUser(draggingItemId, userIndex)
+          }
+          participantLayouts={participantLayouts.current}
+          scrollOffset={scrollOffset}
+          onDragStart={() => {}}
+          onDragEnd={handleItemDragEnd}
+          isDragging={true}
+          isDraggingOverlay={true}
+          dragPan={dragPan}
+          initialPosition={{x: dragInitialPosition.x-ITEMCONTAINERPADDING, y: dragInitialPosition.y-ITEMCONTAINERPADDING}}
+          isInParticipantBoundsProp={isOverParticipant}
+        />
+      )}
+      </View>
 
       <Button title='Add Participant' onPress={addParticipant} />
 
@@ -162,6 +231,34 @@ const createStyles = (colors: NativeThemeColorType) =>
       flex: 1,
       backgroundColor: colors.background,
     },
+    scrollArea: {
+      flex: 1,
+    },
+    itemsContainer: {
+      padding: ITEMCONTAINERPADDING,
+    },
+    overlayContainer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      pointerEvents: 'box-none',
+    },
+    participantsContainer: {
+      padding: 16,
+    },
+    itemsContent: {
+      maxWidth: 800,
+      minWidth: '100%',
+      alignSelf: 'center',
+      zIndex: 1,
+    },
+    participantsScrollContent: {
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      gap: 10,
+    },
     topBar: {
       backgroundColor: colors.card,
       borderBottomWidth: 1,
@@ -178,14 +275,6 @@ const createStyles = (colors: NativeThemeColorType) =>
     topBarButtonText: {
       fontSize: 24,
       color: colors.text,
-    },
-    itemsContainer: {
-      flex: 1,
-      padding: 16,
-    },
-    itemsContent: {
-      maxWidth: 800,
-      alignSelf: 'center',
     },
     itemsList: {
       gap: 8,
@@ -205,12 +294,6 @@ const createStyles = (colors: NativeThemeColorType) =>
     addItemButtonText: {
       color: colors.text,
       fontSize: 16,
-    },
-    usersContainer: {
-      backgroundColor: colors.card,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      padding: 16,
     },
     usersContent: {
       flexDirection: 'row',
@@ -232,10 +315,5 @@ const createStyles = (colors: NativeThemeColorType) =>
     addUserButtonText: {
       fontSize: 32,
       color: colors.text,
-    },
-    participantsScrollContent: {
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      gap: 10,
-    },
+    }
   });

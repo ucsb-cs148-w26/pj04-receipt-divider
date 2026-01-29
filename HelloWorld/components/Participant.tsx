@@ -1,16 +1,26 @@
-import React from 'react';
-import { View, Text, StyleSheet, useColorScheme } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, LayoutRectangle, useColorScheme } from 'react-native';
 
 interface ParticipantsProps {
   id: number;
+  onLayout: (event: LayoutRectangle) => void;
 }
 
-export default function Participant({ id }: ParticipantsProps) {
+export default function Participant({ id, onLayout }: ParticipantsProps) {
+  const ref = useRef<View>(null);
+
   const theme = useColorScheme();
   const isDark = theme === 'dark';
 
   return (
-    <View style={[styles.box, isDark && styles.boxDark]}>
+    <View 
+      ref={ref}
+      onLayout={() => {
+        ref.current?.measureInWindow((x, y, width, height) => {
+          onLayout({ x, y, width, height });
+        });
+      }}
+      style={[styles.box, isDark && styles.boxDark]}>
       <Text style={[styles.text, isDark && styles.textDark]}>
         Participant {id}
       </Text>
