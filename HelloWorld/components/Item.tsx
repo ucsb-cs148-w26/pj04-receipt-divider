@@ -1,5 +1,5 @@
 import { useTheme } from '@react-navigation/native';
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,13 @@ import {
   StyleSheet,
   Pressable,
   Animated,
-  PanResponder,
   LayoutRectangle,
 } from 'react-native';
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from 'react-native-gesture-handler';
 import UserTag from './user-tags';
 import { ITEMCONTAINERPADDING } from '@/app/Receipt_Room_Page';
 //import { USER_COLORS } from '@/app/components/AppScreen';
@@ -140,12 +144,8 @@ export function ReceiptItem({
   const panRef = useRef(pan);
   panRef.current = pan;
   const viewRef = useRef<View>(null);
-  // Ref to track current position (avoids stale closure in panResponder)
+  // Ref to track current position (avoids stale closure in gesture)
   const currentPositionRef = useRef({ x: 0, y: 0 });
-  // Long press timer for delayed drag start
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressTriggered = useRef(false);
-  const LONG_PRESS_DELAY = 250; // 0.25 seconds
 
   /** ---------------- Computed Values ---------------- */
   // Sort user tags in increasing order
@@ -157,7 +157,7 @@ export function ReceiptItem({
   const isCurrentlyDragging = dragState.isDragging || isDraggingProp;
 
   /** ---------------- Collision Detection ---------------- */
-  const checkParticipantCollision = (x: number, y: number): number | null => {
+  const checkParticipantCollision = useCallback((x: number, y: number): number | null => {
     const draggableSize = 150;
 
     for (const [idStr, layout] of Object.entries(participantLayouts)) {
@@ -179,111 +179,97 @@ export function ReceiptItem({
     }
     
     return null;
-  };
+  }, [participantLayouts, scrollOffset]);
 
-  /** ---------------- Pan Responder ---------------- */
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (e, gestureState) => {
-        // Only respond to move if long press has triggered
-        return longPressTriggered.current;
-      },
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponderCapture: () => longPressTriggered.current,
-      onPanResponderGrant: (e, gestureState) => {
-        // Start long press timer
-        longPressTriggered.current = false;
-        longPressTimer.current = setTimeout(() => {
-          longPressTriggered.current = true;
-          setDragState(prev => ({ ...prev, isDragging: true }));
-          // Measure the view's position and pass it to parent
-          if (viewRef.current) {
-            viewRef.current.measureInWindow((x, y, width, height) => {
-              onDragStart?.(item.id, { x, y });
-            });
-          } else {
-            onDragStart?.(item.id, { x: gestureState.x0, y: gestureState.y0 });
-          }
-        }, LONG_PRESS_DELAY);
-      },
-      onPanResponderMove: (e, gestureState) => {
-        // Only track movement if long press has triggered
-        if (!longPressTriggered.current) return;
-        
-        // Use panRef.current to get the current pan value
-        panRef.current.setValue({ x: gestureState.dx, y: gestureState.dy });
-        
-        const x = gestureState.x0 + gestureState.dx;
-        const y = gestureState.y0 + gestureState.dy;
-        
-        // Update ref for use in release handler (avoids stale closure)
-        currentPositionRef.current = { x, y };
-        setDragState(prev => ({ ...prev, currentPosition: { x, y } }));
+  /** ---------------- Worklet-safe handlers ---------------- */
+  const handleDragStart = useCallback(() => {
+    setDragState(prev => ({ ...prev, isDragging: true }));
+    if (viewRef.current) {
+      viewRef.current.measureInWindow((x, y, width, height) => {
+        onDragStart?.(item.id, { x, y });
+      });
+    }
+  }, [item.id, onDragStart]);
 
-        const participantId = checkParticipantCollision(x, y);
-        const inBounds = participantId !== null;
-        setDragState(prev => ({ ...prev, isInParticipantBounds: inBounds }));
-        onParticipantBoundsChange?.(inBounds);
-      },
-      onPanResponderRelease: () => {
-        // Clear long press timer
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
-        
-        // Only process drop if drag was actually started
-        if (longPressTriggered.current) {
-          // Use ref to get current position (avoids stale closure)
-          const participantId = checkParticipantCollision(
-            currentPositionRef.current.x, 
-            currentPositionRef.current.y
-          );
-          console.log('Dropped on participant:', participantId);
-          if (participantId !== null) {
-            // Get the most current item data (especially important for overlay)
-            const currentItem = getCurrentItemData ? getCurrentItemData() : item;
-            console.log('Current item from getCurrentItemData:', currentItem);
-            console.log('Current item.userTags before update:', currentItem.userTags);
-            // Add participant to userTags if not already there
-            const updatedTags = currentItem.userTags ? [...currentItem.userTags] : [];
-            console.log('updatedTags after spreading existing:', updatedTags);
-            if (!updatedTags.includes(participantId)) {
-              updatedTags.push(participantId);
-              console.log('Updated tags after push:', updatedTags);
-              onUpdate({ userTags: updatedTags });
-            } else {
-              console.log('Participant', participantId, 'already in tags:', updatedTags);
-            }
-          }
+  const handleDragChange = useCallback((x: number, y: number, translationX: number, translationY: number) => {
+    // Update animated value safely
+    panRef.current.setValue({ x: translationX, y: translationY });
+    
+    // Update ref for use in end handler (avoids stale closure)
+    currentPositionRef.current = { x, y };
+    setDragState(prev => ({ ...prev, currentPosition: { x, y } }));
 
-          setDragState({
-            isDragging: false,
-            isInParticipantBounds: false,
-            currentPosition: { x: 0, y: 0 },
-          });
-          onDragEnd?.();
-          
-          Animated.spring(
-            panRef.current,
-            { toValue: { x: 0, y: 0 }, useNativeDriver: false },
-          ).start();
-        }
-        
-        longPressTriggered.current = false;
-        currentPositionRef.current = { x: 0, y: 0 };
-      },
-      onPanResponderTerminate: () => {
-        // Clear timer if gesture is terminated
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
-        longPressTriggered.current = false;
-      },
-    })
-  ).current;
+    // Check collision with participants
+    const participantId = checkParticipantCollision(x, y);
+    const inBounds = participantId !== null;
+    setDragState(prev => ({ ...prev, isInParticipantBounds: inBounds }));
+    onParticipantBoundsChange?.(inBounds);
+  }, [checkParticipantCollision, onParticipantBoundsChange]);
+
+  const handleDragEnd = useCallback(() => {
+    // Use ref to get current position (avoids stale closure)
+    const participantId = checkParticipantCollision(
+      currentPositionRef.current.x, 
+      currentPositionRef.current.y
+    );
+    console.log('Dropped on participant:', participantId);
+    if (participantId !== null) {
+      // Get the most current item data (especially important for overlay)
+      const currentItem = getCurrentItemData ? getCurrentItemData() : item;
+      // Add participant to userTags if not already there
+      const updatedTags = currentItem.userTags ? [...currentItem.userTags] : [];
+      if (!updatedTags.includes(participantId)) {
+        updatedTags.push(participantId);
+        onUpdate({ userTags: updatedTags });
+      } else {
+        console.log('Participant', participantId, 'already in tags:', updatedTags);
+      }
+    }
+  }, [checkParticipantCollision, getCurrentItemData, item, onUpdate]);
+
+  const handleDragFinalize = useCallback(() => {
+    // Reset drag state
+    setDragState({
+      isDragging: false,
+      isInParticipantBounds: false,
+      currentPosition: { x: 0, y: 0 },
+    });
+    onDragEnd?.();
+    
+    // Animate back to original position
+    Animated.spring(
+      panRef.current,
+      { toValue: { x: 0, y: 0 }, useNativeDriver: false },
+    ).start();
+    
+    // Reset position ref
+    currentPositionRef.current = { x: 0, y: 0 };
+  }, [onDragEnd]);
+
+  /** ---------------- Pan Gesture ---------------- */
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activateAfterLongPress(250)
+        .onBegin(() => {
+          'worklet';
+          handleDragStart();
+        })
+        .onChange((event) => {
+          'worklet';
+          handleDragChange(event.absoluteX, event.absoluteY, event.translationX, event.translationY);
+        })
+        .onEnd(() => {
+          'worklet';
+          handleDragEnd();
+        })
+        .onFinalize(() => {
+          'worklet';
+          handleDragFinalize();
+        })
+        .runOnJS(true),
+    [handleDragStart, handleDragChange, handleDragEnd, handleDragFinalize]
+  );
 
   /** ---------------- Input Handlers ---------------- */
   const handlePriceChange = (value: string) => {
@@ -315,123 +301,125 @@ export function ReceiptItem({
 
   /** ---------------- Render ---------------- */
   return (
-    <Animated.View
-      ref={viewRef}
-      {...panResponder.panHandlers}
-      style={[
-        isDraggingOverlay && styles.draggingOverlay,
-        isDraggingOverlay && initialPosition && {
-          top: initialPosition.y,
-          left: initialPosition.x,
-        },
-        {
-          transform: isCurrentlyDragging ? pan.getTranslateTransform() : [],
-          width: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
-          height: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
-          zIndex: isCurrentlyDragging ? 9999 : 0,
-          elevation: isCurrentlyDragging ? 9999 : 0,
-        },
-      ]}
-    >
-      <Pressable
-        style={[
-          isCurrentlyDragging && inParticipantBounds ? styles.containerShrunk : styles.container,
-          uiState.isHovering && !isCurrentlyDragging && styles.containerHover,
-        ]}
-        onHoverIn={() => setIsHovering(true)}
-        onHoverOut={() => setIsHovering(false)}
-        onPressIn={() => setIsHovering(true)}
-        onPressOut={() => setIsHovering(false)}
-        {...panResponder.panHandlers}
-      >
-      <View style={styles.header}>
-        <View style={styles.leftSection}>
-          {
-            <Pressable
-              onPress={() => {
-                if (onDelete) onDelete();
-              }}
-              style={styles.deleteButton}
-              accessibilityLabel='Delete item'
-            >
-              {<Text style={styles.deleteIcon}>✕</Text>}
-            </Pressable>
-          }
-          <View style={styles.nameContainer}>
+    <GestureHandlerRootView>
+      <GestureDetector gesture={panGesture}>
+        <Animated.View
+          ref={viewRef}
+          style={[
+            isDraggingOverlay && styles.draggingOverlay,
+            isDraggingOverlay && initialPosition && {
+              top: initialPosition.y,
+              left: initialPosition.x,
+            },
             {
-              <TextInput
-                value={item.name}
-                onChangeText={(text) => onUpdate({ name: text })}
-                placeholder='Item name'
-                style={styles.nameInput}
-              />
-            }
-          </View>
-        </View>
-
-        <View style={styles.rightSection}>
-          {/* Price */}
-          <View style={styles.priceContainer}>
-            {
-              <View style={styles.priceInputContainer}>
-                <Text style={styles.dollarSign}>$</Text>
-                <TextInput
-                  value={item.price}
-                  onChangeText={handlePriceChange}
-                  placeholder='0.00'
-                  style={styles.priceInput}
-                  keyboardType='numeric'
-                />
+              transform: isCurrentlyDragging ? pan.getTranslateTransform() : [],
+              width: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
+              height: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
+              zIndex: isCurrentlyDragging ? 9999 : 0,
+              elevation: isCurrentlyDragging ? 9999 : 0,
+            },
+          ]}
+        >
+          <Pressable
+            style={[
+              isCurrentlyDragging && inParticipantBounds ? styles.containerShrunk : styles.container,
+              uiState.isHovering && !isCurrentlyDragging && styles.containerHover,
+            ]}
+            onHoverIn={() => setIsHovering(true)}
+            onHoverOut={() => setIsHovering(false)}
+            onPressIn={() => setIsHovering(true)}
+            onPressOut={() => setIsHovering(false)}
+          >
+          <View style={styles.header}>
+            <View style={styles.leftSection}>
+              {
+                <Pressable
+                  onPress={() => {
+                    if (onDelete) onDelete();
+                  }}
+                  style={styles.deleteButton}
+                  accessibilityLabel='Delete item'
+                >
+                  <Text style={styles.deleteIcon}>✕</Text>
+                </Pressable>
+              }
+              <View style={styles.nameContainer}>
+                {
+                  <TextInput
+                    value={item.name}
+                    onChangeText={(text) => onUpdate({ name: text })}
+                    placeholder='Item name'
+                    style={styles.nameInput}
+                  />
+                }
               </View>
-            }
+            </View>
+
+            <View style={styles.rightSection}>
+              {/* Price */}
+              <View style={styles.priceContainer}>
+                {
+                  <View style={styles.priceInputContainer}>
+                    <Text style={styles.dollarSign}>$</Text>
+                    <TextInput
+                      value={item.price}
+                      onChangeText={handlePriceChange}
+                      placeholder='0.00'
+                      style={styles.priceInput}
+                      keyboardType='numeric'
+                    />
+                  </View>
+                }
+              </View>
+
+              {/* Discount section - right justified */}
+              {uiState.showDiscount ? (
+                <View style={styles.discountContainer}>
+                  <Text style={styles.discountLabel}>Discount:</Text>
+                  <Text style={styles.discountDollar}>$</Text>
+                  <TextInput
+                    value={item.discount || ''}
+                    onChangeText={handleDiscountChange}
+                    onBlur={handleDiscountBlur}
+                    placeholder='0.00'
+                    style={styles.discountInput}
+                    keyboardType='numeric'
+                  />
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => setShowDiscount(true)}
+                  style={styles.addDiscountButton}
+                  accessibilityLabel='Add discount'
+                >
+                  <Text style={styles.addDiscountText}>+ Discount</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
-          {/* Discount section - right justified */}
-          {uiState.showDiscount ? (
-            <View style={styles.discountContainer}>
-              <Text style={styles.discountLabel}>Discount:</Text>
-              <Text style={styles.discountDollar}>$</Text>
-              <TextInput
-                value={item.discount || ''}
-                onChangeText={handleDiscountChange}
-                onBlur={handleDiscountBlur}
-                placeholder='0.00'
-                style={styles.discountInput}
-                keyboardType='numeric'
-              />
+          {/* User tags - positioned at bottom extending below box */}
+          {sortedUserTags.length > 0 && (
+            <View style={styles.userTagsContainer}>
+              {sortedUserTags.map((userIndex) => {
+                const color = USER_COLORS[(userIndex - 1) % USER_COLORS.length];
+                const isNewlyAdded = uiState.newlyAddedTags.has(userIndex) && (item.userTags?.includes(userIndex) ?? false);
+                return (
+                  <UserTag
+                    key={userIndex}
+                    userIndex={userIndex}
+                    color={color}
+                    onRemove={() => onRemoveFromUser?.(userIndex)}
+                    isNewlyAdded={isNewlyAdded}
+                  />
+                );
+              })}
             </View>
-          ) : (
-            <TouchableOpacity
-              onPress={() => setShowDiscount(true)}
-              style={styles.addDiscountButton}
-              accessibilityLabel='Add discount'
-            >
-              <Text style={styles.addDiscountText}>+ Discount</Text>
-            </TouchableOpacity>
           )}
-        </View>
-      </View>
-
-      {/* User tags - positioned at bottom extending below box */}
-      {sortedUserTags.length > 0 && (
-        <View style={styles.userTagsContainer}>
-          {sortedUserTags.map((userIndex) => {
-            const color = USER_COLORS[(userIndex - 1) % USER_COLORS.length];
-            const isNewlyAdded = uiState.newlyAddedTags.has(userIndex) && (item.userTags?.includes(userIndex) ?? false);
-            return (
-              <UserTag
-                key={userIndex}
-                userIndex={userIndex}
-                color={color}
-                onRemove={() => onRemoveFromUser?.(userIndex)}
-                isNewlyAdded={isNewlyAdded}
-              />
-            );
-          })}
-        </View>
-      )}
-      </Pressable>
-    </Animated.View>
+          </Pressable>
+        </Animated.View>
+      </GestureDetector>
+    </GestureHandlerRootView>
   );
 }
 

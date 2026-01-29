@@ -13,6 +13,7 @@ import {
   Animated,
 } from 'react-native';
 import Participant from '../../components/Participant';
+import Draggable from '@/components/draggable';
 
 interface NativeThemeColorType {
   primary: string;
@@ -114,14 +115,11 @@ export default function ReceiptRoomScreen() {
   };
 
   const updateReceiptItem = (id: number, updates: Partial<ReceiptItemType>) => {
-    console.log('updateReceiptItem called with id:', id, 'updates:', updates);
-    console.log('Current receiptItems before update:', receiptItems);
     setReceiptItems(prevItems => {
       const updatedItems = prevItems.map((item) =>
         item.id === id ? { ...item, ...updates } : item,
       );
       console.log('Updated receipt items:', updatedItems);
-      console.log('Specific update for item', id, ':', updates);
       return updatedItems;
     });
   };
@@ -132,7 +130,6 @@ export default function ReceiptRoomScreen() {
   };
 
   const removeItemFromUser = (itemId: number, userIndex: number) => {
-    console.log
     setReceiptItems(
       receiptItems.map((item) => {
         if (item.id === itemId) {
@@ -150,26 +147,6 @@ export default function ReceiptRoomScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.scrollArea}>
-        <ScrollView
-          horizontal={true}
-          style={styles.participantsContainer}
-          contentContainerStyle={styles.participantsScrollContent}
-          onScroll={(event) => {
-            setScrollOffset(event.nativeEvent.contentOffset.x);
-            console.log('Scroll Offset:', event.nativeEvent.contentOffset.x);
-          }}
-          scrollEventThrottle={16}
-        >
-          {participants.map((id) => (
-            <Participant 
-              key={id} 
-              id={id} 
-              onLayout={(layout) => {
-              participantLayouts.current[id] = layout;
-            }}/>
-          ))}
-        </ScrollView>
-
         
         {/* Middle part - scrollable receipt items */}
         <ScrollView
@@ -206,6 +183,27 @@ export default function ReceiptRoomScreen() {
               <Text style={styles.addItemButtonText}>➕ Add Receipt Item</Text>
             </TouchableOpacity>
           </View>
+        </ScrollView>
+
+        <ScrollView
+          horizontal={true}
+          style={styles.participantsContainer}
+          contentContainerStyle={styles.participantsScrollContent}
+          onMomentumScrollEnd={(event) => {
+            setScrollOffset(event.nativeEvent.contentOffset.x);
+            console.log('Participants scroll offset:', event.nativeEvent.contentOffset.x);
+          }}
+          scrollEventThrottle={16}
+        >
+          {participants.map((id) => (
+            <Participant 
+              key={id} 
+              id={id} 
+              onLayout={(layout) => {
+              participantLayouts.current[id] = layout;
+              console.log('Participant', id, 'layout:', layout);
+            }}/>
+          ))}
         </ScrollView>
       </View>
 
