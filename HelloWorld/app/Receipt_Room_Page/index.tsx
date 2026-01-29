@@ -60,7 +60,10 @@ export default function ReceiptRoomScreen() {
   };
 
   /**---------------- Drag Functions ---------------- */
-  const handleItemDragStart = (itemId: number, initialPosition?: { x: number; y: number }) => {
+  const handleItemDragStart = (
+    itemId: number,
+    initialPosition?: { x: number; y: number },
+  ) => {
     setDragState({
       isDragging: true,
       itemId,
@@ -68,7 +71,7 @@ export default function ReceiptRoomScreen() {
       isOverParticipant: false,
     });
     dragPan.setValue({ x: 0, y: 0 });
-    console.log('Started dragging item', itemId)
+    console.log('Started dragging item', itemId);
   };
 
   const handleItemDragEnd = () => {
@@ -78,11 +81,14 @@ export default function ReceiptRoomScreen() {
       initialPosition: null,
       isOverParticipant: false,
     });
-    Animated.spring(dragPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+    Animated.spring(dragPan, {
+      toValue: { x: 0, y: 0 },
+      useNativeDriver: false,
+    }).start();
   };
 
   const handleParticipantBoundsChange = (isOverParticipant: boolean) => {
-    setDragState(prev => ({ ...prev, isOverParticipant }));
+    setDragState((prev) => ({ ...prev, isOverParticipant }));
   };
 
   /**---------------- QR Code State ---------------- */
@@ -100,7 +106,7 @@ export default function ReceiptRoomScreen() {
   const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>([
     { id: 1, name: 'Burger', price: '12.99', userTags: [] },
   ]);
-  
+
   // Ref to always access current receiptItems state (avoids closure issues)
   const receiptItemsRef = useRef(receiptItems);
   receiptItemsRef.current = receiptItems;
@@ -114,11 +120,11 @@ export default function ReceiptRoomScreen() {
       userTags: [],
     };
     setReceiptItems([...receiptItems, newItem]);
-    console.log('All receipt items:', receiptItems)
+    console.log('All receipt items:', receiptItems);
   };
 
   const updateReceiptItem = (id: number, updates: Partial<ReceiptItemType>) => {
-    setReceiptItems(prevItems => {
+    setReceiptItems((prevItems) => {
       const updatedItems = prevItems.map((item) =>
         item.id === id ? { ...item, ...updates } : item,
       );
@@ -150,7 +156,6 @@ export default function ReceiptRoomScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.scrollArea}>
-        
         {/* Middle part - scrollable receipt items */}
         <ScrollView
           style={styles.itemsContainer}
@@ -169,13 +174,17 @@ export default function ReceiptRoomScreen() {
                 }
                 participantLayouts={participantLayouts.current}
                 scrollOffset={scrollOffset}
-                onDragStart={(itemId, initialPosition) => handleItemDragStart(item.id, initialPosition)}
+                onDragStart={(itemId, initialPosition) =>
+                  handleItemDragStart(item.id, initialPosition)
+                }
                 onDragEnd={handleItemDragEnd}
                 isDragging={dragState.itemId === item.id}
                 dragPan={dragState.itemId === item.id ? dragPan : undefined}
                 onParticipantBoundsChange={handleParticipantBoundsChange}
                 isInParticipantBoundsProp={false}
-                getCurrentItemData={() => receiptItemsRef.current.find(i => i.id === item.id)!}
+                getCurrentItemData={() =>
+                  receiptItemsRef.current.find((i) => i.id === item.id)!
+                }
                 isAnyTextFocused={isAnyTextFocused}
                 onTextFocusChange={setIsAnyTextFocused}
               />
@@ -197,50 +206,78 @@ export default function ReceiptRoomScreen() {
           contentContainerStyle={styles.participantsScrollContent}
           onScrollEndDrag={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
-            console.log('Participants scroll offset:', event.nativeEvent.contentOffset.x);
+            console.log(
+              'Participants scroll offset:',
+              event.nativeEvent.contentOffset.x,
+            );
           }}
           onMomentumScrollEnd={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
-            console.log('Participants scroll offset:', event.nativeEvent.contentOffset.x);
+            console.log(
+              'Participants scroll offset:',
+              event.nativeEvent.contentOffset.x,
+            );
           }}
           scrollEventThrottle={16}
         >
           {participants.map((id) => (
-            <Participant 
-              key={id} 
-              id={id} 
+            <Participant
+              key={id}
+              id={id}
               onLayout={(layout) => {
-              participantLayouts.current[id] = { ...layout, x: layout.x + scrollOffset };
-              console.log('Participant', id, 'layout.x', layout.x, 'adjusted x:', layout.x + scrollOffset);
-            }}/>
+                participantLayouts.current[id] = {
+                  ...layout,
+                  x: layout.x + scrollOffset,
+                };
+                console.log(
+                  'Participant',
+                  id,
+                  'layout.x',
+                  layout.x,
+                  'adjusted x:',
+                  layout.x + scrollOffset,
+                );
+              }}
+            />
           ))}
         </ScrollView>
       </View>
 
       <View style={styles.overlayContainer}>
-      {/* Dragged item overlay - rendered at root level */}
-      {dragState.itemId && dragState.initialPosition && receiptItems.find(item => item.id === dragState.itemId) && (
-        <ReceiptItem
-          item={receiptItems.find(item => item.id === dragState.itemId)!}
-          onUpdate={(updates) => updateReceiptItem(dragState.itemId!, updates)}
-          onDelete={() => {}}
-          onRemoveFromUser={(userIndex) =>
-            removeItemFromUser(dragState.itemId!, userIndex)
-          }
-          participantLayouts={participantLayouts.current}
-          scrollOffset={scrollOffset}
-          onDragStart={() => {}}
-          onDragEnd={handleItemDragEnd}
-          isDragging={true}
-          isDraggingOverlay={true}
-          dragPan={dragPan}
-          initialPosition={{x: dragState.initialPosition.x-ITEMCONTAINERPADDING, y: dragState.initialPosition.y-ITEMCONTAINERPADDING}}
-          isInParticipantBoundsProp={dragState.isOverParticipant}
-          getCurrentItemData={() => receiptItemsRef.current.find(item => item.id === dragState.itemId)!}
-          isAnyTextFocused={isAnyTextFocused}
-          onTextFocusChange={setIsAnyTextFocused}
-        />
-      )}
+        {/* Dragged item overlay - rendered at root level */}
+        {dragState.itemId &&
+          dragState.initialPosition &&
+          receiptItems.find((item) => item.id === dragState.itemId) && (
+            <ReceiptItem
+              item={receiptItems.find((item) => item.id === dragState.itemId)!}
+              onUpdate={(updates) =>
+                updateReceiptItem(dragState.itemId!, updates)
+              }
+              onDelete={() => {}}
+              onRemoveFromUser={(userIndex) =>
+                removeItemFromUser(dragState.itemId!, userIndex)
+              }
+              participantLayouts={participantLayouts.current}
+              scrollOffset={scrollOffset}
+              onDragStart={() => {}}
+              onDragEnd={handleItemDragEnd}
+              isDragging={true}
+              isDraggingOverlay={true}
+              dragPan={dragPan}
+              initialPosition={{
+                x: dragState.initialPosition.x - ITEMCONTAINERPADDING,
+                y: dragState.initialPosition.y - ITEMCONTAINERPADDING,
+              }}
+              isInParticipantBoundsProp={dragState.isOverParticipant}
+              getCurrentItemData={() =>
+                receiptItemsRef.current.find(
+                  (item) => item.id === dragState.itemId,
+                )!
+              }
+              isAnyTextFocused={isAnyTextFocused}
+              onTextFocusChange={setIsAnyTextFocused}
+            />
+          )}
       </View>
 
       <Button title='Add Participant' onPress={addParticipant} />
@@ -353,5 +390,5 @@ const createStyles = (colors: NativeThemeColorType) =>
     addUserButtonText: {
       fontSize: 32,
       color: colors.text,
-    }
+    },
   });

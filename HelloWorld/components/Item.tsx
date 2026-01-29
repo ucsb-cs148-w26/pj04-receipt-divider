@@ -20,16 +20,16 @@ import { ITEMCONTAINERPADDING } from '@/app/Receipt_Room_Page';
 //import { USER_COLORS } from '@/app/components/AppScreen';
 
 const USER_COLORS = [
-  '#60a5fa',     // blue-400
-  '#f87171',     // red-400
-  '#4ade80',     // green-400
-  '#fbbf24',     // yellow-400
-  '#a78bfa',     // purple-400
-  '#f472b6',     // pink-400
-  '#818cf8',     // indigo-400
-  '#fb923c',     // orange-400
-  '#2dd4bf',     // teal-400
-  '#22d3ee',     // cyan-400
+  '#60a5fa', // blue-400
+  '#f87171', // red-400
+  '#4ade80', // green-400
+  '#fbbf24', // yellow-400
+  '#a78bfa', // purple-400
+  '#f472b6', // pink-400
+  '#818cf8', // indigo-400
+  '#fb923c', // orange-400
+  '#2dd4bf', // teal-400
+  '#22d3ee', // cyan-400
 ];
 
 interface NativeThemeColorType {
@@ -53,7 +53,10 @@ export interface ReceiptItemType {
 interface DragProps {
   participantLayouts?: Record<number, LayoutRectangle>;
   scrollOffset?: number;
-  onDragStart?: (itemId?: number, initialPosition?: { x: number; y: number }) => void;
+  onDragStart?: (
+    itemId?: number,
+    initialPosition?: { x: number; y: number },
+  ) => void;
   onDragEnd?: () => void;
   isDragging?: boolean;
   isDraggingOverlay?: boolean;
@@ -80,7 +83,7 @@ interface UIState {
 interface ReceiptItemProps extends DragProps {
   /** Core item data */
   item: ReceiptItemType;
-  
+
   /** Item update callbacks */
   onUpdate: (updates: {
     name?: string;
@@ -90,10 +93,10 @@ interface ReceiptItemProps extends DragProps {
   }) => void;
   onDelete: () => void;
   onRemoveFromUser: (userIndex: number) => void;
-  
+
   /** Function to get current item data (for overlay to get fresh data) */
   getCurrentItemData?: () => ReceiptItemType;
-  
+
   /** Text focus state from parent */
   isAnyTextFocused?: boolean;
   onTextFocusChange?: (focused: boolean) => void;
@@ -123,7 +126,6 @@ export function ReceiptItem({
   isAnyTextFocused = false,
   onTextFocusChange,
 }: ReceiptItemProps) {
-  
   /** ---------------- Theme ---------------- */
   const { colors, dark } = useTheme();
   const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
@@ -134,7 +136,7 @@ export function ReceiptItem({
     isHovering: false,
     newlyAddedTags: new Set(),
   });
-  
+
   /** ---------------- Drag State ---------------- */
   const [dragState, setDragState] = useState<DragState>({
     isDragging: false,
@@ -159,54 +161,62 @@ export function ReceiptItem({
 
   /** ---------------- Computed Values ---------------- */
   // Sort user tags in increasing order
-  const sortedUserTags = item.userTags ? [...item.userTags].sort((a, b) => a - b) : [];
+  const sortedUserTags = item.userTags
+    ? [...item.userTags].sort((a, b) => a - b)
+    : [];
   // Use prop for overlay, local state for original
-  const inParticipantBounds = isInParticipantBoundsProp !== undefined 
-    ? isInParticipantBoundsProp 
-    : dragState.isInParticipantBounds;
+  const inParticipantBounds =
+    isInParticipantBoundsProp !== undefined
+      ? isInParticipantBoundsProp
+      : dragState.isInParticipantBounds;
   const isCurrentlyDragging = dragState.isDragging || isDraggingProp;
 
   /** ---------------- Collision Detection ---------------- */
-  const checkParticipantCollision = useCallback((x: number, y: number): number | null => {
-    let closestParticipant: { id: number; distance: number } | null = null;
+  const checkParticipantCollision = useCallback(
+    (x: number, y: number): number | null => {
+      let closestParticipant: { id: number; distance: number } | null = null;
 
-    for (const [idStr, layout] of Object.entries(participantLayouts)) {
-      const id = Number(idStr);
-      
-      const adjustedLayout = {
-        ...layout,
-        x: layout.x - scrollOffset,
-      };
+      for (const [idStr, layout] of Object.entries(participantLayouts)) {
+        const id = Number(idStr);
 
-      // Check if the gesture position overlaps with this participant
-      if (
-        x >= adjustedLayout.x &&
-        x <= adjustedLayout.x + adjustedLayout.width &&
-        y >= adjustedLayout.y &&
-        y <= adjustedLayout.y + adjustedLayout.height
-      ) {
-        // Calculate distance from gesture position to participant center
-        const participantCenterX = adjustedLayout.x + adjustedLayout.width / 2;
-        const participantCenterY = adjustedLayout.y + adjustedLayout.height / 2;
-        
-        const distance = Math.sqrt(
-          Math.pow(x - participantCenterX, 2) + 
-          Math.pow(y - participantCenterY, 2)
-        );
+        const adjustedLayout = {
+          ...layout,
+          x: layout.x - scrollOffset,
+        };
 
-        // Keep track of the closest participant
-        if (!closestParticipant || distance < closestParticipant.distance) {
-          closestParticipant = { id, distance };
+        // Check if the gesture position overlaps with this participant
+        if (
+          x >= adjustedLayout.x &&
+          x <= adjustedLayout.x + adjustedLayout.width &&
+          y >= adjustedLayout.y &&
+          y <= adjustedLayout.y + adjustedLayout.height
+        ) {
+          // Calculate distance from gesture position to participant center
+          const participantCenterX =
+            adjustedLayout.x + adjustedLayout.width / 2;
+          const participantCenterY =
+            adjustedLayout.y + adjustedLayout.height / 2;
+
+          const distance = Math.sqrt(
+            Math.pow(x - participantCenterX, 2) +
+              Math.pow(y - participantCenterY, 2),
+          );
+
+          // Keep track of the closest participant
+          if (!closestParticipant || distance < closestParticipant.distance) {
+            closestParticipant = { id, distance };
+          }
         }
       }
-    }
-    
-    return closestParticipant?.id ?? null;
-  }, [participantLayouts, scrollOffset]);
+
+      return closestParticipant?.id ?? null;
+    },
+    [participantLayouts, scrollOffset],
+  );
 
   /** ---------------- Worklet-safe handlers ---------------- */
   const handleDragStart = useCallback(() => {
-    setDragState(prev => ({ ...prev, isDragging: true }));
+    setDragState((prev) => ({ ...prev, isDragging: true }));
     if (viewRef.current) {
       viewRef.current.measureInWindow((x, y, width, height) => {
         onDragStart?.(item.id, { x, y });
@@ -214,27 +224,30 @@ export function ReceiptItem({
     }
   }, [item.id, onDragStart]);
 
-  const handleDragChange = useCallback((x: number, y: number, translationX: number, translationY: number) => {
-    // Update animated value safely
-    panRef.current.setValue({ x: translationX, y: translationY });
-    
-    // Update ref for use in end handler (avoids stale closure)
-    currentPositionRef.current = { x, y };
-    setDragState(prev => ({ ...prev, currentPosition: { x, y } }));
+  const handleDragChange = useCallback(
+    (x: number, y: number, translationX: number, translationY: number) => {
+      // Update animated value safely
+      panRef.current.setValue({ x: translationX, y: translationY });
 
-    // Check collision with participants
-    const participantId = checkParticipantCollision(x, y);
-    const inBounds = participantId !== null;
-    setDragState(prev => ({ ...prev, isInParticipantBounds: inBounds }));
-    onParticipantBoundsChange?.(inBounds);
-    //console.log('Dragging over participant:', participantId);
-  }, [checkParticipantCollision, onParticipantBoundsChange]);
+      // Update ref for use in end handler (avoids stale closure)
+      currentPositionRef.current = { x, y };
+      setDragState((prev) => ({ ...prev, currentPosition: { x, y } }));
+
+      // Check collision with participants
+      const participantId = checkParticipantCollision(x, y);
+      const inBounds = participantId !== null;
+      setDragState((prev) => ({ ...prev, isInParticipantBounds: inBounds }));
+      onParticipantBoundsChange?.(inBounds);
+      //console.log('Dragging over participant:', participantId);
+    },
+    [checkParticipantCollision, onParticipantBoundsChange],
+  );
 
   const handleDragEnd = useCallback(() => {
     // Use ref to get current position (avoids stale closure)
     const participantId = checkParticipantCollision(
-      currentPositionRef.current.x, 
-      currentPositionRef.current.y
+      currentPositionRef.current.x,
+      currentPositionRef.current.y,
     );
     console.log('Dropped on participant:', participantId);
     if (participantId !== null) {
@@ -246,7 +259,12 @@ export function ReceiptItem({
         updatedTags.push(participantId);
         onUpdate({ userTags: updatedTags });
       } else {
-        console.log('Participant', participantId, 'already in tags:', updatedTags);
+        console.log(
+          'Participant',
+          participantId,
+          'already in tags:',
+          updatedTags,
+        );
       }
     }
   }, [checkParticipantCollision, getCurrentItemData, item, onUpdate]);
@@ -259,13 +277,13 @@ export function ReceiptItem({
       currentPosition: { x: 0, y: 0 },
     });
     onDragEnd?.();
-    
+
     // Animate back to original position
-    Animated.spring(
-      panRef.current,
-      { toValue: { x: 0, y: 0 }, useNativeDriver: false },
-    ).start();
-    
+    Animated.spring(panRef.current, {
+      toValue: { x: 0, y: 0 },
+      useNativeDriver: false,
+    }).start();
+
     // Reset position ref
     currentPositionRef.current = { x: 0, y: 0 };
   }, [onDragEnd]);
@@ -289,7 +307,12 @@ export function ReceiptItem({
           if (isAnyTextFocusedRef.current) {
             return; // Cancel gesture if text is focused
           }
-          handleDragChange(event.absoluteX, event.absoluteY, event.translationX, event.translationY);
+          handleDragChange(
+            event.absoluteX,
+            event.absoluteY,
+            event.translationX,
+            event.translationY,
+          );
         })
         .onEnd(() => {
           'worklet';
@@ -300,7 +323,7 @@ export function ReceiptItem({
           handleDragFinalize();
         })
         .runOnJS(true),
-    [handleDragStart, handleDragChange, handleDragEnd, handleDragFinalize]
+    [handleDragStart, handleDragChange, handleDragEnd, handleDragFinalize],
   );
 
   /** ---------------- Input Handlers ---------------- */
@@ -317,18 +340,18 @@ export function ReceiptItem({
   const handleDiscountBlur = () => {
     const discountValue = parseFloat(item.discount || '0');
     if (discountValue <= 0 || !item.discount) {
-      setUIState(prev => ({ ...prev, showDiscount: false }));
+      setUIState((prev) => ({ ...prev, showDiscount: false }));
       onUpdate?.({ discount: undefined });
     }
   };
 
   /** ---------------- UI State Handlers ---------------- */
   const setShowDiscount = (show: boolean) => {
-    setUIState(prev => ({ ...prev, showDiscount: show }));
+    setUIState((prev) => ({ ...prev, showDiscount: show }));
   };
 
   const setIsHovering = (hovering: boolean) => {
-    setUIState(prev => ({ ...prev, isHovering: hovering }));
+    setUIState((prev) => ({ ...prev, isHovering: hovering }));
   };
 
   /** ---------------- Render ---------------- */
@@ -339,10 +362,11 @@ export function ReceiptItem({
           ref={viewRef}
           style={[
             isDraggingOverlay && styles.draggingOverlay,
-            isDraggingOverlay && initialPosition && {
-              top: initialPosition.y,
-              left: initialPosition.x,
-            },
+            isDraggingOverlay &&
+              initialPosition && {
+                top: initialPosition.y,
+                left: initialPosition.x,
+              },
             {
               transform: isCurrentlyDragging ? pan.getTranslateTransform() : [],
               width: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
@@ -353,121 +377,121 @@ export function ReceiptItem({
           ]}
         >
           <Pressable
-            style={[
-              styles.topContainer
-            ]}
+            style={[styles.topContainer]}
             onHoverIn={() => setIsHovering(true)}
             onHoverOut={() => setIsHovering(false)}
             onPressIn={() => setIsHovering(true)}
             onPressOut={() => setIsHovering(false)}
           >
-          <View style={styles.header}>
-            <View style={styles.leftSection}>
-              {
-                <Pressable
-                  onPress={() => {
-                    if (onDelete) onDelete();
-                  }}
-                  style={styles.deleteButton}
-                  accessibilityLabel='Delete item'
-                >
-                  <Text style={styles.deleteIcon}>✕</Text>
-                </Pressable>
-              }
-              <View style={styles.nameContainer}>
+            <View style={styles.header}>
+              <View style={styles.leftSection}>
                 {
-                  <TextInput
-                    value={item.name}
-                    onChangeText={(text) => onUpdate({ name: text })}
-                    placeholder='Item name'
-                    style={styles.nameInput}
-                    onFocus={() => {
-                      onTextFocusChange?.(true);
-                      console.log('Name input focused');
+                  <Pressable
+                    onPress={() => {
+                      if (onDelete) onDelete();
                     }}
-                    onBlur={() => {
-                      onTextFocusChange?.(false);
-                      console.log('Name input blurred');
-                    }}
-                  />
+                    style={styles.deleteButton}
+                    accessibilityLabel='Delete item'
+                  >
+                    <Text style={styles.deleteIcon}>✕</Text>
+                  </Pressable>
                 }
-              </View>
-            </View>
-
-            <View style={styles.rightSection}>
-              {/* Price */}
-              <View style={styles.priceContainer}>
-                {
-                  <View style={styles.priceInputContainer}>
-                    <Text style={styles.dollarSign}>$</Text>
+                <View style={styles.nameContainer}>
+                  {
                     <TextInput
-                      value={item.price}
-                      onChangeText={handlePriceChange}
-                      placeholder='0.00'
-                      style={styles.priceInput}
-                      keyboardType='numeric'
+                      value={item.name}
+                      onChangeText={(text) => onUpdate({ name: text })}
+                      placeholder='Item name'
+                      style={styles.nameInput}
+                      onFocus={() => {
+                        onTextFocusChange?.(true);
+                        console.log('Name input focused');
+                      }}
+                      onBlur={() => {
+                        onTextFocusChange?.(false);
+                        console.log('Name input blurred');
+                      }}
+                    />
+                  }
+                </View>
+              </View>
+
+              <View style={styles.rightSection}>
+                {/* Price */}
+                <View style={styles.priceContainer}>
+                  {
+                    <View style={styles.priceInputContainer}>
+                      <Text style={styles.dollarSign}>$</Text>
+                      <TextInput
+                        value={item.price}
+                        onChangeText={handlePriceChange}
+                        placeholder='0.00'
+                        style={styles.priceInput}
+                        keyboardType='numeric'
+                        onFocus={() => onTextFocusChange?.(true)}
+                        onBlur={() => onTextFocusChange?.(false)}
+                      />
+                    </View>
+                  }
+                </View>
+
+                {/* Discount section - right justified */}
+                {uiState.showDiscount ? (
+                  <View style={styles.discountContainer}>
+                    <Text style={styles.discountLabel}>Discount:</Text>
+                    <Text style={styles.discountDollar}>$</Text>
+                    <TextInput
+                      value={item.discount || ''}
+                      onChangeText={handleDiscountChange}
                       onFocus={() => onTextFocusChange?.(true)}
-                      onBlur={() => onTextFocusChange?.(false)}
+                      onBlur={() => {
+                        handleDiscountBlur();
+                        onTextFocusChange?.(false);
+                      }}
+                      placeholder='0.00'
+                      style={styles.discountInput}
+                      keyboardType='numeric'
                     />
                   </View>
-                }
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setShowDiscount(true)}
+                    style={styles.addDiscountButton}
+                    accessibilityLabel='Add discount'
+                  >
+                    <Text style={styles.addDiscountText}>+ Discount</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-
-              {/* Discount section - right justified */}
-              {uiState.showDiscount ? (
-                <View style={styles.discountContainer}>
-                  <Text style={styles.discountLabel}>Discount:</Text>
-                  <Text style={styles.discountDollar}>$</Text>
-                  <TextInput
-                    value={item.discount || ''}
-                    onChangeText={handleDiscountChange}
-                    onFocus={() => onTextFocusChange?.(true)}
-                    onBlur={() => {
-                      handleDiscountBlur();
-                      onTextFocusChange?.(false);
-                    }}
-                    placeholder='0.00'
-                    style={styles.discountInput}
-                    keyboardType='numeric'
-                  />
-                </View>
-              ) : (
-                <TouchableOpacity
-                  onPress={() => setShowDiscount(true)}
-                  style={styles.addDiscountButton}
-                  accessibilityLabel='Add discount'
-                >
-                  <Text style={styles.addDiscountText}>+ Discount</Text>
-                </TouchableOpacity>
-              )}
             </View>
-          </View>
 
-          {/* User tags - positioned at bottom extending below box */}
-          {sortedUserTags.length > 0 && (
-            <View style={styles.userTagsContainer}>
-              {sortedUserTags.map((userIndex) => {
-                const color = USER_COLORS[(userIndex - 1) % USER_COLORS.length];
-                const isNewlyAdded = uiState.newlyAddedTags.has(userIndex) && (item.userTags?.includes(userIndex) ?? false);
-                return (
-                  <UserTag
-                    key={userIndex}
-                    userIndex={userIndex}
-                    color={color}
-                    onRemove={() => onRemoveFromUser?.(userIndex)}
-                    isNewlyAdded={isNewlyAdded}
-                  />
-                );
-              })}
-            </View>
-          )}
+            {/* User tags - positioned at bottom extending below box */}
+            {sortedUserTags.length > 0 && (
+              <View style={styles.userTagsContainer}>
+                {sortedUserTags.map((userIndex) => {
+                  const color =
+                    USER_COLORS[(userIndex - 1) % USER_COLORS.length];
+                  const isNewlyAdded =
+                    uiState.newlyAddedTags.has(userIndex) &&
+                    (item.userTags?.includes(userIndex) ?? false);
+                  return (
+                    <UserTag
+                      key={userIndex}
+                      userIndex={userIndex}
+                      color={color}
+                      onRemove={() => onRemoveFromUser?.(userIndex)}
+                      isNewlyAdded={isNewlyAdded}
+                    />
+                  );
+                })}
+              </View>
+            )}
           </Pressable>
         </Animated.View>
       </GestureDetector>
     </GestureHandlerRootView>
   );
 }
-
 
 const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
   StyleSheet.create({

@@ -1,6 +1,6 @@
 import { useTheme } from '@react-navigation/native';
-import React, { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import React, { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 interface NativeThemeColorType {
   primary: string;
@@ -12,50 +12,53 @@ interface NativeThemeColorType {
 }
 
 export default function UserTag({
-    userIndex,
-    color,
-    onRemove,
-    isNewlyAdded
+  userIndex,
+  color,
+  onRemove,
+  isNewlyAdded,
 }: {
-    userIndex: number;
-    color: string;
-    onRemove: () => void;
-    isNewlyAdded: boolean;
+  userIndex: number;
+  color: string;
+  onRemove: () => void;
+  isNewlyAdded: boolean;
 }) {
-    const { colors, dark } = useTheme();
-    const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
-    const DOUBLE_TAP_DELAY = 1000; // ms
-    const [enableRemoveButton, setEnableRemoveButton] = useState(false);
-    let buttonIntervalId: number | null = null;
+  const { colors, dark } = useTheme();
+  const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
+  const DOUBLE_TAP_DELAY = 1000; // ms
+  const [enableRemoveButton, setEnableRemoveButton] = useState(false);
+  let buttonIntervalId: number | null = null;
 
-    const handlePress = () => {
-        if(buttonIntervalId) clearTimeout(buttonIntervalId);
-        buttonIntervalId = setTimeout(() => {
-            setEnableRemoveButton(false);
-        }, DOUBLE_TAP_DELAY);
+  const handlePress = () => {
+    if (buttonIntervalId) clearTimeout(buttonIntervalId);
+    buttonIntervalId = setTimeout(() => {
+      setEnableRemoveButton(false);
+    }, DOUBLE_TAP_DELAY);
 
-        if (enableRemoveButton) {
-            onRemove();
-            return;
-        }
-        setEnableRemoveButton(true);
-    };
+    if (enableRemoveButton) {
+      onRemove();
+      return;
+    }
+    setEnableRemoveButton(true);
+  };
 
-    return (
-        <Pressable
-            onPress={handlePress}
-            style={[styles.userTag, { backgroundColor: color }, isNewlyAdded && styles.userTagNew]}
-            accessibilityLabel={`Double-tap to remove from user ${userIndex}`}
-        >
-            {enableRemoveButton ? (
-                <Text style={styles.userTagRemove}>✕</Text>
-            ) : (
-                <Text style={styles.userTagText}>{userIndex}</Text>
-            )}
-        </Pressable>
-    );
+  return (
+    <Pressable
+      onPress={handlePress}
+      style={[
+        styles.userTag,
+        { backgroundColor: color },
+        isNewlyAdded && styles.userTagNew,
+      ]}
+      accessibilityLabel={`Double-tap to remove from user ${userIndex}`}
+    >
+      {enableRemoveButton ? (
+        <Text style={styles.userTagRemove}>✕</Text>
+      ) : (
+        <Text style={styles.userTagText}>{userIndex}</Text>
+      )}
+    </Pressable>
+  );
 }
-
 
 const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
   StyleSheet.create({

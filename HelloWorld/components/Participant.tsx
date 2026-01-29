@@ -1,5 +1,11 @@
 import React, { useRef } from 'react';
-import { View, Text, StyleSheet, LayoutRectangle, useColorScheme } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  LayoutRectangle,
+  useColorScheme,
+} from 'react-native';
 
 interface ParticipantsProps {
   id: number;
@@ -13,14 +19,15 @@ export default function Participant({ id, onLayout }: ParticipantsProps) {
   const isDark = theme === 'dark';
 
   return (
-    <View 
+    <View
       ref={ref}
       onLayout={() => {
         ref.current?.measureInWindow((x, y, width, height) => {
           onLayout({ x, y, width, height });
         });
       }}
-      style={[styles.box, isDark && styles.boxDark]}>
+      style={[styles.box, isDark && styles.boxDark]}
+    >
       <Text style={[styles.text, isDark && styles.textDark]}>
         Participant {id}
       </Text>
