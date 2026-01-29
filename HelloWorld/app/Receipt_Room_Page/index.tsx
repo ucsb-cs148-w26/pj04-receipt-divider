@@ -159,6 +159,7 @@ const createStyles = (colors: NativeThemeColorType) =>
     container: {
       flex: 1,
       backgroundColor: colors.background,
+      paddingTop: 60,
     },
     topBar: {
       backgroundColor: colors.card,
