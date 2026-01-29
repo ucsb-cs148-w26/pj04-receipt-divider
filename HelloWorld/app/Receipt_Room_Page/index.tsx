@@ -96,6 +96,10 @@ export default function ReceiptRoomScreen() {
   const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>([
     { id: 1, name: 'Burger', price: '12.99', userTags: [] },
   ]);
+  
+  // Ref to always access current receiptItems state (avoids closure issues)
+  const receiptItemsRef = useRef(receiptItems);
+  receiptItemsRef.current = receiptItems;
 
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
@@ -110,18 +114,25 @@ export default function ReceiptRoomScreen() {
   };
 
   const updateReceiptItem = (id: number, updates: Partial<ReceiptItemType>) => {
-    setReceiptItems(
-      receiptItems.map((item) =>
+    console.log('updateReceiptItem called with id:', id, 'updates:', updates);
+    console.log('Current receiptItems before update:', receiptItems);
+    setReceiptItems(prevItems => {
+      const updatedItems = prevItems.map((item) =>
         item.id === id ? { ...item, ...updates } : item,
-      ),
-    );
+      );
+      console.log('Updated receipt items:', updatedItems);
+      console.log('Specific update for item', id, ':', updates);
+      return updatedItems;
+    });
   };
 
   const deleteReceiptItem = (id: number) => {
     setReceiptItems(receiptItems.filter((item) => item.id !== id));
+    console.log('Deleted receipt items:', receiptItems);
   };
 
   const removeItemFromUser = (itemId: number, userIndex: number) => {
+    console.log
     setReceiptItems(
       receiptItems.map((item) => {
         if (item.id === itemId) {
@@ -183,6 +194,7 @@ export default function ReceiptRoomScreen() {
                 isDragging={dragState.itemId === item.id}
                 dragPan={dragState.itemId === item.id ? dragPan : undefined}
                 onParticipantBoundsChange={handleParticipantBoundsChange}
+                getCurrentItemData={() => receiptItemsRef.current.find(i => i.id === item.id)!}
               />
             ))}
 
@@ -216,6 +228,7 @@ export default function ReceiptRoomScreen() {
           dragPan={dragPan}
           initialPosition={{x: dragState.initialPosition.x-ITEMCONTAINERPADDING, y: dragState.initialPosition.y-ITEMCONTAINERPADDING}}
           isInParticipantBoundsProp={dragState.isOverParticipant}
+          getCurrentItemData={() => receiptItemsRef.current.find(item => item.id === dragState.itemId)!}
         />
       )}
       </View>

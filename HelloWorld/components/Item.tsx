@@ -86,6 +86,9 @@ interface ReceiptItemProps extends DragProps {
   }) => void;
   onDelete: () => void;
   onRemoveFromUser: (userIndex: number) => void;
+  
+  /** Function to get current item data (for overlay to get fresh data) */
+  getCurrentItemData?: () => ReceiptItemType;
 }
 
 export function ReceiptItem({
@@ -106,6 +109,8 @@ export function ReceiptItem({
   initialPosition,
   onParticipantBoundsChange,
   isInParticipantBoundsProp,
+  // Fresh data getter for overlay
+  getCurrentItemData,
 }: ReceiptItemProps) {
   
   /** ---------------- Theme ---------------- */
@@ -135,6 +140,12 @@ export function ReceiptItem({
   const panRef = useRef(pan);
   panRef.current = pan;
   const viewRef = useRef<View>(null);
+  // Ref to track current position (avoids stale closure in panResponder)
+  const currentPositionRef = useRef({ x: 0, y: 0 });
+  // Long press timer for delayed drag start
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+  const LONG_PRESS_DELAY = 250; // 0.25 seconds
 
   /** ---------------- Computed Values ---------------- */
   // Sort user tags in increasing order
@@ -174,27 +185,40 @@ export function ReceiptItem({
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (e, gestureState) => {
+        // Only respond to move if long press has triggered
+        return longPressTriggered.current;
+      },
       onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponderCapture: () => dragState.isDragging,
+      onMoveShouldSetPanResponderCapture: () => longPressTriggered.current,
       onPanResponderGrant: (e, gestureState) => {
-        setDragState(prev => ({ ...prev, isDragging: true }));
-        // Measure the view's position and pass it to parent
-        if (viewRef.current) {
-          viewRef.current.measureInWindow((x, y, width, height) => {
-            onDragStart?.(item.id, { x, y });
-          });
-        } else {
-          onDragStart?.(item.id, { x: gestureState.x0, y: gestureState.y0 });
-        }
+        // Start long press timer
+        longPressTriggered.current = false;
+        longPressTimer.current = setTimeout(() => {
+          longPressTriggered.current = true;
+          setDragState(prev => ({ ...prev, isDragging: true }));
+          // Measure the view's position and pass it to parent
+          if (viewRef.current) {
+            viewRef.current.measureInWindow((x, y, width, height) => {
+              onDragStart?.(item.id, { x, y });
+            });
+          } else {
+            onDragStart?.(item.id, { x: gestureState.x0, y: gestureState.y0 });
+          }
+        }, LONG_PRESS_DELAY);
       },
       onPanResponderMove: (e, gestureState) => {
+        // Only track movement if long press has triggered
+        if (!longPressTriggered.current) return;
+        
         // Use panRef.current to get the current pan value
         panRef.current.setValue({ x: gestureState.dx, y: gestureState.dy });
         
         const x = gestureState.x0 + gestureState.dx;
         const y = gestureState.y0 + gestureState.dy;
         
+        // Update ref for use in release handler (avoids stale closure)
+        currentPositionRef.current = { x, y };
         setDragState(prev => ({ ...prev, currentPosition: { x, y } }));
 
         const participantId = checkParticipantCollision(x, y);
@@ -203,31 +227,60 @@ export function ReceiptItem({
         onParticipantBoundsChange?.(inBounds);
       },
       onPanResponderRelease: () => {
-        const participantId = checkParticipantCollision(
-          dragState.currentPosition.x, 
-          dragState.currentPosition.y
-        );
-        
-        if (participantId !== null) {
-          // Add participant to userTags if not already there
-          const updatedTags = item.userTags ? [...item.userTags] : [];
-          if (!updatedTags.includes(participantId)) {
-            updatedTags.push(participantId);
-            onUpdate({ userTags: updatedTags });
-          }
+        // Clear long press timer
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
         }
-
-        setDragState({
-          isDragging: false,
-          isInParticipantBounds: false,
-          currentPosition: { x: 0, y: 0 },
-        });
-        onDragEnd?.();
         
-        Animated.spring(
-          panRef.current,
-          { toValue: { x: 0, y: 0 }, useNativeDriver: false },
-        ).start();
+        // Only process drop if drag was actually started
+        if (longPressTriggered.current) {
+          // Use ref to get current position (avoids stale closure)
+          const participantId = checkParticipantCollision(
+            currentPositionRef.current.x, 
+            currentPositionRef.current.y
+          );
+          console.log('Dropped on participant:', participantId);
+          if (participantId !== null) {
+            // Get the most current item data (especially important for overlay)
+            const currentItem = getCurrentItemData ? getCurrentItemData() : item;
+            console.log('Current item from getCurrentItemData:', currentItem);
+            console.log('Current item.userTags before update:', currentItem.userTags);
+            // Add participant to userTags if not already there
+            const updatedTags = currentItem.userTags ? [...currentItem.userTags] : [];
+            console.log('updatedTags after spreading existing:', updatedTags);
+            if (!updatedTags.includes(participantId)) {
+              updatedTags.push(participantId);
+              console.log('Updated tags after push:', updatedTags);
+              onUpdate({ userTags: updatedTags });
+            } else {
+              console.log('Participant', participantId, 'already in tags:', updatedTags);
+            }
+          }
+
+          setDragState({
+            isDragging: false,
+            isInParticipantBounds: false,
+            currentPosition: { x: 0, y: 0 },
+          });
+          onDragEnd?.();
+          
+          Animated.spring(
+            panRef.current,
+            { toValue: { x: 0, y: 0 }, useNativeDriver: false },
+          ).start();
+        }
+        
+        longPressTriggered.current = false;
+        currentPositionRef.current = { x: 0, y: 0 };
+      },
+      onPanResponderTerminate: () => {
+        // Clear timer if gesture is terminated
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+        longPressTriggered.current = false;
       },
     })
   ).current;

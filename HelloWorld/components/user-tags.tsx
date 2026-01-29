@@ -1,5 +1,5 @@
 import { useTheme } from '@react-navigation/native';
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 
 interface NativeThemeColorType {
@@ -25,18 +25,29 @@ export default function UserTag({
     const { colors, dark } = useTheme();
     const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
     const [isHovering, setIsHovering] = useState(false);
+    const lastTapRef = React.useRef<number>(0);
+    const DOUBLE_TAP_DELAY = 300; // ms
+
+    const handlePress = () => {
+        const now = Date.now();
+        if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+            // Double tap detected - remove the tag
+            onRemove();
+            lastTapRef.current = 0; // Reset
+        } else {
+            lastTapRef.current = now;
+        }
+    };
 
     return (
         <Pressable
-            onPress={() => {
-                onRemove();
-            }}
+            onPress={handlePress}
             onHoverIn={() => setIsHovering(true)}
             onHoverOut={() => setIsHovering(false)}
             onPressIn={() => setIsHovering(true)}
             onPressOut={() => setIsHovering(false)}
             style={[styles.userTag, { backgroundColor: color }, isNewlyAdded && styles.userTagNew]}
-            accessibilityLabel={`Remove from user ${userIndex}`}
+            accessibilityLabel={`Double-tap to remove from user ${userIndex}`}
         >
             {isHovering ? (
                 <Text style={styles.userTagRemove}>✕</Text>
