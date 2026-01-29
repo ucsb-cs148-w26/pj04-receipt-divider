@@ -13,7 +13,6 @@ import {
   Animated,
 } from 'react-native';
 import Participant from '../../components/Participant';
-import Draggable from '@/components/draggable';
 
 interface NativeThemeColorType {
   primary: string;
@@ -51,6 +50,9 @@ export default function ReceiptRoomScreen() {
   });
   const dragPan = useRef(new Animated.ValueXY()).current;
 
+  /**---------------- Text Focus State ---------------- */
+  const [isAnyTextFocused, setIsAnyTextFocused] = useState(false);
+
   /**---------------- Participants Functions ---------------- */
   const addParticipant = () => {
     const newID = participants.length + 1;
@@ -66,6 +68,7 @@ export default function ReceiptRoomScreen() {
       isOverParticipant: false,
     });
     dragPan.setValue({ x: 0, y: 0 });
+    console.log('Started dragging item', itemId)
   };
 
   const handleItemDragEnd = () => {
@@ -171,7 +174,10 @@ export default function ReceiptRoomScreen() {
                 isDragging={dragState.itemId === item.id}
                 dragPan={dragState.itemId === item.id ? dragPan : undefined}
                 onParticipantBoundsChange={handleParticipantBoundsChange}
+                isInParticipantBoundsProp={false}
                 getCurrentItemData={() => receiptItemsRef.current.find(i => i.id === item.id)!}
+                isAnyTextFocused={isAnyTextFocused}
+                onTextFocusChange={setIsAnyTextFocused}
               />
             ))}
 
@@ -189,6 +195,10 @@ export default function ReceiptRoomScreen() {
           horizontal={true}
           style={styles.participantsContainer}
           contentContainerStyle={styles.participantsScrollContent}
+          onScrollEndDrag={(event) => {
+            setScrollOffset(event.nativeEvent.contentOffset.x);
+            console.log('Participants scroll offset:', event.nativeEvent.contentOffset.x);
+          }}
           onMomentumScrollEnd={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
             console.log('Participants scroll offset:', event.nativeEvent.contentOffset.x);
@@ -200,8 +210,8 @@ export default function ReceiptRoomScreen() {
               key={id} 
               id={id} 
               onLayout={(layout) => {
-              participantLayouts.current[id] = layout;
-              console.log('Participant', id, 'layout:', layout);
+              participantLayouts.current[id] = { ...layout, x: layout.x + scrollOffset };
+              console.log('Participant', id, 'layout.x', layout.x, 'adjusted x:', layout.x + scrollOffset);
             }}/>
           ))}
         </ScrollView>
@@ -227,6 +237,8 @@ export default function ReceiptRoomScreen() {
           initialPosition={{x: dragState.initialPosition.x-ITEMCONTAINERPADDING, y: dragState.initialPosition.y-ITEMCONTAINERPADDING}}
           isInParticipantBoundsProp={dragState.isOverParticipant}
           getCurrentItemData={() => receiptItemsRef.current.find(item => item.id === dragState.itemId)!}
+          isAnyTextFocused={isAnyTextFocused}
+          onTextFocusChange={setIsAnyTextFocused}
         />
       )}
       </View>
@@ -256,12 +268,6 @@ const createStyles = (colors: NativeThemeColorType) =>
       flex: 1,
       backgroundColor: colors.background,
     },
-    scrollArea: {
-      flex: 1,
-    },
-    itemsContainer: {
-      padding: ITEMCONTAINERPADDING,
-    },
     overlayContainer: {
       position: 'absolute',
       top: 0,
@@ -270,11 +276,18 @@ const createStyles = (colors: NativeThemeColorType) =>
       bottom: 0,
       pointerEvents: 'box-none',
     },
+    scrollArea: {
+      flex: 1,
+    },
+    itemsContainer: {
+      padding: ITEMCONTAINERPADDING,
+      height: '80%',
+    },
     participantsContainer: {
+      height: '20%',
       padding: 16,
     },
     itemsContent: {
-      maxWidth: 800,
       minWidth: '100%',
       alignSelf: 'center',
       zIndex: 1,

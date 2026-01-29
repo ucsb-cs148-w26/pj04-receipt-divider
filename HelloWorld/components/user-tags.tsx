@@ -24,32 +24,30 @@ export default function UserTag({
 }) {
     const { colors, dark } = useTheme();
     const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
-    const [isHovering, setIsHovering] = useState(false);
-    const lastTapRef = React.useRef<number>(0);
-    const DOUBLE_TAP_DELAY = 300; // ms
+    const DOUBLE_TAP_DELAY = 1000; // ms
+    const [enableRemoveButton, setEnableRemoveButton] = useState(false);
+    let buttonIntervalId: number | null = null;
 
     const handlePress = () => {
-        const now = Date.now();
-        if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-            // Double tap detected - remove the tag
+        if(buttonIntervalId) clearTimeout(buttonIntervalId);
+        buttonIntervalId = setTimeout(() => {
+            setEnableRemoveButton(false);
+        }, DOUBLE_TAP_DELAY);
+
+        if (enableRemoveButton) {
             onRemove();
-            lastTapRef.current = 0; // Reset
-        } else {
-            lastTapRef.current = now;
+            return;
         }
+        setEnableRemoveButton(true);
     };
 
     return (
         <Pressable
             onPress={handlePress}
-            onHoverIn={() => setIsHovering(true)}
-            onHoverOut={() => setIsHovering(false)}
-            onPressIn={() => setIsHovering(true)}
-            onPressOut={() => setIsHovering(false)}
             style={[styles.userTag, { backgroundColor: color }, isNewlyAdded && styles.userTagNew]}
             accessibilityLabel={`Double-tap to remove from user ${userIndex}`}
         >
-            {isHovering ? (
+            {enableRemoveButton ? (
                 <Text style={styles.userTagRemove}>✕</Text>
             ) : (
                 <Text style={styles.userTagText}>{userIndex}</Text>

@@ -93,6 +93,10 @@ interface ReceiptItemProps extends DragProps {
   
   /** Function to get current item data (for overlay to get fresh data) */
   getCurrentItemData?: () => ReceiptItemType;
+  
+  /** Text focus state from parent */
+  isAnyTextFocused?: boolean;
+  onTextFocusChange?: (focused: boolean) => void;
 }
 
 export function ReceiptItem({
@@ -115,6 +119,9 @@ export function ReceiptItem({
   isInParticipantBoundsProp,
   // Fresh data getter for overlay
   getCurrentItemData,
+  // Text focus state
+  isAnyTextFocused = false,
+  onTextFocusChange,
 }: ReceiptItemProps) {
   
   /** ---------------- Theme ---------------- */
@@ -146,6 +153,9 @@ export function ReceiptItem({
   const viewRef = useRef<View>(null);
   // Ref to track current position (avoids stale closure in gesture)
   const currentPositionRef = useRef({ x: 0, y: 0 });
+  // Ref to track text focus state for immediate access in gesture
+  const isAnyTextFocusedRef = useRef(isAnyTextFocused);
+  isAnyTextFocusedRef.current = isAnyTextFocused;
 
   /** ---------------- Computed Values ---------------- */
   // Sort user tags in increasing order
@@ -158,7 +168,7 @@ export function ReceiptItem({
 
   /** ---------------- Collision Detection ---------------- */
   const checkParticipantCollision = useCallback((x: number, y: number): number | null => {
-    const draggableSize = 150;
+    let closestParticipant: { id: number; distance: number } | null = null;
 
     for (const [idStr, layout] of Object.entries(participantLayouts)) {
       const id = Number(idStr);
@@ -168,17 +178,30 @@ export function ReceiptItem({
         x: layout.x - scrollOffset,
       };
 
+      // Check if the gesture position overlaps with this participant
       if (
-        x + draggableSize >= adjustedLayout.x &&
+        x >= adjustedLayout.x &&
         x <= adjustedLayout.x + adjustedLayout.width &&
-        y + draggableSize >= adjustedLayout.y &&
+        y >= adjustedLayout.y &&
         y <= adjustedLayout.y + adjustedLayout.height
       ) {
-        return id;
+        // Calculate distance from gesture position to participant center
+        const participantCenterX = adjustedLayout.x + adjustedLayout.width / 2;
+        const participantCenterY = adjustedLayout.y + adjustedLayout.height / 2;
+        
+        const distance = Math.sqrt(
+          Math.pow(x - participantCenterX, 2) + 
+          Math.pow(y - participantCenterY, 2)
+        );
+
+        // Keep track of the closest participant
+        if (!closestParticipant || distance < closestParticipant.distance) {
+          closestParticipant = { id, distance };
+        }
       }
     }
     
-    return null;
+    return closestParticipant?.id ?? null;
   }, [participantLayouts, scrollOffset]);
 
   /** ---------------- Worklet-safe handlers ---------------- */
@@ -204,6 +227,7 @@ export function ReceiptItem({
     const inBounds = participantId !== null;
     setDragState(prev => ({ ...prev, isInParticipantBounds: inBounds }));
     onParticipantBoundsChange?.(inBounds);
+    //console.log('Dragging over participant:', participantId);
   }, [checkParticipantCollision, onParticipantBoundsChange]);
 
   const handleDragEnd = useCallback(() => {
@@ -251,12 +275,20 @@ export function ReceiptItem({
     () =>
       Gesture.Pan()
         .activateAfterLongPress(250)
-        .onBegin(() => {
+        .onStart(() => {
           'worklet';
+          // Check ref value at gesture start to ensure most current state
+          if (isAnyTextFocusedRef.current) {
+            return; // Cancel gesture if text is focused
+          }
           handleDragStart();
         })
         .onChange((event) => {
           'worklet';
+          // Check ref value at gesture start to ensure most current state
+          if (isAnyTextFocusedRef.current) {
+            return; // Cancel gesture if text is focused
+          }
           handleDragChange(event.absoluteX, event.absoluteY, event.translationX, event.translationY);
         })
         .onEnd(() => {
@@ -322,8 +354,7 @@ export function ReceiptItem({
         >
           <Pressable
             style={[
-              isCurrentlyDragging && inParticipantBounds ? styles.containerShrunk : styles.container,
-              uiState.isHovering && !isCurrentlyDragging && styles.containerHover,
+              styles.topContainer
             ]}
             onHoverIn={() => setIsHovering(true)}
             onHoverOut={() => setIsHovering(false)}
@@ -350,6 +381,14 @@ export function ReceiptItem({
                     onChangeText={(text) => onUpdate({ name: text })}
                     placeholder='Item name'
                     style={styles.nameInput}
+                    onFocus={() => {
+                      onTextFocusChange?.(true);
+                      console.log('Name input focused');
+                    }}
+                    onBlur={() => {
+                      onTextFocusChange?.(false);
+                      console.log('Name input blurred');
+                    }}
                   />
                 }
               </View>
@@ -367,6 +406,8 @@ export function ReceiptItem({
                       placeholder='0.00'
                       style={styles.priceInput}
                       keyboardType='numeric'
+                      onFocus={() => onTextFocusChange?.(true)}
+                      onBlur={() => onTextFocusChange?.(false)}
                     />
                   </View>
                 }
@@ -380,7 +421,11 @@ export function ReceiptItem({
                   <TextInput
                     value={item.discount || ''}
                     onChangeText={handleDiscountChange}
-                    onBlur={handleDiscountBlur}
+                    onFocus={() => onTextFocusChange?.(true)}
+                    onBlur={() => {
+                      handleDiscountBlur();
+                      onTextFocusChange?.(false);
+                    }}
                     placeholder='0.00'
                     style={styles.discountInput}
                     keyboardType='numeric'
@@ -433,7 +478,7 @@ const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
       elevation: 9999,
       padding: ITEMCONTAINERPADDING,
     },
-    container: {
+    topContainer: {
       minWidth: '100%',
       backgroundColor: colors.card,
       borderRadius: 8,
@@ -444,31 +489,6 @@ const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
       paddingRight: 24,
       paddingBottom: 24,
       marginBottom: 8,
-    },
-    containerShrunk: {
-      flex: 1,
-      backgroundColor: colors.card,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 8,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    containerHover: {
-      transform: [{ scale: 1.03 }],
-    },
-    shrunkItemContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 8,
-    },
-    shrunkItemName: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: 'bold',
-      textAlign: 'center',
     },
     header: {
       flexDirection: 'row',
