@@ -2,7 +2,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { ActivityIndicator, Button, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { analyzeReceipt } from '../src/services/OcrService';
+import { analyzeReceipt } from '../src/providers/OcrService';
 
 export default function TestScreen() {
   const [image, setImage] = useState<string | null>(null);
