@@ -31,13 +31,18 @@ interface DragState {
   isOverParticipant: boolean;
 }
 
+interface ParticipantType {
+  id: number;
+  name: string;
+}
+
 export default function ReceiptRoomScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams();
 
   /**---------------- Participants State ---------------- */
-  const [participants, setParticipants] = useState<number[]>([]);
+  const [participants, setParticipants] = useState<ParticipantType[]>([]);
   const participantLayouts = useRef<Record<number, LayoutRectangle>>({});
   const [scrollOffset, setScrollOffset] = useState(0);
 
@@ -56,7 +61,19 @@ export default function ReceiptRoomScreen() {
   /**---------------- Participants Functions ---------------- */
   const addParticipant = () => {
     const newID = participants.length + 1;
-    setParticipants([...participants, newID]);
+    const newParticipant = {
+      id: newID,
+      name: `Participant ${newID}`
+    }
+    setParticipants([...participants, newParticipant]);
+  };
+
+  const changeParticipantName = (id: number, newName: string) => {
+    setParticipants((prev) =>
+      prev.map((p) =>
+        p.id === id ? {...p, name: newName} : p
+      )
+    );
   };
 
   /**---------------- Drag Functions ---------------- */
@@ -220,18 +237,20 @@ export default function ReceiptRoomScreen() {
           }}
           scrollEventThrottle={16}
         >
-          {participants.map((id) => (
+          {participants.map((participant) => (
             <Participant
-              key={id}
-              id={id}
+              key = {participant.id}
+              id = {participant.id}
+              name = {participant.name}
+              changeName = {(text) => changeParticipantName(participant.id, text)}
               onLayout={(layout) => {
-                participantLayouts.current[id] = {
+                participantLayouts.current[participant.id] = {
                   ...layout,
                   x: layout.x + scrollOffset,
                 };
                 console.log(
                   'Participant',
-                  id,
+                  participant.id,
                   'layout.x',
                   layout.x,
                   'adjusted x:',

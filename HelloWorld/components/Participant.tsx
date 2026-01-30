@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   LayoutRectangle,
   useColorScheme,
@@ -9,10 +10,12 @@ import {
 
 interface ParticipantsProps {
   id: number;
+  name: string;
+  changeName: (text: string) => void;
   onLayout: (event: LayoutRectangle) => void;
 }
 
-export default function Participant({ id, onLayout }: ParticipantsProps) {
+export default function Participant({ id, name, changeName, onLayout }: ParticipantsProps) {
   const ref = useRef<View>(null);
 
   const theme = useColorScheme();
@@ -28,9 +31,12 @@ export default function Participant({ id, onLayout }: ParticipantsProps) {
       }}
       style={[styles.box, isDark && styles.boxDark]}
     >
-      <Text style={[styles.text, isDark && styles.textDark]}>
-        Participant {id}
-      </Text>
+      <TextInput
+        value = {name}
+        onChangeText = {changeName}
+        style={[styles.text, isDark && styles.textDark]}
+        >
+      </TextInput>
     </View>
   );
 }
