@@ -21,7 +21,7 @@ Yiheng: Try to organize the Text frpm OCR.Future, Using OCR to extract the texts
 
 Edward: Add QR code to the page. Next: QR scanning.
 
-Roy: participants feature, finished hw 3. no current road blocks.
+Roy: participants feature, finished hw 3. no current roadblocks.
 
 Leifeng: Reorganize the kanban Board. Work on item component.
 
@@ -29,4 +29,4 @@ Mason: some pull request. SOlve some tickets
 
 Ken: Finished the photo page.Furture: finish text extract. Future: 2 small tickets.
 
-Charlie : merged ken pull requests and others. NO current road blocks.
+Charlie : merged ken pull requests and others. NO current roadblocks.
