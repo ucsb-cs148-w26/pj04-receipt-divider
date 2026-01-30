@@ -1,0 +1,2 @@
+[Shared Google Doc](https://docs.google.com/document/d/1ilb67hpBVWBjAvssvZEL5OlvEX85cxyjMRO2Kc0gBUo/edit?usp=sharing) \
+[Figma Mockup](https://www.figma.com/make/hsTgf8Zjh961Cf4X8u033a/Three-Page-App-Design?t=chCw6K7wgWkha2xB-1)
