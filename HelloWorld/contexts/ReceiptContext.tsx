@@ -18,7 +18,9 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
   receiptItemsRef.current = receiptItems;
 
   return (
-    <ReceiptContext.Provider value={{ receiptItems, setReceiptItems, receiptItemsRef }}>
+    <ReceiptContext.Provider
+      value={{ receiptItems, setReceiptItems, receiptItemsRef }}
+    >
       {children}
     </ReceiptContext.Provider>
   );
