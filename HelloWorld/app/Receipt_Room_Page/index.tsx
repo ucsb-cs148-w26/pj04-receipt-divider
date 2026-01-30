@@ -13,6 +13,7 @@ import {
   Animated,
 } from 'react-native';
 import Participant from '../../components/Participant';
+import { useReceipt } from '../../contexts/ReceiptContext';
 
 interface NativeThemeColorType {
   primary: string;
@@ -102,14 +103,8 @@ export default function ReceiptRoomScreen() {
   });
 
   /**---------------- Receipt Items State ---------------- */
-  // Lift state up from AppScreen so it persists across navigation
-  const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>([
-    { id: 1, name: 'Burger', price: '12.99', userTags: [] },
-  ]);
-
-  // Ref to always access current receiptItems state (avoids closure issues)
-  const receiptItemsRef = useRef(receiptItems);
-  receiptItemsRef.current = receiptItems;
+  // Get receipt items from context (persists across navigation, resets on app reload)
+  const { receiptItems, setReceiptItems, receiptItemsRef } = useReceipt();
 
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
