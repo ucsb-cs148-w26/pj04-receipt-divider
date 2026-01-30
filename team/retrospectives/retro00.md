@@ -242,7 +242,7 @@ Observations/Data that support taking this action:
 
 **Final Conclusion:**
 
-Read pls. Continue read and execute.
+Read pls. Continue reading and executing.
 
 [https://www.conventionalcommits.org/en/v1.0.0/](https://www.conventionalcommits.org/en/v1.0.0/) 
 
@@ -259,3 +259,31 @@ Closing statement(s):
   * Sample commits and compare to a criteria  
   * Sample issues and compare to a criteria  
   * General poll for how communicative everyone feels others are (Anonymous)
+ 
+ # # Retro Assessment 
+Description: 
+
+For this retro, Charlie chose the stop/start/continue outline. The outline asks all the participants to come up with 3 items, one that you want the team to start doing, one that you want the team to stop doing, and one item that you want the team to continue doing. We then picked the 3 most popular items, regardless of type, and discussed their benefits, cost, and implementation. 
+
+Assessment: 
+
+I think we overall had a good retro. We went through the process fully and agreed on some changes. However, we rushed the retro in the later parts, due to time constraints. 
+
+Advice:
+
+If you choose to do this retro format, then you should be prepared to help your members come up with ideas. Try to remind them of different scenarios where they could get inspiration. It is important that you get everyone to get engaged with coming up with items, since this is the core of the format. 
+
+## Experiment/Change
+Description: 
+
+After this retrospective, our team will implement three main changes. First, we will begin writing clear acceptance criteria for every ticket, so that each task has well-defined goals and expectations before work begins. Second, team members will be more vocal about which issues they are picking up. Finally, we will adopt conventional commits for all future commits. This will standardize our commit messages, making the project history easier to understand, debug, and maintain over time. 
+
+We will measure our progress by taking a sample size of our commits, announcements, and tickets, and then comparing them to a criteria that the team agreed on.
+
+Results:
+
+Looking through all the branches and PRs, I have to say that we are quite consistent with our conventions. We are struggling a little bit to meet our last change. The tickets are still not the most uniform. The style can change from ticket to ticket, but the acceptance criteria are pretty encompassing. So, while not to the standard of the other two changes, I think we still made good improvements in our practices of creating and handling tickets. 
+
+Decision:
+
+We will continue to develop our conventions and continue to streamline the process of creating tickets. However, we think that this has overall been a great success.
