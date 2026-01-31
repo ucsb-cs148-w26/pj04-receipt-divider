@@ -5,20 +5,20 @@ import { ReceiptItem, ReceiptItemType } from '@/components/Item';
 import DisplayClaimedReceiptItem from '@/components/Display-Items'
  
 const receiptItems: ReceiptItemType[]  = [ 
-{id: '1', name: 'Burger', price: '12.99', userTags: [] }, 
-{id: '2', name: 'Hamburger', price: '13.99', userTags: [] },
-{id: '3', name: 'Pizza', price: '13.99', userTags: [] },
-{id: '4', name: 'Some Chinease Stuff', price: '11.99', userTags: [] },
-{id: '5', name: 'Some Thigh Stuff', price: '11.98', userTags: [] },
-{id: '6', name: 'Mysterious Meat', price: '930.99', userTags: [] },
-{id: '7', name: 'Egg Plant', price: '1.35', userTags: [] },
-{id: '8', name: '2 Egg Plants', price: '2.69', userTags: [] },
-{id: '9', name: '3 Egg Plants', price: '4.04', userTags: [], discount: '0.04' },
-{id: '10', name: 'Golden Egg', price: '2.99', userTags: [] },
-{id: '11', name: 'The Elixir of Life', price: '1.99', userTags: [], discount: '1.00' },
-{id: '12', name: 'Bacon', price: '2.00', userTags: [] },
-{id: '30', name: 'Century Egg', price: '15.99', userTags: [], discount: '2.00'},
-{id: '31', name: 'Super Ultra Duper Mega Giga Turbo Jumbo Wombo Shrimp', price: '16.99', userTags: [], discount: '3.00'}, ];
+{id: 1, name: 'Burger', price: '12.99', userTags: [] }, 
+{id: 2, name: 'Hamburger', price: '13.99', userTags: [] },
+{id: 3, name: 'Pizza', price: '13.99', userTags: [] },
+{id: 4, name: 'Some Chinease Stuff', price: '11.99', userTags: [] },
+{id: 5, name: 'Some Thigh Stuff', price: '11.98', userTags: [] },
+{id: 6, name: 'Mysterious Meat', price: '930.99', userTags: [] },
+{id: 7, name: 'Egg Plant', price: '1.35', userTags: [] },
+{id: 8, name: '2 Egg Plants', price: '2.69', userTags: [] },
+{id: 9, name: '3 Egg Plants', price: '4.04', userTags: [], discount: '0.04' },
+{id: 10, name: 'Golden Egg', price: '2.99', userTags: [] },
+{id: 11, name: 'The Elixir of Life', price: '1.99', userTags: [], discount: '1.00' },
+{id: 12, name: 'Bacon', price: '2.00', userTags: [] },
+{id: 30, name: 'Century Egg', price: '15.99', userTags: [], discount: '2.00'},
+{id: 31, name: 'Super Ultra Duper Mega Giga Turbo Jumbo Wombo Shrimp', price: '16.99', userTags: [], discount: '3.00'}, ];
 
 let sumTotal: number = 0;
 

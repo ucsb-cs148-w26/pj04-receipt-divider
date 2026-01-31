@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 
 export interface DisplayClaimedReceiptItemProps {
-    id: string;
+    id: number;
     name: string;
     price: string;
     discount?: string; // Optional discount amount
