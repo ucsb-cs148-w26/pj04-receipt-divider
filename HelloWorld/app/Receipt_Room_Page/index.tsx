@@ -130,9 +130,11 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Receipt Items ---------------- */
   // Lift state up from AppScreen so it persists across navigation
+
+  
   const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>(() => {
     try {
-      return JSON.parse(params.items)??receiptContext.receiptItems;
+      return JSON.parse(params.items);
     }
     catch {
       return receiptContext.receiptItems;
@@ -328,7 +330,10 @@ export default function ReceiptRoomScreen() {
         title='Your Items'
         onPress={() => router.push('../Your_Items_Page')}
       />
-      <Button title='Close Room' onPress={() => router.push('../Home_Page')} />
+      <Button title='Close Room' onPress={() => {
+          router.dismissAll();
+          router.navigate('../Home_Page');
+        }} />
     </View>
   );
 }

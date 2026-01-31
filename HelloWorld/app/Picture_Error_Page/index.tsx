@@ -7,11 +7,17 @@ export default function PictureErrorScreen() {
     <View style={styles.container}>
       <Button
         title='Back to Home Page'
-        onPress={() => router.push('../Home_Page')}
+        onPress={() => {
+          router.dismiss();
+          router.navigate('../Home_Page')}
+        }
       />
       <Button
         title='Back to Camera'
-        onPress={() => router.push('../Camera_Page')}
+        onPress={() => {
+          router.dismiss();
+          router.navigate('../Camera_Page')}
+        }
       />
     </View>
   );
