@@ -21,10 +21,15 @@ interface NativeThemeColorType {
   notification: string;
 }
 
+export type ReceiptRoomParams = {
+  roomId: string;
+  items: string;
+};
+
 export default function ReceiptRoomScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<ReceiptRoomParams>();
 
   const [participants, setParticipants] = useState<number[]>([]);
 
@@ -45,9 +50,9 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Receipt Items ---------------- */
   // Lift state up from AppScreen so it persists across navigation
-  const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>([
-    { id: '1', name: 'Burger', price: '12.99', userTags: [] },
-  ]);
+  const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>(
+    JSON.parse(params.items),
+  );
 
   const addReceiptItem = () => {
     const newItem: ReceiptItemType = {
