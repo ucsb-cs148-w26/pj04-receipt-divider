@@ -8,12 +8,14 @@ import {
   LayoutRectangle,
   useColorScheme,
   Pressable,
+  TouchableOpacity,
 } from 'react-native';
 
 interface ParticipantsProps {
   id: number;
   color: string;
   changeName: (text: string) => void;
+  onRemove: () => void;
   onLayout: (event: LayoutRectangle) => void;
   goToYourItemsPage: () => void;
   onClickTextIn: () => void;
@@ -24,6 +26,7 @@ export default function Participant({
   id,
   color,
   changeName,
+  onRemove,
   onLayout,
   goToYourItemsPage,
   onClickTextIn,
@@ -44,6 +47,13 @@ export default function Participant({
       style={[styles.box, { backgroundColor: color }]}
       onPress={goToYourItemsPage}
     >
+        <TouchableOpacity
+            style = {styles.deleteButton}
+            onPress = {onRemove}
+            hitSlop = {{top: 10, bottom:10, right: 10, left:10}}
+        >
+            <Text style = {styles.deleteText}>x</Text>
+        </TouchableOpacity>
       <TextInput
         placeholder={'Name ' + id}
         placeholderTextColor='#ffffff83'
@@ -77,10 +87,31 @@ const createStyles = (colors: NativeThemeColorType) =>
       justifyContent: 'center',
       backgroundColor: colors.background,
       borderColor: colors.border,
+      position: 'relative',
     },
     text: {
-      top: -15,
+      top: -5,
       color: '#FFFFFF',
       fontWeight: 'bold',
     },
+    deleteButton: {
+        position: 'absolute',
+        top: -7,
+        left: -7,
+        backgroundColor: '#FF3B30',
+        width: 24,
+        height: 24,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+        zIndex: 10,
+      },
+      deleteText: {
+        color: 'white',
+        fontSize: 17,
+        fontWeight: 'bold',
+        top: -2,
+      },
   });

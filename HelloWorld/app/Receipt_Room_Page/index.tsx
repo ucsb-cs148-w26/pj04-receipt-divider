@@ -73,11 +73,28 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Participants Functions ---------------- */
   const addParticipant = () => {
-    const newID = participants.length + 1;
+    const maxID = participants.length > 0
+      ? Math.max(...participants.map(p => p.id)) 
+      : 0;
+
+    const newID = maxID + 1;
+
     const newParticipant = {
       id: newID,
     };
     setParticipants([...participants, newParticipant]);
+  };
+
+  const removeParticipant = (removeID: number) => {
+    setParticipants((prev) => prev.filter((p) => p.id !== removeID));
+
+    setReceiptItems((prevItems) => prevItems.map((item) => ({
+      ...item, userTags: item.userTags?.filter((tagId) => tagId !== removeID) || [] }))
+    );
+
+    if (participantLayouts.current[removeID]) {
+      delete participantLayouts.current[removeID];
+    }
   };
 
   const changeParticipantName = (id: number, newName: string) => {
@@ -268,6 +285,7 @@ export default function ReceiptRoomScreen() {
                 changeName={(text) =>
                   changeParticipantName(participant.id, text)
                 }
+                onRemove={() => removeParticipant(participant.id)}
                 onLayout={(layout) => {
                   participantLayouts.current[participant.id] = {
                     ...layout,
