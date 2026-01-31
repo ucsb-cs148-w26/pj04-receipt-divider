@@ -9,15 +9,15 @@ export default function PictureErrorScreen() {
         title='Back to Home Page'
         onPress={() => {
           router.dismiss();
-          router.navigate('../Home_Page')}
-        }
+          router.navigate('../Home_Page');
+        }}
       />
       <Button
         title='Back to Camera'
         onPress={() => {
           router.dismiss();
-          router.navigate('../Camera_Page')}
-        }
+          router.navigate('../Camera_Page');
+        }}
       />
     </View>
   );

@@ -21,7 +21,16 @@ interface ParticipantsProps {
   onClickTextOut: () => void;
 }
 
-export default function Participant({ id, name, color, changeName, onLayout, goToYourItemsPage, onClickTextIn, onClickTextOut }: ParticipantsProps) {
+export default function Participant({
+  id,
+  name,
+  color,
+  changeName,
+  onLayout,
+  goToYourItemsPage,
+  onClickTextIn,
+  onClickTextOut,
+}: ParticipantsProps) {
   const ref = useRef<View>(null);
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -34,19 +43,18 @@ export default function Participant({ id, name, color, changeName, onLayout, goT
           onLayout({ x, y, width, height });
         });
       }}
-      style={[styles.box, {backgroundColor: color}]}
+      style={[styles.box, { backgroundColor: color }]}
       onPress={goToYourItemsPage}
     >
       <TextInput
-        value = {name}
-        placeholder={"Name "+id}
-        placeholderTextColor="#ffffff83"
-        onChangeText = {changeName}
+        value={name}
+        placeholder={'Name ' + id}
+        placeholderTextColor='#ffffff83'
+        onChangeText={changeName}
         style={[styles.text]}
         onFocus={onClickTextIn}
         onBlur={onClickTextOut}
-        >
-      </TextInput>
+      ></TextInput>
     </Pressable>
   );
 }
@@ -77,6 +85,5 @@ const createStyles = (colors: NativeThemeColorType) =>
       top: -15,
       color: '#FFFFFF',
       fontWeight: 'bold',
-      
-    }
+    },
   });
