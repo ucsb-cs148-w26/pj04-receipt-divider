@@ -1,5 +1,5 @@
 import { useTheme } from '@react-navigation/native';
-import { ReceiptItem, ReceiptItemType } from '../../components/Item';
+import { ReceiptItem, ReceiptItemType, USER_COLORS } from '../../components/Item';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
 import {
@@ -232,11 +232,14 @@ export default function ReceiptRoomScreen() {
           }}
           scrollEventThrottle={16}
         >
-          {participants.map((participant) => (
+          {participants.map((participant) => {
+            const color = USER_COLORS[(participant.id - 1) % USER_COLORS.length];
+            return (
             <Participant
               key = {participant.id}
               id = {participant.id}
               name = {participant.name}
+              color = {color}
               changeName = {(text) => changeParticipantName(participant.id, text)}
               onLayout={(layout) => {
                 participantLayouts.current[participant.id] = {
@@ -253,7 +256,8 @@ export default function ReceiptRoomScreen() {
                 );
               }}
             />
-          ))}
+            )
+          })}
         </ScrollView>
       </View>
 
