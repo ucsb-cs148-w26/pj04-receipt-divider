@@ -5,6 +5,18 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@providers/": [
+        "./providers/*"
+      ],
+      "@components/": [
+        "./components/*"
+      ],
+      "@hooks/": [
+        "./hooks/*"
+      ],
+      "@assets/": [
+        "./assets/*"
       ]
     }
   },
