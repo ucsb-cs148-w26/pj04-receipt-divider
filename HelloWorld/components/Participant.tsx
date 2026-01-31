@@ -12,7 +12,6 @@ import {
 
 interface ParticipantsProps {
   id: number;
-  name: string;
   color: string;
   changeName: (text: string) => void;
   onLayout: (event: LayoutRectangle) => void;
@@ -23,7 +22,6 @@ interface ParticipantsProps {
 
 export default function Participant({
   id,
-  name,
   color,
   changeName,
   onLayout,
@@ -47,7 +45,6 @@ export default function Participant({
       onPress={goToYourItemsPage}
     >
       <TextInput
-        value={name}
         placeholder={'Name ' + id}
         placeholderTextColor='#ffffff83'
         onChangeText={changeName}

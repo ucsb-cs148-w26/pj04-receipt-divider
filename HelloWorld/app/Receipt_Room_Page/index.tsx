@@ -39,7 +39,6 @@ interface DragState {
 
 interface ParticipantType {
   id: number;
-  name: string;
 }
 
 export type ReceiptRoomParams = {
@@ -77,7 +76,6 @@ export default function ReceiptRoomScreen() {
     const newID = participants.length + 1;
     const newParticipant = {
       id: newID,
-      name: `Participant ${newID}`,
     };
     setParticipants([...participants, newParticipant]);
   };
@@ -266,7 +264,6 @@ export default function ReceiptRoomScreen() {
               <Participant
                 key={participant.id}
                 id={participant.id}
-                name={participant.name}
                 color={color}
                 changeName={(text) =>
                   changeParticipantName(participant.id, text)
@@ -398,7 +395,7 @@ const createStyles = (colors: NativeThemeColorType) =>
     },
     participantsScrollContent: {
       justifyContent: 'flex-start',
-      paddingHorizontal: 20,
+      left: -10,
       gap: 10,
     },
     topBar: {
