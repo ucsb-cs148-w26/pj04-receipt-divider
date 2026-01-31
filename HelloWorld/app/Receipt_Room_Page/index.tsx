@@ -140,6 +140,9 @@ export default function ReceiptRoomScreen() {
       return receiptContext.receiptItems;
     }
   });
+  // Ref to always access current receiptItems state (avoids closure issues)
+  const receiptItemsRef = useRef(receiptItems);
+  receiptItemsRef.current = receiptItems;
 
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
