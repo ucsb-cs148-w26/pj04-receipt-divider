@@ -8,11 +8,11 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <Button
         title='Take Photo'
-        onPress={() => router.push('../Camera_Page')}
+        onPress={() => router.navigate('../Camera_Page')}
       />
       <Button
         title='Settings'
-        onPress={() => router.push('../Settings_Page')}
+        onPress={() => router.navigate('../Settings_Page')}
       />
       <StatusBar style='auto' />
       {/* Globally sets status bar's (the seciton where you see your charge, time, wifi,etc) color scheme to complement the phone's theme (dark/light)*/}

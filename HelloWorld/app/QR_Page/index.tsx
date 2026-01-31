@@ -24,7 +24,10 @@ export default function QRScreen() {
       </View>
       <Button
         title='Back to Room'
-        onPress={() => router.push(`/Receipt_Room_Page?roomId=${roomId}`)}
+        onPress={() => {
+          router.dismiss();
+          router.navigate(`/Receipt_Room_Page?roomId=${roomId}`);
+        }}
       />
     </View>
   );
