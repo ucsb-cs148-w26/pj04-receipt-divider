@@ -71,6 +71,12 @@ export default function CameraScreen() {
           >
             <Text style={styles.secondaryText}>Cancel</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => goToReceiptRoom([])}
+          >
+            <Text style={styles.secondaryText}>Skip</Text>
+          </TouchableOpacity>
         </View>
         <Modal
           transparent
@@ -132,6 +138,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   secondaryButton: {
+    marginBottom: 12,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
