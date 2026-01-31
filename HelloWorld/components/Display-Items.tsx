@@ -1,3 +1,4 @@
+import React from "react";
 import { useTheme } from '@react-navigation/native';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -8,13 +9,16 @@ export interface DisplayClaimedReceiptItemProps {
     name: string;
     price: string;
     discount?: string; // Optional discount amount
+    percentage?: number; // Percentage of the item claimed by the user
 }
+
 
 export default function DisplayClaimedReceiptItem({
   id,
   name,
   price,
   discount,
+  percentage,
 }: DisplayClaimedReceiptItemProps){
     const { colors, dark } = useTheme();
     const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
@@ -22,6 +26,10 @@ export default function DisplayClaimedReceiptItem({
     return (
         <View style={[styles.container]}>
             <View style={styles.header}>
+
+                <View style={styles.badge}>
+                    <Text style={styles.percentText}>{Math.round(percentage || 100)}%</Text>
+                </View>
                     {/* Name Section - left justified*/}
                 <View style={styles.leftSection}>
                     <View style={styles.nameContainer}>
@@ -166,5 +174,27 @@ const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
             color: colors.text,
             fontSize: 14,
             textAlign: 'right',
+        },
+        badge: {
+            backgroundColor: "#E5E7EB", // light grey
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 10,
+            alignItems: "center",
+            justifyContent: "center",
+            minWidth: 70,
+        },
+        percentText: {
+            fontSize: 12,
+            fontWeight: "700",
+            color: "#111827",
+            lineHeight: 14,
+        },
+        amountText: {
+            marginTop: 2,
+            fontSize: 12,
+            fontWeight: "600",
+            color: "#374151",
+            lineHeight: 14,
         },
     });
