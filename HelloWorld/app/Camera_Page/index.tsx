@@ -1,11 +1,36 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Modal,
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { File } from 'expo-file-system';
+
+import { ReceiptRoomParams } from '@/app/Receipt_Room_Page/index';
+
+import extractText from '@/providers/ocr';
+import extractItems from '@/providers/item-extraction';
+import { ReceiptItemType } from '@/components/Item';
+import { randomUUID } from 'expo-crypto';
 
 export default function CameraScreen() {
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [extractedText, setExtractedText] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const goToReceiptRoom = (extractedItems: ReceiptItemType[]) => {
+    router.push({
+      pathname: '/Receipt_Room_Page',
+      params: {
+        items: JSON.stringify(extractedItems),
+        roomId: randomUUID(),
+      } as ReceiptRoomParams,
+    });
+  };
+
   const openCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') return;
@@ -16,42 +41,60 @@ export default function CameraScreen() {
     });
 
     if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
+      const imageBase64 = await new File(result.assets[0].uri).base64();
+      setIsLoading(true);
+      const extractedText = await extractText(imageBase64);
+      console.log(extractedText);
+      const extractedItems = await extractItems(extractedText);
+      console.log(extractedItems);
+      setIsLoading(false);
+      goToReceiptRoom(extractedItems);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Take a Photo</Text>
-        <Text style={styles.subtitle}>Use your camera to capture an image</Text>
-
-        <TouchableOpacity style={styles.primaryButton} onPress={openCamera}>
-          <Text style={styles.primaryText}>Open Camera</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.secondaryText}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
-      {imageUri && (
-        <View style={styles.previewCard}>
-          <Image source={{ uri: imageUri }} style={styles.previewImage} />
-          <Text style={styles.uriText} numberOfLines={1}>
-            {imageUri}
+    <>
+      <View style={styles.container}>
+        <View style={styles.card}>
+          <Text style={styles.title}>Take a Photo</Text>
+          <Text style={styles.subtitle}>
+            Use your camera to capture an image
           </Text>
+
+          <TouchableOpacity style={styles.primaryButton} onPress={openCamera}>
+            <Text style={styles.primaryText}>Open Camera</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.secondaryText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => goToReceiptRoom([])}
+          >
+            <Text style={styles.secondaryText}>Skip</Text>
+          </TouchableOpacity>
         </View>
-      )}
-      <TouchableOpacity
-        style={styles.secondaryButton}
-        onPress={() => router.push('../Receipt_Room_Page')}
-      >
-        <Text style={styles.secondaryText}>Next</Text>
-      </TouchableOpacity>
-    </View>
+        <Modal
+          transparent
+          animationType='fade'
+          visible={isLoading}
+          statusBarTranslucent
+        >
+          <View className='flex-1 justify-center items-center bg-black/50'>
+            <View className='bg-white p-6 rounded-xl items-center'>
+              <ActivityIndicator size='large' color='#4f46e5' />
+              <Text className='mt-4 text-lg font-medium text-gray-700'>
+                Loading...
+              </Text>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    </>
   );
 }
 
@@ -95,6 +138,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   secondaryButton: {
+    marginBottom: 12,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
