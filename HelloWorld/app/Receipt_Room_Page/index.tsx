@@ -1,5 +1,9 @@
 import { useTheme } from '@react-navigation/native';
-import { ReceiptItem, ReceiptItemType, USER_COLORS } from '../../components/Item';
+import {
+  ReceiptItem,
+  ReceiptItemType,
+  USER_COLORS,
+} from '../../components/Item';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
 import {
@@ -14,6 +18,7 @@ import {
 } from 'react-native';
 import Participant from '../../components/Participant';
 import { useReceipt } from '../../contexts/ReceiptContext';
+import { YourItemsRoomParams } from '../Your_Items_Page';
 
 interface NativeThemeColorType {
   primary: string;
@@ -34,7 +39,6 @@ interface DragState {
 
 interface ParticipantType {
   id: number;
-  name: string;
 }
 
 export type ReceiptRoomParams = {
@@ -42,19 +46,18 @@ export type ReceiptRoomParams = {
   items: string;
 };
 
-
 export default function ReceiptRoomScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<ReceiptRoomParams>();
   const receiptContext = useReceipt();
 
-  console.log('ReceiptRoomScreen params:', params);
-
   /**---------------- Participants State ---------------- */
   const [participants, setParticipants] = useState<ParticipantType[]>([]);
   const participantLayouts = useRef<Record<number, LayoutRectangle>>({});
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [editingParticipantName, setEditingParticipantName] =
+    useState<boolean>(false);
 
   /**---------------- Drag State ---------------- */
   const [dragState, setDragState] = useState<DragState>({
@@ -73,16 +76,13 @@ export default function ReceiptRoomScreen() {
     const newID = participants.length + 1;
     const newParticipant = {
       id: newID,
-      name: `Participant ${newID}`
-    }
+    };
     setParticipants([...participants, newParticipant]);
   };
 
   const changeParticipantName = (id: number, newName: string) => {
     setParticipants((prev) =>
-      prev.map((p) =>
-        p.id === id ? {...p, name: newName} : p
-      )
+      prev.map((p) => (p.id === id ? { ...p, name: newName } : p)),
     );
   };
 
@@ -131,15 +131,16 @@ export default function ReceiptRoomScreen() {
   /**---------------- Receipt Items ---------------- */
   // Lift state up from AppScreen so it persists across navigation
 
-  
   const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>(() => {
     try {
       return JSON.parse(params.items);
-    }
-    catch {
+    } catch {
       return receiptContext.receiptItems;
     }
   });
+  // Ref to always access current receiptItems state (avoids closure issues)
+  const receiptItemsRef = useRef(receiptItems);
+  receiptItemsRef.current = receiptItems;
 
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
@@ -188,7 +189,10 @@ export default function ReceiptRoomScreen() {
       <View style={styles.scrollArea}>
         {/* Middle part - scrollable receipt items */}
         <ScrollView
-          style={styles.itemsContainer}
+          style={{
+            ...styles.itemsContainer,
+            height: editingParticipantName ? '50%' : '80%',
+          }}
           contentContainerStyle={styles.itemsContent}
           scrollEnabled={!dragState.isDragging}
         >
@@ -232,7 +236,10 @@ export default function ReceiptRoomScreen() {
 
         <ScrollView
           horizontal={true}
-          style={styles.participantsContainer}
+          style={{
+            ...styles.participantsContainer,
+            height: editingParticipantName ? '50%' : '20%',
+          }}
           contentContainerStyle={styles.participantsScrollContent}
           onScrollEndDrag={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
@@ -251,30 +258,50 @@ export default function ReceiptRoomScreen() {
           scrollEventThrottle={16}
         >
           {participants.map((participant) => {
-            const color = USER_COLORS[(participant.id - 1) % USER_COLORS.length];
+            const color =
+              USER_COLORS[(participant.id - 1) % USER_COLORS.length];
             return (
-            <Participant
-              key = {participant.id}
-              id = {participant.id}
-              name = {participant.name}
-              color = {color}
-              changeName = {(text) => changeParticipantName(participant.id, text)}
-              onLayout={(layout) => {
-                participantLayouts.current[participant.id] = {
-                  ...layout,
-                  x: layout.x + scrollOffset,
-                };
-                console.log(
-                  'Participant',
-                  participant.id,
-                  'layout.x',
-                  layout.x,
-                  'adjusted x:',
-                  layout.x + scrollOffset,
-                );
-              }}
-            />
-            )
+              <Participant
+                key={participant.id}
+                id={participant.id}
+                color={color}
+                changeName={(text) =>
+                  changeParticipantName(participant.id, text)
+                }
+                onLayout={(layout) => {
+                  participantLayouts.current[participant.id] = {
+                    ...layout,
+                    x: layout.x + scrollOffset,
+                  };
+                  console.log(
+                    'Participant',
+                    participant.id,
+                    'layout.x',
+                    layout.x,
+                    'adjusted x:',
+                    layout.x + scrollOffset,
+                  );
+                }}
+                goToYourItemsPage={() =>
+                  router.push({
+                    pathname: '../Your_Items_Page',
+                    params: {
+                      items: (() => {
+                        let senditems = receiptItems.filter((item) =>
+                          item.userTags?.includes(participant.id),
+                        );
+                        return senditems
+                          ? JSON.stringify(senditems)
+                          : JSON.stringify([]);
+                      })(),
+                      participantId: participant.id.toString(),
+                    } as YourItemsRoomParams,
+                  })
+                }
+                onClickTextIn={() => setEditingParticipantName(true)}
+                onClickTextOut={() => setEditingParticipantName(false)}
+              />
+            );
           })}
         </ScrollView>
       </View>
@@ -327,13 +354,12 @@ export default function ReceiptRoomScreen() {
         onPress={() => router.push('../Settings_Page')}
       />
       <Button
-        title='Your Items'
-        onPress={() => router.push('../Your_Items_Page')}
-      />
-      <Button title='Close Room' onPress={() => {
+        title='Close Room'
+        onPress={() => {
           router.dismissAll();
           router.navigate('../Home_Page');
-        }} />
+        }}
+      />
     </View>
   );
 }
@@ -358,10 +384,8 @@ const createStyles = (colors: NativeThemeColorType) =>
     },
     itemsContainer: {
       padding: ITEMCONTAINERPADDING,
-      height: '80%',
     },
     participantsContainer: {
-      height: '20%',
       padding: 16,
     },
     itemsContent: {
@@ -370,8 +394,8 @@ const createStyles = (colors: NativeThemeColorType) =>
       zIndex: 1,
     },
     participantsScrollContent: {
-      alignItems: 'center',
-      paddingHorizontal: 20,
+      justifyContent: 'flex-start',
+      left: -10,
       gap: 10,
     },
     topBar: {
