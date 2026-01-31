@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Participant from '../../components/Participant';
 import { useReceipt } from '../../contexts/ReceiptContext';
+import { YourItemsRoomParams } from '../Your_Items_Page';
 
 interface NativeThemeColorType {
   primary: string;
@@ -48,8 +49,6 @@ export default function ReceiptRoomScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<ReceiptRoomParams>();
   const receiptContext = useReceipt();
-
-  console.log('ReceiptRoomScreen params:', params);
 
   /**---------------- Participants State ---------------- */
   const [participants, setParticipants] = useState<ParticipantType[]>([]);
@@ -276,6 +275,16 @@ export default function ReceiptRoomScreen() {
                   layout.x + scrollOffset,
                 );
               }}
+              goToYourItemsPage={() => router.push({
+                pathname: '../Your_Items_Page',
+                params: {
+                  items: (() => {
+                    let senditems = receiptItems.filter((item) => item.userTags?.includes(participant.id));
+                    return senditems ? JSON.stringify(senditems) : JSON.stringify([]);
+                  })(),
+                  participantId: participant.id.toString(),
+                } as YourItemsRoomParams,
+              })}
             />
             )
           })}
@@ -328,10 +337,6 @@ export default function ReceiptRoomScreen() {
       <Button
         title='Settings'
         onPress={() => router.push('../Settings_Page')}
-      />
-      <Button
-        title='Your Items'
-        onPress={() => router.push('../Your_Items_Page')}
       />
       <Button title='Close Room' onPress={() => {
           router.dismissAll();

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   LayoutRectangle,
   useColorScheme,
+  Pressable,
 } from 'react-native';
 
 interface ParticipantsProps {
@@ -14,16 +15,17 @@ interface ParticipantsProps {
   color: string;
   changeName: (text: string) => void;
   onLayout: (event: LayoutRectangle) => void;
+  goToYourItemsPage: () => void;
 }
 
-export default function Participant({ id, name, color, changeName, onLayout }: ParticipantsProps) {
+export default function Participant({ id, name, color, changeName, onLayout, goToYourItemsPage }: ParticipantsProps) {
   const ref = useRef<View>(null);
 
   const theme = useColorScheme();
   const isDark = theme === 'dark';
 
   return (
-    <View
+    <Pressable
       ref={ref}
       onLayout={() => {
         ref.current?.measureInWindow((x, y, width, height) => {
@@ -31,6 +33,7 @@ export default function Participant({ id, name, color, changeName, onLayout }: P
         });
       }}
       style={[styles.box, isDark && styles.boxDark, {backgroundColor: color}]}
+      onPress={goToYourItemsPage}
     >
       <TextInput
         value = {name}
@@ -38,7 +41,7 @@ export default function Participant({ id, name, color, changeName, onLayout }: P
         style={[styles.text, isDark && styles.textDark]}
         >
       </TextInput>
-    </View>
+    </Pressable>
   );
 }
 
