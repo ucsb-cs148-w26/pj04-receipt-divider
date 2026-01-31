@@ -42,10 +42,14 @@ export type ReceiptRoomParams = {
   items: string;
 };
 
+
 export default function ReceiptRoomScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<ReceiptRoomParams>();
+  const receiptContext = useReceipt();
+
+  console.log('ReceiptRoomScreen params:', params);
 
   /**---------------- Participants State ---------------- */
   const [participants, setParticipants] = useState<ParticipantType[]>([]);
@@ -126,9 +130,14 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Receipt Items ---------------- */
   // Lift state up from AppScreen so it persists across navigation
-  const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>(
-    JSON.parse(params.items),
-  );
+  const [receiptItems, setReceiptItems] = useState<ReceiptItemType[]>(() => {
+    try {
+      return JSON.parse(params.items)??receiptContext.receiptItems;
+    }
+    catch {
+      return receiptContext.receiptItems;
+    }
+  });
 
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
