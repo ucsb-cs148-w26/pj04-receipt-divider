@@ -19,7 +19,7 @@ import UserTag from './user-tags';
 import { ITEMCONTAINERPADDING } from '@/app/Receipt_Room_Page';
 //import { USER_COLORS } from '@/app/components/AppScreen';
 
-const USER_COLORS = [
+export const USER_COLORS = [
   '#60a5fa', // blue-400
   '#f87171', // red-400
   '#4ade80', // green-400

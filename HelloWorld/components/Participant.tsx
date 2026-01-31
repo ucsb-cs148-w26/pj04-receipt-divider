@@ -11,11 +11,12 @@ import {
 interface ParticipantsProps {
   id: number;
   name: string;
+  color: string;
   changeName: (text: string) => void;
   onLayout: (event: LayoutRectangle) => void;
 }
 
-export default function Participant({ id, name, changeName, onLayout }: ParticipantsProps) {
+export default function Participant({ id, name, color, changeName, onLayout }: ParticipantsProps) {
   const ref = useRef<View>(null);
 
   const theme = useColorScheme();
@@ -29,7 +30,7 @@ export default function Participant({ id, name, changeName, onLayout }: Particip
           onLayout({ x, y, width, height });
         });
       }}
-      style={[styles.box, isDark && styles.boxDark]}
+      style={[styles.box, isDark && styles.boxDark, {backgroundColor: color}]}
     >
       <TextInput
         value = {name}
