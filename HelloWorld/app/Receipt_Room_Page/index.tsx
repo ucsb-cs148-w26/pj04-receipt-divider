@@ -54,6 +54,7 @@ export default function ReceiptRoomScreen() {
   const [participants, setParticipants] = useState<ParticipantType[]>([]);
   const participantLayouts = useRef<Record<number, LayoutRectangle>>({});
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [editingParticipantName, setEditingParticipantName] = useState<boolean>(false);
 
   /**---------------- Drag State ---------------- */
   const [dragState, setDragState] = useState<DragState>({
@@ -190,7 +191,7 @@ export default function ReceiptRoomScreen() {
       <View style={styles.scrollArea}>
         {/* Middle part - scrollable receipt items */}
         <ScrollView
-          style={styles.itemsContainer}
+          style={{...styles.itemsContainer, height: editingParticipantName ? '50%' : '80%'}}
           contentContainerStyle={styles.itemsContent}
           scrollEnabled={!dragState.isDragging}
         >
@@ -234,7 +235,7 @@ export default function ReceiptRoomScreen() {
 
         <ScrollView
           horizontal={true}
-          style={styles.participantsContainer}
+          style={{...styles.participantsContainer, height: editingParticipantName ? '50%' : '20%'}}
           contentContainerStyle={styles.participantsScrollContent}
           onScrollEndDrag={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
@@ -285,6 +286,8 @@ export default function ReceiptRoomScreen() {
                   participantId: participant.id.toString(),
                 } as YourItemsRoomParams,
               })}
+              onClickTextIn={() => setEditingParticipantName(true)}
+              onClickTextOut={() => setEditingParticipantName(false)}
             />
             )
           })}
@@ -366,10 +369,8 @@ const createStyles = (colors: NativeThemeColorType) =>
     },
     itemsContainer: {
       padding: ITEMCONTAINERPADDING,
-      height: '80%',
     },
     participantsContainer: {
-      height: '20%',
       padding: 16,
     },
     itemsContent: {
@@ -378,7 +379,7 @@ const createStyles = (colors: NativeThemeColorType) =>
       zIndex: 1,
     },
     participantsScrollContent: {
-      alignItems: 'center',
+      justifyContent: 'flex-start',
       paddingHorizontal: 20,
       gap: 10,
     },

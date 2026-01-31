@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import { useTheme } from '@react-navigation/core';
+import React, { useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,13 +17,14 @@ interface ParticipantsProps {
   changeName: (text: string) => void;
   onLayout: (event: LayoutRectangle) => void;
   goToYourItemsPage: () => void;
+  onClickTextIn: () => void;
+  onClickTextOut: () => void;
 }
 
-export default function Participant({ id, name, color, changeName, onLayout, goToYourItemsPage }: ParticipantsProps) {
+export default function Participant({ id, name, color, changeName, onLayout, goToYourItemsPage, onClickTextIn, onClickTextOut }: ParticipantsProps) {
   const ref = useRef<View>(null);
-
-  const theme = useColorScheme();
-  const isDark = theme === 'dark';
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <Pressable
@@ -32,36 +34,49 @@ export default function Participant({ id, name, color, changeName, onLayout, goT
           onLayout({ x, y, width, height });
         });
       }}
-      style={[styles.box, isDark && styles.boxDark, {backgroundColor: color}]}
+      style={[styles.box, {backgroundColor: color}]}
       onPress={goToYourItemsPage}
     >
       <TextInput
         value = {name}
+        placeholder={"Name "+id}
+        placeholderTextColor="#ffffff83"
         onChangeText = {changeName}
-        style={[styles.text, isDark && styles.textDark]}
+        style={[styles.text]}
+        onFocus={onClickTextIn}
+        onBlur={onClickTextOut}
         >
       </TextInput>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  box: {
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 10,
-    backgroundColor: '#E0E0E0',
-    borderColor: '#B0B0B0',
-  },
-  text: {
-    color: '#000000',
-  },
-  boxDark: {
-    backgroundColor: '#333333',
-    borderColor: '#555555',
-  },
-  textDark: {
-    color: '#FFFFFF',
-  },
-});
+interface NativeThemeColorType {
+  primary: string;
+  background: string;
+  card: string;
+  text: string;
+  border: string;
+  notification: string;
+}
+
+const createStyles = (colors: NativeThemeColorType) =>
+  StyleSheet.create({
+    box: {
+      padding: 20,
+      borderWidth: 1,
+      borderRadius: 10,
+      height: 100,
+      minWidth: 100,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      borderColor: colors.border,
+    },
+    text: {
+      top: -15,
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+      
+    }
+  });
