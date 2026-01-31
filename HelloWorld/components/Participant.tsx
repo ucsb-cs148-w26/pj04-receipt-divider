@@ -1,14 +1,42 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  LayoutRectangle,
+  useColorScheme,
+} from 'react-native';
 
 interface ParticipantsProps {
   id: number;
+  name: string;
+  changeName: (text: string) => void;
+  onLayout: (event: LayoutRectangle) => void;
 }
 
-export default function Participant({ id }: ParticipantsProps) {
+export default function Participant({ id, name, changeName, onLayout }: ParticipantsProps) {
+  const ref = useRef<View>(null);
+
+  const theme = useColorScheme();
+  const isDark = theme === 'dark';
+
   return (
-    <View style={styles.box}>
-      <Text style={styles.text}>Participant {id}</Text>
+    <View
+      ref={ref}
+      onLayout={() => {
+        ref.current?.measureInWindow((x, y, width, height) => {
+          onLayout({ x, y, width, height });
+        });
+      }}
+      style={[styles.box, isDark && styles.boxDark]}
+    >
+      <TextInput
+        value = {name}
+        onChangeText = {changeName}
+        style={[styles.text, isDark && styles.textDark]}
+        >
+      </TextInput>
     </View>
   );
 }
@@ -19,6 +47,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: 10,
+    backgroundColor: '#E0E0E0',
+    borderColor: '#B0B0B0',
   },
-  text: {},
+  text: {
+    color: '#000000',
+  },
+  boxDark: {
+    backgroundColor: '#333333',
+    borderColor: '#555555',
+  },
+  textDark: {
+    color: '#FFFFFF',
+  },
 });
