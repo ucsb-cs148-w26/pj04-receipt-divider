@@ -1,0 +1,17 @@
+{
+  "name": "eezy-receipt-frontend",
+  "version": "0.2.0",
+  "description": "> [!Note] IN PROGRESS",
+  "license": "MIT",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "workspaces": [
+    "shared/*",
+    "apps/*"
+  ],
+  "private": true
+}

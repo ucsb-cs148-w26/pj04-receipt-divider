@@ -41,13 +41,6 @@ interface NativeThemeColorType {
   notification: string;
 }
 
-export interface ReceiptItemType {
-  id: number;
-  name: string;
-  price: string;
-  userTags?: number[]; // Array of user indices that have this item in their basket
-  discount?: string; // Optional discount amount
-}
 
 /** Drag-related props grouped together */
 interface DragProps {
@@ -199,7 +192,7 @@ export function ReceiptItem({
 
           const distance = Math.sqrt(
             Math.pow(x - participantCenterX, 2) +
-              Math.pow(y - participantCenterY, 2),
+            Math.pow(y - participantCenterY, 2),
           );
 
           // Keep track of the closest participant
@@ -363,10 +356,10 @@ export function ReceiptItem({
           style={[
             isDraggingOverlay && styles.draggingOverlay,
             isDraggingOverlay &&
-              initialPosition && {
-                top: initialPosition.y,
-                left: initialPosition.x,
-              },
+            initialPosition && {
+              top: initialPosition.y,
+              left: initialPosition.x,
+            },
             {
               transform: isCurrentlyDragging ? pan.getTranslateTransform() : [],
               width: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',

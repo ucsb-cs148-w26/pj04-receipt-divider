@@ -2,6 +2,7 @@ import { useTheme } from '@react-navigation/native';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
+// FIXME: refactor to tailwind
 interface NativeThemeColorType {
   primary: string;
   background: string;
