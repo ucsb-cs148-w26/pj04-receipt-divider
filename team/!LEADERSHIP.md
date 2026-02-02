@@ -41,7 +41,7 @@
 | Fri 01/30   | N/A               | Scribe for Lab04 Scrum                            | 
 | **Week 5**  |                   |                                                   | 
 |             | Leifeng           | Code/PR reviewer for the week                     | 
-| Mon 02/2    | TBA               | Scribe for Lec07 Scrum                            | 
+| Mon 02/2    | Roy               | Scribe for Lec07 Scrum                            | 
 | Wed 02/4    | TBA               | Scribe for Lec08 Scrum                            | 
 | Fri 02/6    | TBA               | Scribe for Lab05 Scrum                            | 
 | **Week 6**  |                   |                                                   | 
