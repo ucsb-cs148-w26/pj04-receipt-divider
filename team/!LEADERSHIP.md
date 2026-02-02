@@ -19,7 +19,7 @@
 | User Manual Coordinator         | TBA               |
 | Final Presentation Leader       | TBA               |
 | Retro 00 leader                 | Charlie           | 
-| Retro 01 leader                 | TBA               | 
+| Retro 01 leader                 | Leifeng           | 
 | Retro 02 leader                 | TBA               | 
 | Retro 03 leader                 | TBA               | 
 
@@ -36,11 +36,11 @@
 | Fri 01/23   | Yiheng            | Scribe for Lab03 Scrum                            | 
 | **Week 4**  |                   |                                                   | 
 |             | Mason             | Code/PR reviewer for the week                     | 
-| Mon 01/26   | TBA               | Scribe for Lec05 Scrum                            | 
-| Wed 01/28   | TBA               | Scribe for Lec06 Scrum                            | 
-| Fri 01/30   | TBA               | Scribe for Lab04 Scrum                            | 
+| Mon 01/26   | Ken               | Scribe for Lec05 Scrum                            | 
+| Wed 01/28   | Charlie           | Scribe for Lec06 Scrum                            | 
+| Fri 01/30   | N/A               | Scribe for Lab04 Scrum                            | 
 | **Week 5**  |                   |                                                   | 
-|             | TBA               | Code/PR reviewer for the week                     | 
+|             | Leifeng           | Code/PR reviewer for the week                     | 
 | Mon 02/2    | TBA               | Scribe for Lec07 Scrum                            | 
 | Wed 02/4    | TBA               | Scribe for Lec08 Scrum                            | 
 | Fri 02/6    | TBA               | Scribe for Lab05 Scrum                            | 
