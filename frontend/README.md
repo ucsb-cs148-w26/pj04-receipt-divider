@@ -1,4 +1,4 @@
-# Welcome to Reciept Divider!
+# Welcome to Reciept Divider
 
 > [!Note] IN PROGRESS
 
@@ -10,7 +10,7 @@
 ## Description 📝
 
 This project is a mobile (IOS & Android) application that allows groups who shop
-together to easily split the reciept.
+together to easily split the reciepts.
 
 This helps speed up assigning items and totaling up who owes who.
 

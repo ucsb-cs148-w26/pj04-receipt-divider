@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef } from 'react';
-import { ReceiptItemType } from '../components/Item';
+import { ReceiptItemType } from '../components/Item'; // FIXME: import path
 
 interface ReceiptContextType {
   receiptItems: ReceiptItemType[];
