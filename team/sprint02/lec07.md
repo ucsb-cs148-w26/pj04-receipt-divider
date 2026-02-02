@@ -2,7 +2,7 @@ Project: Receipt Divider
 
 Mentor: James
 
-Meeting Time: lect03
+Meeting Time: lect07
 
 Type of meeting: daily scrum
 
@@ -17,16 +17,16 @@ Charlie Nava [x]
 
 Scribed Discussion:
 
-Mason finished read hw2 and finished hello world. Start lab 2 and part 2 agile. Pretty busy friday.
+Roy worked on participants feature, participated in MVP video shoot, attended weekend retro. Future plans, nothing for now, waiting for issues to be assigned in sprint planning. No current roadblocks.
 
-Roy finished user story hw, hello world app. Part 2 agile hw. work on lab 1. No current roadblocks.
+Mason shot and directed the video the for MVP, attended weekend retro. Future plans, finish the MVP video. No current roadblocks.
 
-Yiheng tried vision part. Explore with ai with mvp. Xcode difficult to use. Work on hello world app.
+Yiheng helped with the video shoot for the MVP, attended weekend retro, implementing Google API. Future plans, trying to work on the backend. No current roadblocks.
 
-Leifeng finished research on expo. Learn some react. Work on user stories. No roadblocks
+Leifeng participated in MVP video shoot, hosted weekend retro, spent weekened editing video and finishing up loose ends for MVP. Future plans, attend sprint planning to figure out what to do. No current roadblocks.
 
-Edward completed user story hw. Working on hello world app. No current roadblocks.
+Edward made the receipt context, attended retro on the weekend. Future plans, working on implementing Firebase for backend. No current roadblocks.
 
-Ken finished user story hw. Working on hello world app. No current roadblocks.
+Ken attended weekend retro, implemented OCR pipeline to scan receipts, scoped out the backend and how that is going to be structured. Future plans, nothing for now, waiting for issues to be assigned. Very sick.
 
-Charlie nothing new. Do hw and learn react and do helloworld. No current roadblocks.
+Charlie participated in MVP video shoot, attended weekend retro. Future plans, do the homework. Current roadblock is that there's no sprint planning currently.
