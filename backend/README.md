@@ -24,3 +24,13 @@ Start dev server
 ```sh
 uv run fastapi dev app/index.py
 ```
+
+## Contributing
+
+### Code format
+
+Run before merge
+
+```sh
+uv run black .
+```
