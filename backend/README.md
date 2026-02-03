@@ -3,17 +3,15 @@
 ## Quick start
 
 Install uv
-MacOS/Linux
 
 ```sh
+# MacOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
-```
 
-Window
-
-```sh
+# Window
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+
 
 Install dependencies
 
