@@ -1,0 +1,28 @@
+
+name: Issue
+description: Issue with description and acceptance criteria
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Description:
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description (optional)
+      placeholder: |
+        - write a brief description of the issue here
+
+  - type: markdown
+    attributes:
+      value: |
+        ### Acceptance Criteria:
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      placeholder: |
+        - write the acceptance criteria for this issue here
