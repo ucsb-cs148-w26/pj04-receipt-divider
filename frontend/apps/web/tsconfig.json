@@ -3,17 +3,19 @@
     "../../tsconfig.json",
   ],
   "compilerOptions": {
-    "strict": true,
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "composite": true,
     "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
       ],
-      "@/app/*": [
-        "./app/*"
-      ],
       "@/assets/*": [
-        "./assets/*"
+        "src/assets/*"
       ],
       "@shared/*": [
         "../../shared/src/*",
@@ -21,7 +23,16 @@
       "@styles/*": [
         "../../shared/styles/*"
       ]
-    }
+    },
+    // Vite specific
+    "useDefineForClassFields": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    // Better DX
+    "allowJs": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
   },
   "include": [
     "**/*.ts",
@@ -30,13 +41,5 @@
     "expo-env.d.ts",
     "nativewind-env.d.ts"
   ],
-  "files": [],
-  "references": [
-    {
-      "path": "./tsconfig.app.json"
-    },
-    {
-      "path": "./tsconfig.node.json"
-    }
-  ]
+  "files": []
 }
