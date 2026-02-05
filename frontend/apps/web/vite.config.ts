@@ -19,7 +19,6 @@ export default defineConfig({
       '@components': resolve(__dirname, '../packages/shared/src/components'),
       '@utils': resolve(__dirname, '../packages/shared/src/utils'),
     },
-    extensions: ['.tsx', '.ts', '.jsx', '.js']
-  }
+    extensions: ['.tsx', '.ts', '.jsx', '.js'],
+  },
 });
-
