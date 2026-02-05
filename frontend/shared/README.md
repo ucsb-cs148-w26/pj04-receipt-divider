@@ -5,30 +5,14 @@
 shared                        
 ├── src
 │   ├── index.ts              (export script)
-│   ├── components            (shared React components)
-│   │   ├── index.ts
-│   │   └── *.tsx
-│   ├── constants
-│   │   ├── index.ts
-│   │   └── *.ts     
-│   ├── hooks                 (custom React hooks)
-│   │   ├── index.ts
-│   │   └── *.ts
-│   ├── providers             (context providers)
-│   │   ├── index.ts
-│   │   └── *.tsx
-│   ├── services              (look it up if u don't know, idk how to explain)
-│   │   ├── index.ts
-│   │   └── *.ts
-│   ├── theme 
-│   │   ├── index.ts
-│   │   └── *.ts
-│   ├── types                 (types definitions)
-│   │   ├── index.ts
-│   │   └── *.ts
-│   └── utils                 (utlity functions)
-│   │   ├── index.ts
-│   │   └── *.ts
+│   ├── components/           (shared React components)
+│   ├── constants   
+│   ├── hooks/                (custom React hooks)
+│   ├── providers/            (context providers)
+│   ├── services/             (look it up if u don't know, idk how to explain)
+│   ├── theme/
+│   ├── types/                (types definitions)
+│   └── utils/                (utlity functions)
 ├── styles                    (CSS)
 │   ├── global.css            (global CSS, to be imported everywhere)
 │   └── *.css                 (additional CSS styling)
