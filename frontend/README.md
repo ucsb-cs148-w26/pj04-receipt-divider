@@ -1,33 +1,68 @@
-# Welcome to Reciept Divider
+# Eezy Receipt Frontend
 
-> [!Note] IN PROGRESS
+## Quick start
 
-> [!Note] CMPSC 148 Winter 2026 pj04-receipt-divider Yiheng Feng (1274613951),
-> Leifeng Chen (Redstoneweewee), Roy Lee (roy-lee7473), Edward Garcia (ELEXG),
-> Mason Le (masonle6080), Ken Thampiratwong (ken-tummada), Charlie Nava
-> (gupperfisher)
+Install dependencies
 
-## Description 📝
+```sh
+# run this at the project root (frontend/)
+npm ic
+```
 
-This project is a mobile (IOS & Android) application that allows groups who shop
-together to easily split the reciepts.
+Start expo
 
-This helps speed up assigning items and totaling up who owes who.
+```sh
+npm run start
+```
 
-## Demo
+## Contributing
 
-- Live Demo: In Progress
-- Screenshots: In progress
+### Project structure
+```txt
+frontend
+├── apps                          (mobile and web codebase)
+│   ├── mobile
+│   │   ├── *.ts, *.js, *.json    (config files, DO NOT TOUCH, unless you know what you're doing)
+│   │   ├── app                   (pages)
+│   │   ├── assets                (static assets, e.g., images, favico)
+│   │   ├── components            (reusable ReactNative components)
+│   │   ├── hooks                 (custom React hooks)
+│   │   └── providers             (context providers)
+│   └── web/
+└── shared                        (common code that can be shared between mobile and web)
+    ├── contexts                  (context providers)
+    │   ├── index.ts              (export script)
+    │   ├── package.json
+    │   └── src/                  (all code goes in here)
+    ├── providers/                (service providers)
+    ├── types/                    (TypeScript types definitions)
+    └── ui                        (shared UI components and CSS)
+        ├── index.ts
+        ├── package.json
+        └── src
+            ├── *.tsx
+            └── styles            (additional CSS)
+                └── global.css    (the global CSS file)
+```
 
-## Features
+### Code formatting
 
-- Upload/take photo
-- Parses items
-- Drag to assign items
-- Tracks individual dues
+```sh
+npm run format:fix
+```
 
-## Tech Stack
+### Adding dependency
+Adding dependency to the whole project (web + mobile)
+```sh
+npm i <package-name>
+```
 
-- React Native
-- Expo
-- Firebase database to store data - no sql, FREE.
+Adding dependency to a specific workspace
+```sh
+npm i <package-name> --workspace <workspace-name>
+```
+
+Adding dev dependency
+```sh
+npm i -D <package-name>
+```
