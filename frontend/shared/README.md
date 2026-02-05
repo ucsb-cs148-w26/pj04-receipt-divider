@@ -13,10 +13,9 @@ shared
 │   ├── theme/
 │   ├── types/                (types definitions)
 │   └── utils/                (utlity functions)
-├── styles                    (CSS)
-│   ├── global.css            (global CSS, to be imported everywhere)
-│   └── *.css                 (additional CSS styling)
-└── ui                        (shared UI components and CSS)
+└── styles                    (CSS)
+    ├── global.css            (global CSS, to be imported everywhere)
+    └── *.css                 (additional CSS styling)
 ```
 
 ## Contributing
