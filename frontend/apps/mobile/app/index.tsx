@@ -5,14 +5,8 @@ import { Button, StyleSheet, View } from 'react-native';
 export default function HomeScreen() {
   return (
     <View style={styles.container}>
-      <Button
-        title='Take Photo'
-        onPress={() => router.navigate('/camera')}
-      />
-      <Button
-        title='Settings'
-        onPress={() => router.navigate('/setting')}
-      />
+      <Button title='Take Photo' onPress={() => router.navigate('/camera')} />
+      <Button title='Settings' onPress={() => router.navigate('/setting')} />
       <StatusBar style='auto' />
       {/* Globally sets status bar's (the seciton where you see your charge, time, wifi,etc) color scheme to complement the phone's theme (dark/light)*/}
     </View>

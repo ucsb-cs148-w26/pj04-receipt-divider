@@ -22,8 +22,7 @@ export default function CameraScreen() {
   const receiptItems = useReceiptItems();
 
   const goToReceiptRoom = () => {
-    if (receiptItems.items === null)
-      receiptItems.setItems([]);
+    if (receiptItems.items === null) receiptItems.setItems([]);
     router.push({
       pathname: '/receipt-room',
       params: {

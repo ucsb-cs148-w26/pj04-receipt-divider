@@ -138,7 +138,6 @@ const analyzeReceipt = async (
   }
 };
 
-
 export const extractItems = async (
   base64ImageData: Base64URLString,
 ): Promise<ReceiptItemData[]> => {

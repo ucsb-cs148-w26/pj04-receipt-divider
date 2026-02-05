@@ -5,10 +5,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
 export default function ModalScreen() {
-  return (
-    <ThemedView style={styles.container}>
-    </ThemedView>
-  );
+  return <ThemedView style={styles.container}></ThemedView>;
 }
 
 const styles = StyleSheet.create({
