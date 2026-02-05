@@ -6,6 +6,7 @@ Refer to the frontend [README.md](https://github.com/ucsb-cs148-w26/pj04-receipt
 ## Project structure
 ```txt
 web
+├── .env
 └── *.ts, *.js, *.json      (config files, DO NOT TOUCH, unless you know what you're doing)
 ```
 
