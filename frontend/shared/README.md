@@ -12,7 +12,7 @@ shared
 │   ├── services/             (look it up if u don't know, idk how to explain)
 │   ├── theme/
 │   ├── types/                (types definitions)
-│   └── utils/                (utlity functions)
+│   └── utils/                (utility functions)
 └── styles                    (CSS)
     ├── global.css            (global CSS, to be imported everywhere)
     └── *.css                 (additional CSS styling)
