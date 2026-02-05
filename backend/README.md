@@ -47,7 +47,7 @@ Run before merge
 uv run black .
 ```
 
-### Addition dependency
+### Adding dependency
 Deployment dependency
 ```sh
 uv add [your-dependency]
