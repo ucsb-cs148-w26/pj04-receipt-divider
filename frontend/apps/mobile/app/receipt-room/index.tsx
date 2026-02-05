@@ -321,13 +321,13 @@ export default function ReceiptRoomScreen() {
               onUpdate={(updates) =>
                 updateReceiptItem(dragState.itemId!, updates)
               }
-              onDelete={() => {}}
+              onDelete={() => { }}
               onRemoveFromUser={(userIndex) =>
                 removeItemFromUser(dragState.itemId!, userIndex)
               }
               participantLayouts={participantLayouts.current}
               scrollOffset={scrollOffset}
-              onDragStart={() => {}}
+              onDragStart={() => { }}
               onDragEnd={handleItemDragEnd}
               isDragging={true}
               isDraggingOverlay={true}
@@ -350,11 +350,11 @@ export default function ReceiptRoomScreen() {
 
       <Button
         title='QR'
-        onPress={() => router.push(`/QR_Page?roomId=${roomId}`)}
+        onPress={() => router.push(`/qr?roomId=${roomId}`)}
       />
       <Button
         title='Settings'
-        onPress={() => router.push('../Settings_Page')}
+        onPress={() => router.push('/setting')}
       />
       <Button
         title='Close Room'

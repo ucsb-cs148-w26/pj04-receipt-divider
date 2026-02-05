@@ -4,8 +4,6 @@
     "module": "ESNext",
     "lib": [
       "ES2020",
-      "DOM",
-      "DOM.Iterable"
     ],
     "jsx": "react-jsx",
     "strict": true,
@@ -13,20 +11,29 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "incremental": true,
     "baseUrl": ".",
     "paths": {
       "@shared/*": [
-        "./shared/src/*"
+        "shared/src/*"
       ],
-    }
+    },
+    "skipLibCheck": true
   },
   "exclude": [
     "node_modules",
     "dist",
     "build"
+  ],
+  "files": [],
+  "references": [
+    {
+      "path": "./shared"
+    },
+    {
+      "path": "./apps/web"
+    },
+    {
+      "path": "./apps/mobile"
+    }
   ]
 }

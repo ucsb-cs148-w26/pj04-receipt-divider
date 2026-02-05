@@ -4,6 +4,7 @@
     "expo/tsconfig.base"
   ],
   "compilerOptions": {
+    "composite": true,
     "strict": true,
     "baseUrl": ".",
     "paths": {
@@ -24,6 +25,11 @@
       ]
     }
   },
+  "references": [
+    {
+      "path": "../../shared"
+    },
+  ],
   "include": [
     "**/*.ts",
     "**/*.tsx",
