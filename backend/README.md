@@ -46,3 +46,14 @@ Run before merge
 ```sh
 uv run black .
 ```
+
+### Addition dependency
+Deployment dependency
+```sh
+uv add [your-dependency]
+```
+
+Dev dependency
+```sh
+uv add --dev [your-dependency]
+```
