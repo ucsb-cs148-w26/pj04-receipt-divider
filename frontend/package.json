@@ -1,17 +1,19 @@
 {
   "name": "eezy-receipt-frontend",
   "version": "0.2.0",
-  "description": "> [!Note] IN PROGRESS",
-  "license": "MIT",
-  "author": "",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "format": "npx prettier -c './**/*.{js,ts,jsx,tsx}'",
+    "format:fix": "npx prettier -w './**/*.{js,ts,jsx,tsx}'"
   },
   "workspaces": [
-    "shared/*",
+    "shared",
     "apps/*"
   ],
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.3"
+  }
 }
