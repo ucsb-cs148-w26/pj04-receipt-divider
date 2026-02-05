@@ -47,13 +47,13 @@ export default function Participant({
       style={[styles.box, { backgroundColor: color }]}
       onPress={goToYourItemsPage}
     >
-        <TouchableOpacity
-            style = {styles.deleteButton}
-            onPress = {onRemove}
-            hitSlop = {{top: 10, bottom:10, right: 10, left:10}}
-        >
-            <Text style = {styles.deleteText}>x</Text>
-        </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={onRemove}
+        hitSlop={{ top: 10, bottom: 10, right: 10, left: 10 }}
+      >
+        <Text style={styles.deleteText}>x</Text>
+      </TouchableOpacity>
       <TextInput
         placeholder={'Name ' + id}
         placeholderTextColor='#ffffff83'
@@ -95,23 +95,23 @@ const createStyles = (colors: NativeThemeColorType) =>
       fontWeight: 'bold',
     },
     deleteButton: {
-        position: 'absolute',
-        top: -7,
-        left: -7,
-        backgroundColor: '#FF3B30',
-        width: 24,
-        height: 24,
-        borderRadius: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 2,
-        borderColor: '#FFFFFF',
-        zIndex: 10,
-      },
-      deleteText: {
-        color: 'white',
-        fontSize: 17,
-        fontWeight: 'bold',
-        top: -2,
-      },
+      position: 'absolute',
+      top: -7,
+      left: -7,
+      backgroundColor: '#FF3B30',
+      width: 24,
+      height: 24,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: '#FFFFFF',
+      zIndex: 10,
+    },
+    deleteText: {
+      color: 'white',
+      fontSize: 17,
+      fontWeight: 'bold',
+      top: -2,
+    },
   });

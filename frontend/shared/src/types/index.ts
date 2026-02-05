@@ -1,1 +1,1 @@
-export * from "./receipt-item"
+export * from './receipt-item';

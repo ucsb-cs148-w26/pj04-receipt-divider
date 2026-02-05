@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import Participant from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
-import { YourItemsRoomParams } from "@/app/items";
+import { YourItemsRoomParams } from '@/app/items';
 
 interface NativeThemeColorType {
   primary: string;
@@ -70,9 +70,8 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Participants Functions ---------------- */
   const addParticipant = () => {
-    const maxID = participants.length > 0
-      ? Math.max(...participants.map(p => p.id))
-      : 0;
+    const maxID =
+      participants.length > 0 ? Math.max(...participants.map((p) => p.id)) : 0;
 
     const newID = maxID + 1;
 
@@ -85,9 +84,11 @@ export default function ReceiptRoomScreen() {
   const removeParticipant = (removeID: number) => {
     setParticipants((prev) => prev.filter((p) => p.id !== removeID));
 
-    receiptItems.setItems((prevItems) => prevItems.map((item) => ({
-      ...item, userTags: item.userTags?.filter((tagId) => tagId !== removeID) || []
-    }))
+    receiptItems.setItems((prevItems) =>
+      prevItems.map((item) => ({
+        ...item,
+        userTags: item.userTags?.filter((tagId) => tagId !== removeID) || [],
+      })),
     );
 
     if (participantLayouts.current[removeID]) {
@@ -314,17 +315,19 @@ export default function ReceiptRoomScreen() {
           dragState.initialPosition &&
           receiptItems.items.find((item) => item.id === dragState.itemId) && (
             <ReceiptItem
-              item={receiptItems.items.find((item) => item.id === dragState.itemId)!}
+              item={
+                receiptItems.items.find((item) => item.id === dragState.itemId)!
+              }
               onUpdate={(updates) =>
                 updateReceiptItem(dragState.itemId!, updates)
               }
-              onDelete={() => { }}
+              onDelete={() => {}}
               onRemoveFromUser={(userIndex) =>
                 removeItemFromUser(dragState.itemId!, userIndex)
               }
               participantLayouts={participantLayouts.current}
               scrollOffset={scrollOffset}
-              onDragStart={() => { }}
+              onDragStart={() => {}}
               onDragEnd={handleItemDragEnd}
               isDragging={true}
               isDraggingOverlay={true}
@@ -335,9 +338,7 @@ export default function ReceiptRoomScreen() {
               }}
               isInParticipantBoundsProp={dragState.isOverParticipant}
               getCurrentItemData={() =>
-                receiptItems.items.find(
-                  (item) => item.id === dragState.itemId,
-                )!
+                receiptItems.items.find((item) => item.id === dragState.itemId)!
               }
               isAnyTextFocused={isAnyTextFocused}
               onTextFocusChange={setIsAnyTextFocused}

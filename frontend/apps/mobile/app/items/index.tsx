@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import ReceiptItem from '@shared/components/ReceiptItem';
-import { ReceiptItemData } from "@shared/types";
+import { ReceiptItemData } from '@shared/types';
 import DisplayItems from '@shared/components/DisplayItems';
 
 export type YourItemsRoomParams = {

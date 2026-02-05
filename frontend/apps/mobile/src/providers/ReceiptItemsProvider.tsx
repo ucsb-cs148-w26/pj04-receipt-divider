@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useRef, useMemo } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  useMemo,
+} from 'react';
 import { ReceiptItemData } from '@shared/types';
 
 interface ReceiptItemsContextType {
@@ -6,14 +12,20 @@ interface ReceiptItemsContextType {
   setItems: React.Dispatch<React.SetStateAction<ReceiptItemData[]>>;
 }
 
-const ReceiptItemsContext = createContext<ReceiptItemsContextType | undefined>(undefined);
+const ReceiptItemsContext = createContext<ReceiptItemsContextType | undefined>(
+  undefined,
+);
 
-export function ReceiptItemsProvider({ children }: { children: React.ReactNode }) {
+export function ReceiptItemsProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [receiptItems, setReceiptItems] = useState<ReceiptItemData[]>([]);
 
   const value = useMemo<ReceiptItemsContextType>(
     () => ({ items: receiptItems, setItems: setReceiptItems }),
-    [receiptItems]
+    [receiptItems],
   );
 
   return (
