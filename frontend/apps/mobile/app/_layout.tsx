@@ -1,18 +1,18 @@
 import { Stack } from 'expo-router';
 import 'react-native-reanimated';
 
-import '@/global.css';
-import { ReceiptProvider } from '../contexts/ReceiptContext';
+import '@styles/global.css';
+import { ReceiptItemsProvider } from '@/providers';
 
 export default function RootLayout() {
   return (
-    <ReceiptProvider>
+    <ReceiptItemsProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen
           name='modal'
           options={{ presentation: 'modal', title: 'Modal' }}
         />
       </Stack>
-    </ReceiptProvider>
+    </ReceiptItemsProvider>
   );
 }

@@ -1,22 +1,26 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": [
+    "../../tsconfig.json",
+    "expo/tsconfig.base"
+  ],
   "compilerOptions": {
     "strict": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./*"
+        "./src/*"
       ],
-      "@providers/": [
-        "./providers/*"
+      "@/app/*": [
+        "./app/*"
       ],
-      "@components/": [
-        "./components/*"
-      ],
-      "@hooks/": [
-        "./hooks/*"
-      ],
-      "@assets/": [
+      "@/assets/*": [
         "./assets/*"
+      ],
+      "@shared/*": [
+        "../../shared/src/*",
+      ],
+      "@styles/*": [
+        "../../shared/styles/*"
       ]
     }
   },

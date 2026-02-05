@@ -1,9 +1,28 @@
-import { Redirect } from 'expo-router';
+import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { Button, StyleSheet, View } from 'react-native';
 
-//the app defaults to the index file on the root directory
-
-export default function Home_Page_Redirect() {
-  return <Redirect href='/Home_Page' />;
+export default function HomeScreen() {
+  return (
+    <View style={styles.container}>
+      <Button
+        title='Take Photo'
+        onPress={() => router.navigate('/camera')}
+      />
+      <Button
+        title='Settings'
+        onPress={() => router.navigate('/setting')}
+      />
+      <StatusBar style='auto' />
+      {/* Globally sets status bar's (the seciton where you see your charge, time, wifi,etc) color scheme to complement the phone's theme (dark/light)*/}
+    </View>
+  );
 }
 
-//the "../" you will see just means to look at the parent directory of the directory the file is currently in
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
