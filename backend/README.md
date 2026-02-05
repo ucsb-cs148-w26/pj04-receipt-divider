@@ -22,10 +22,22 @@ uv sync --locked
 Start dev server
 
 ```sh
-uv run fastapi dev app/index.py
+uv run fastapi dev app/main.py
 ```
 
 ## Contributing
+
+### Project structure
+```txt
+app/
+├─ main.py          (entrypoint)
+├─ database.py      (database connection and pooling management)
+├─ dependecies.py   (services provider)
+├─ models/          (orm models)
+├─ routers/         (endpoints definition)
+├─ schemas/         (endpoint interfaces)
+└─ services/        (functions, e.g. MLService, AuthService)
+```
 
 ### Code format
 
