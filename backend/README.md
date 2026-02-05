@@ -28,14 +28,16 @@ uv run fastapi dev app/main.py
 ## Project structure
 ```txt
 backend
+├── .env
 └── app
     ├── main.py          (entrypoint)
     ├── database.py      (database connection and pooling management)
-    ├── dependencies.py   (services provider)
+    ├── dependencies.py  (services provider)
     ├── models/          (orm models)
     ├── routers/         (endpoints definition)
     ├── schemas/         (endpoint interfaces)
     └── services/        (functions, e.g. MLService, AuthService)
+
 ```
 
 ## Contributing
