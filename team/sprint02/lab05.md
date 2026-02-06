@@ -17,16 +17,15 @@ Charlie Nava [x]
 
 Scribed Discussion:
 
-Roy worked on participants feature, participated in MVP video shoot, attended weekend retro. Future plans, nothing for now, waiting for issues to be assigned in sprint planning. No current roadblocks.
+Roy gradescope hw, prepare midterm. 
+Mason nothing, working in the future. 
 
-Mason shot and directed the video the for MVP, attended weekend retro. Future plans, finish the MVP video. No current roadblocks.
+Yiheng did nothing, did homework. 
 
-Yiheng helped with the video shoot for the MVP, attended weekend retro, implementing Google API. Future plans, trying to work on the backend. No current roadblocks.
+Leifeng add readme and installation part and also template, build the creteria part, organize the stuff later. 
 
-Leifeng participated in MVP video shoot, hosted weekend retro, spent weekened editing video and finishing up loose ends for MVP. Future plans, attend sprint planning to figure out what to do. No current roadblocks.
+Edward nothing, looking into the change and identify issue. 
 
-Edward made the receipt context, attended retro on the weekend. Future plans, working on implementing Firebase for backend. No current roadblocks.
+Ken resturcture the project, 1 backend, pr. prepare for midterm. 
 
-Ken attended weekend retro, implemented OCR pipeline to scan receipts, scoped out the backend and how that is going to be structured. Future plans, nothing for now, waiting for issues to be assigned. Very sick.
-
-Charlie participated in MVP video shoot, attended weekend retro. Future plans, do the homework. Current roadblock is that there's no sprint planning currently.
+Charlie prepare for midterm. 
