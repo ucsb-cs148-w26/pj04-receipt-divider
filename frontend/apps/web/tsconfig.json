@@ -1,0 +1,45 @@
+{
+  "extends": [
+    "../../tsconfig.json",
+  ],
+  "compilerOptions": {
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@/assets/*": [
+        "src/assets/*"
+      ],
+      "@shared/*": [
+        "../../shared/src/*",
+      ],
+      "@styles/*": [
+        "../../shared/styles/*"
+      ]
+    },
+    // Vite specific
+    "useDefineForClassFields": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    // Better DX
+    "allowJs": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts"
+  ],
+  "files": []
+}

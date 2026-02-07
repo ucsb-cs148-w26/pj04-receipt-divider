@@ -1,0 +1,19 @@
+{
+  "name": "eezy-receipt-frontend",
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "format": "npx prettier -c './**/*.{js,ts,jsx,tsx}'",
+    "format:fix": "npx prettier -w './**/*.{js,ts,jsx,tsx}'"
+  },
+  "workspaces": [
+    "shared",
+    "apps/*"
+  ],
+  "private": true,
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.3"
+  }
+}
