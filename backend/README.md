@@ -25,20 +25,22 @@ Start dev server
 uv run fastapi dev app/main.py
 ```
 
-## Contributing
-
-### Project structure
+## Project structure
 ```txt
-app/
-├─ main.py          (entrypoint)
-├─ database.py      (database connection and pooling management)
-├─ dependecies.py   (services provider)
-├─ models/          (orm models)
-├─ routers/         (endpoints definition)
-├─ schemas/         (endpoint interfaces)
-└─ services/        (functions, e.g. MLService, AuthService)
+backend
+├── .env
+└── app
+    ├── main.py          (entrypoint)
+    ├── database.py      (database connection and pooling management)
+    ├── dependencies.py  (services provider)
+    ├── models/          (orm models)
+    ├── routers/         (endpoints definition)
+    ├── schemas/         (endpoint interfaces)
+    └── services/        (functions, e.g. MLService, AuthService)
+
 ```
 
+## Contributing
 ### Code format
 
 Run before merge

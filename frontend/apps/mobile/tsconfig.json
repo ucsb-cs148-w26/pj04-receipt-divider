@@ -1,0 +1,40 @@
+{
+  "extends": [
+    "../../tsconfig.json",
+    "expo/tsconfig.base"
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@/app/*": [
+        "./app/*"
+      ],
+      "@/assets/*": [
+        "./assets/*"
+      ],
+      "@shared/*": [
+        "../../shared/src/*",
+      ],
+      "@styles/*": [
+        "../../shared/styles/*"
+      ]
+    }
+  },
+  "references": [
+    {
+      "path": "../../shared"
+    },
+  ],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts"
+  ]
+}
