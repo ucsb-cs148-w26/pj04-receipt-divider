@@ -18,7 +18,7 @@ npm run start -w apps/mobile
 Start web
 
 ```sh
-npm run start -w apps/web
+npm run dev -w apps/web
 ```
 
 ## Project structure
