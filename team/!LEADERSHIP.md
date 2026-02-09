@@ -46,7 +46,7 @@
 | Fri 02/6    | Yiheng            | Scribe for Lab05 Scrum                            | 
 | **Week 6**  |                   |                                                   | 
 |             | Leifeng           | Code/PR reviewer for the week                     | 
-| Mon 02/9    | TBA               | Scribe for Lec09 Scrum                            | 
+| Mon 02/9    | Leifeng           | Scribe for Lec09 Scrum                            | 
 | Wed 02/11   | TBA               | Scribe for Lec10 Scrum                            | 
 | Fri 02/13   | TBA               | Scribe for Lab06 Scrum                            | 
 | **Week 7**  |                   |                                                   | 
