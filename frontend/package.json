@@ -5,7 +5,18 @@
   "scripts": {
     "format": "npx prettier -c './**/*.{js,ts,jsx,tsx}'",
     "format:fix": "npx prettier -w './**/*.{js,ts,jsx,tsx}'",
-    "test": "jest --passWithNoTests"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:mobile": "jest --selectProjects mobile",
+    "test:mobile:watch": "jest --selectProjects mobile --watch",
+    "test:mobile:coverage": "jest --selectProjects mobile --coverage",
+    "test:web": "jest --selectProjects web",
+    "test:web:watch": "jest --selectProjects mobile --watch",
+    "test:web:coverage": "jest --selectProjects mobile --coverage",
+    "test:shared": "jest --selectProjects shared",
+    "test:shared:watch": "jest --selectProjects mobile --watch",
+    "test:shared:coverage": "jest --selectProjects mobile --coverage"
   },
   "workspaces": [
     "shared",
@@ -17,11 +28,17 @@
     "@babel/preset-env": "^7.29.0",
     "@babel/preset-typescript": "^7.28.5",
     "@jest/globals": "^30.2.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^30.0.0",
     "eslint": "^9.39.2",
     "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "jest-expo": "^54.0.17",
     "prettier": "^3.8.1",
     "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
     "typescript": "~5.9.3"
   }
 }

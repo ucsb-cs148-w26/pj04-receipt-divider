@@ -25,16 +25,13 @@
       ]
     }
   },
-  "references": [
-    {
-      "path": "../../shared"
-    },
-  ],
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "nativewind-env.d.ts"
+    "nativewind-env.d.ts",
+    "../web/jest.config.ts",
+    "jest.setup.ts"
   ]
 }
