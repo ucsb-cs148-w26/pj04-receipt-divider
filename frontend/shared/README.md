@@ -1,12 +1,13 @@
 # Eezy Receipt Frontend (Shared Library)
 
 ## Project structure
+
 ```txt
-shared                        
+shared
 ├── src
 │   ├── index.ts              (export script)
 │   ├── components/           (shared React components)
-│   ├── constants   
+│   ├── constants
 │   ├── hooks/                (custom React hooks)
 │   ├── providers/            (context providers)
 │   ├── services/             (look it up if u don't know, idk how to explain)
