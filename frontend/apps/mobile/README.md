@@ -1,10 +1,7 @@
 # Eezy Receipt Frontend (Mobile)
 
-## Quick start
-
-Refer to the frontend [README.md](https://github.com/ucsb-cs148-w26/pj04-receipt-divider/frontend/README.md).
-
 ## Project structure
+
 ```txt
 mobile
 ├── .env

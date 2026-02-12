@@ -6,7 +6,7 @@ Install dependencies
 
 ```sh
 # run this at the project root (frontend/)
-npm ic
+npm ci
 ```
 
 Start mobile
@@ -22,32 +22,61 @@ npm run dev -w apps/web
 ```
 
 ## Project structure
+
 ```txt
 frontend
-├── apps                (mobile and web codebase)               
-│   ├── mobile/            
+├── apps                (mobile and web codebase)
+│   ├── mobile/
 │   └── web/
 └── shared/             (code that can be shared between mobile and web)
 ```
 
 ## Contributing
+
+### Testing
+
+To run unit tests
+
+```sh
+# Run on the whole repo
+npm run test
+
+# Run on specific workspace
+npm run test:<workspace-name>
+```
+
+To run coverage tests
+
+```sh
+# Run on the whole repo
+npm run test:coverage
+
+# Run on specific workspace
+npm run test:<workspace-name>
+```
+
 ### Code formatting
+
 ```sh
 npm run format:fix
 ```
 
 ### Adding dependency
+
 Adding dependency to the whole project (web + mobile)
+
 ```sh
 npm i <package-name>
 ```
 
 Adding dependency to a specific workspace
+
 ```sh
-npm i <package-name> --workspace <workspace-name>
+npm i <package-name> -w <workspace-name>
 ```
 
 Adding dev dependency
+
 ```sh
 npm i -D <package-name>
 ```

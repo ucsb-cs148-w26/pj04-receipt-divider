@@ -3,6 +3,7 @@ import typescript from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
+import globals from 'globals';
 
 export default [
   js.configs.recommended,
@@ -20,6 +21,7 @@ export default [
       globals: {
         console: 'readonly',
         process: 'readonly',
+        ...globals.jest,
       },
     },
     plugins: {
@@ -42,6 +44,8 @@ export default [
         { argsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
+      'no-unused-vars': 'warn',
+      'no-undef': 'warn',
     },
   },
   {
