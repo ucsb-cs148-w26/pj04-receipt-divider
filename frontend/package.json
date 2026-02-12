@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "format": "npx prettier -c './**/*.{js,ts,jsx,tsx}'",
-    "format:fix": "npx prettier -w './**/*.{js,ts,jsx,tsx}'"
+    "format:fix": "npx prettier -w './**/*.{js,ts,jsx,tsx}'",
+    "test": "jest --passWithNoTests"
   },
   "workspaces": [
     "shared",
@@ -12,8 +13,15 @@
   ],
   "private": true,
   "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.0",
+    "@babel/preset-typescript": "^7.28.5",
+    "@jest/globals": "^30.2.0",
+    "@types/jest": "^30.0.0",
     "eslint": "^9.39.2",
+    "jest": "^30.2.0",
     "prettier": "^3.8.1",
+    "ts-jest": "^29.4.6",
     "typescript": "~5.9.3"
   }
 }
