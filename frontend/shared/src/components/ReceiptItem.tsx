@@ -16,8 +16,8 @@ import {
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
 
-import { ReceiptItemData } from '@shared/types';
-import UserTag from '@shared/components/UserTag';
+import { ReceiptItemData } from '@/types';
+import UserTag from '@/components/UserTag';
 
 export const USER_COLORS = [
   '#60a5fa', // blue-400
