@@ -51,3 +51,30 @@ We wanted to add at least one unit test that is actually valuable for our codeba
   Useful for generating a thorough set of edge cases quickly and for guiding how to refactor code into testable units.
 - Steps needed to ensure output was correct, understandable, and fair use:
   I manually computed expected totals for a small example receipt and adjusted the generated tests to match our real function signatures and business rules. We only used AI as a starting point; final tests and expected outputs were verified by us.
+
+---
+
+## Edward - Claude Code
+
+### Issue
+In the future, we may want to try to add multi-user functionality to the receipt room where different users can claim their own items. The room will be synchronized to a firebase database so that everyone can see live updates to the room. In order to help plan for this, it could be useful to have some high level implementation tasks listed out that need to be done in order to complete this feature. 
+
+### AI Tool Used
+Claude Code
+
+### Outcomes Produced
+After analyzing the existing codebase, generated implementation tasks for multi-user room functionality with Firebase integration:
+
+1. **Firebase Setup & Backend API** - Install Firebase SDK and configure environment variables; implement backend endpoints (POST /room/create, POST /room/join, GET /room/{id}, PUT /room/{id}/items) with room schema and Firestore integration to enable multi-device sync
+
+2. **QR Code Scanner** - Build scanner screen using expo-camera to scan existing QR codes and extract room ID (QR generation already exists at app/qr/index.tsx)
+
+3. **Real-time Sync with RoomProvider** - Create RoomProvider.tsx with Firebase onSnapshot listeners to replace current local-only ReceiptItemsProvider; sync participants, items, and assignments across all devices in real-time
+
+4. **Security & Error Handling** - Write Firestore security rules for room access control and 24-hour expiration; handle edge cases (expired rooms, invalid QR codes, network errors, loading states)
+
+### Reflections
+- Usefuleness: This tool was very useful for quickly creating a high-level implementation plan that considers our existing tech stack. It analyzed our current codebase structure and proposed solutions that integrate with our existing project structure. The plan breaks down this large feature into smaller phases, but we will likely eventually need more in depth and specific sub-issues in order to implement this. This tool could be used to plan other major features like improving the receipt scanning or cashapp/venmo integration.
+- Ensure correctness, understandability, and fair use: I verified that the proposed Firebase SDK and dependencies are compatible with our setup by installing firebase on a local branch. I also checked that the suggested API endpoints in step 1 are compatible with the FastAPI setup that we have in backend/app/routers/. The plan is understandable because it's broken into clear phases and categorized steps. Fair use is ensured as this planning is based on our own specific codebase, not from any external sources.
+
+
