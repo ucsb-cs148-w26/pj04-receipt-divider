@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "noEmit": true,
+    "composite": true,
     "lib": [
       "ES2020"
     ],
@@ -15,6 +15,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": [
+        "src/*"
+      ],
+      "@shared/*": [
         "src/*"
       ],
     },

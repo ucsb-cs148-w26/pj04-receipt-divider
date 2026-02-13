@@ -1,6 +1,5 @@
 {
   "extends": [
-    "../../tsconfig.json",
     "expo/tsconfig.base"
   ],
   "compilerOptions": {
@@ -35,5 +34,10 @@
     "../../shared/src/**/*.tsx",
     "../web/jest.config.ts",
     "jest.setup.ts"
+  ],
+  "references": [
+    {
+      "path": "../../shared"
+    }
   ]
 }

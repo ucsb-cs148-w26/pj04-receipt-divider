@@ -1,7 +1,4 @@
 {
-  "extends": [
-    "../../tsconfig.json",
-  ],
   "compilerOptions": {
     "lib": [
       "ES2020",
@@ -9,6 +6,15 @@
       "DOM.Iterable"
     ],
     "composite": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
       "@/*": [
@@ -37,6 +43,16 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    "src/vite-env.d.ts"
-  ]
+    "src/vite-env.d.ts",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts",
+    "jest.setup.ts"
+  ],
+  "references": [
+    {
+      "path": "../../shared"
+    }
+  ],
+  "files": []
 }
