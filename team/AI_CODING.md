@@ -27,3 +27,27 @@ With these buckets, the algorithm would be:
 ### Reflections
 - In my opinion, this tool was pretty useful for providing possible solutions to our issue. It covered some ideas that we actually discussed about this issue, but went more in-depth about the actual implementation. This tool could also potentially be used to write the actual implementation of this system.
 - To ensure that the AI output was understandable and correct, I needed to provide context about our product, the issue we were having, as well as questioning the responses it gave to produce a more complete answer.
+
+
+
+---
+
+## Yiheng — ChatGPT
+
+### Issue
+We wanted to add at least one unit test that is actually valuable for our codebase and acts as a safety net for future refactors, especially around splitting math and rounding.
+
+### Outcomes
+- Used ChatGPT to propose unit test cases and expected outputs for our split-calculation utility:
+  - Rounding behavior (totals match exactly; no missing pennies).
+  - Edge cases: empty items, single user claims all items, item price = 0, and large receipts.
+- Produced a test plan mapping acceptance criteria → test cases:
+  - “Sum of per-person totals equals receipt total”
+  - “Rounding is deterministic across runs”
+- Helped draft the initial Jest test structure (describe/it blocks) and suggested how to isolate pure logic into a utility function to make testing easier.
+
+### Reflections
+- How useful this tool was / could be going forward:
+  Useful for generating a thorough set of edge cases quickly and for guiding how to refactor code into testable units.
+- Steps needed to ensure output was correct, understandable, and fair use:
+  I manually computed expected totals for a small example receipt and adjusted the generated tests to match our real function signatures and business rules. We only used AI as a starting point; final tests and expected outputs were verified by us.
