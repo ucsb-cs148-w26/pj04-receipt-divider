@@ -287,7 +287,7 @@ export default function ReceiptRoomScreen() {
                 }}
                 goToYourItemsPage={() =>
                   router.push({
-                    pathname: '../Your_Items_Page',
+                    pathname: '../items',
                     params: {
                       items: (() => {
                         let senditems = receiptItems.items.filter((item) =>
