@@ -78,3 +78,23 @@ After analyzing the existing codebase, generated implementation tasks for multi-
 - Ensure correctness, understandability, and fair use: I verified that the proposed Firebase SDK and dependencies are compatible with our setup by installing firebase on a local branch. I also checked that the suggested API endpoints in step 1 are compatible with the FastAPI setup that we have in backend/app/routers/. The plan is understandable because it's broken into clear phases and categorized steps. Fair use is ensured as this planning is based on our own specific codebase, not from any external sources.
 
 
+## Mason Le - Claude
+
+### Issue
+Wanted to make sure navigation of the mobile screen and everything related to operations/functions were woring correctly. (butotns, screens, displaying items).
+
+### AI Tool
+Anthropic's Claude
+
+### Outcomes
+Claude helped create simple to do list checking the features to test.
+- screens loading correctly
+- buttons work (add item, remove item, edit price, add participant, assign items, etc.)
+- navigation flow is correct
+- basic ui issues
+
+gave more lists of suggestions
+
+### Reflections
+Claude was very useful as it could see the file structure and read files. This helped with know what stuff to test and how to create the tests.
+I would definitely use claude further for both testing but hopefully learning how to use it in other ways!
