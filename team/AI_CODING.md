@@ -27,3 +27,13 @@ With these buckets, the algorithm would be:
 ### Reflections
 - In my opinion, this tool was pretty useful for providing possible solutions to our issue. It covered some ideas that we actually discussed about this issue, but went more in-depth about the actual implementation. This tool could also potentially be used to write the actual implementation of this system.
 - To ensure that the AI output was understandable and correct, I needed to provide context about our product, the issue we were having, as well as questioning the responses it gave to produce a more complete answer.
+
+## Mason - Claude
+
+### Issue
+
+
+### Outcomes
+
+
+### Reflections
