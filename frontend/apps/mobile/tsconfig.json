@@ -31,6 +31,8 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "nativewind-env.d.ts",
+    "../../shared/src/**/*.ts",
+    "../../shared/src/**/*.tsx",
     "../web/jest.config.ts",
     "jest.setup.ts"
   ]
