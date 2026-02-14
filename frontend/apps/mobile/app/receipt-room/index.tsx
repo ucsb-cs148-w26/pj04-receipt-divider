@@ -146,8 +146,13 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
+    const maxID =
+      receiptItems?.items?.length > 0
+        ? Math.max(...receiptItems.items.map((item) => item.id))
+        : 0;
+
     const newItem: ReceiptItemData = {
-      id: (receiptItems?.items?.length ?? 0) + 1,
+      id: maxID + 1,
       name: '',
       price: '',
       userTags: [],
