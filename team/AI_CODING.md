@@ -146,11 +146,10 @@ Create a Jest test in the shared subdirectory that tests whether the UserTag UI 
 - Initially, ChatGPT gave me code for the test, but there were some minor issues. 
 - The test was made for another part of the codebase, so I had to ask it to make adjustments to properly work in the section of the codebase that it was for
 - I had to intervene and fix some issues
-- However, I was unable to properly get the test to work, as many more problems occurred as I tried to fix others and I lacked the background knowledge to
-- truly understand what was going wrong
+- However, I was unable to properly get the test to work, as many more problems occurred as I tried to fix others and I lacked the background knowledge to truly understand what was going wrong
 
 ### Reflections
-- While AI is incredibly powerful tool to help productivity, it still requires that the user to intervene and also requires the user
+- While AI is incredibly powerful tool to help productivity, it still requires the user to intervene and also requires the user
 - to have a clear understanding of what they want and how they want it. As issues arise, demand for the user to have a strong understanding
 - of whatever they are trying to accomplish rises as well.
   
