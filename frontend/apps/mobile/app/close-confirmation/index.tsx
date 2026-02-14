@@ -20,7 +20,7 @@ export default function CloseConfirmationScreen() {
 
     // Dismiss all pages and go to home
     router.dismissAll();
-    router.push('/');
+    router.navigate('/');
   };
 
   return (
