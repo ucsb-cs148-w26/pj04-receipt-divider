@@ -10,6 +10,7 @@ const config: Config = {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@shared/(.*)$': '<rootDir>/../../shared/src/$1',
     '^@styles/(.*)$': '<rootDir>/../../shared/styles/$1',
+    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
 };
