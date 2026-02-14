@@ -87,7 +87,7 @@ jobs:
         
       - name: Verify Expo configuration
         working-directory: ./frontend/apps/mobile
-        run: expo config --json
+        run: npx expo config --json
         
       - name: Check for TypeScript errors
         working-directory: ./frontend/apps/mobile
@@ -95,7 +95,7 @@ jobs:
         
       - name: Export mobile app bundle
         working-directory: ./frontend/apps/mobile
-        run: expo export --platform all
+        run: npx expo export --platform all
         
       - name: Upload mobile bundle artifacts
         uses: actions/upload-artifact@v4
