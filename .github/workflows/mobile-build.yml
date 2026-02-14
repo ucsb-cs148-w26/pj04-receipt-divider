@@ -87,14 +87,14 @@ jobs:
         
       - name: Verify Expo configuration
         working-directory: ./frontend/apps/mobile
-        run: npx expo config --json
+        run: npx expo config
         
       - name: Check for TypeScript errors
-        working-directory: ./frontend/apps/mobile
+        working-directory: ./frontend
         run: npx tsc --noEmit
         
       - name: Export mobile app bundle
-        working-directory: ./frontend/apps/mobile
+        working-directory: ./frontend
         run: npx expo export --platform all
         
       - name: Upload mobile bundle artifacts
