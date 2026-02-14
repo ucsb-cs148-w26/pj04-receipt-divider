@@ -7,7 +7,7 @@ const config: Config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@shared/(.*)$': '<rootDir>/src/$1',
-    '^@styles/(.*)$': '<rootDir>/src/$1',
+    '^@styles/(.*)$': '<rootDir>/styles/$1',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   transform: {

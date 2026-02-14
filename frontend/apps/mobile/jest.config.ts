@@ -8,9 +8,8 @@ const config: Config = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
-    '^@shared$': '<rootDir>/../../shared/src/$1',
-    '^@styles': '<rootDir>/../../shared/src/$1',
+    '^@shared/(.*)$': '<rootDir>/../../shared/src/$1',
+    '^@styles/(.*)$': '<rootDir>/../../shared/styles/$1',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
 };
