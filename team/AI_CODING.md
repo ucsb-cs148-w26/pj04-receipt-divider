@@ -134,3 +134,23 @@ Claude helped structure the repo and created the necessary config files. Now, we
 
 ### Reflections
 Claude was very useful as it is more SWE oriented compared to other LLMs. Additionally, with its agentic functionality, it could see the repo structure and edit files. This gave it context specific to our repo, and made Claude very easy to use.
+
+
+## Charlie - ChatGPT via Copilot
+
+### Issue/Prompt
+Create a Jest test in the shared subdirectory that tests whether the UserTag UI element is properly applied and removed.
+
+
+### Outcomes
+- Initially, ChatGPT gave me code for the test, but there were some minor issues. 
+- The test was made for another part of the codebase, so I had to ask it to make adjustments to properly work in the section of the codebase that it was for
+- I had to intervene and fix some issues
+- However, I was unable to properly get the test to work, as many more problems occurred as I tried to fix others and I lacked the background knowledge to
+- truly understand what was going wrong
+
+### Reflections
+- While AI is incredibly powerful tool to help productivity, it still requires that the user to intervene and also requires the user
+- to have a clear understanding of what they want and how they want it. As issues arise, demand for the user to have a strong understanding
+- of whatever they are trying to accomplish rises as well.
+  
