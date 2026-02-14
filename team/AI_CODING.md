@@ -1,3 +1,22 @@
+
+## Leifeng - Claude Sonnet 4 via Copilot
+
+### Issue/Prompt
+Create a Jest test in the mobile subdirectory that tests whether the mobile app starts correctly with no errors when doing npx expo start.
+
+
+### Outcomes
+- Initially, Claude tried to change the jest config files to add new imports along with writing out the test
+- Claude does not know that the expo `RootLayout` component cannot be rendered, so it tried to fix it by importing all sorts of things
+- Eventually, I had to intervene and fix the issue by importing actual pages rather than the RootLayout
+- The changes Claude made to the jest config and setup files were completely unnecessary 
+
+### Reflections
+- Claude and Copilot agents are definitely useful tools, but they are not all knowing. In order to use them correctly, it is best to specify exactly what you want them to do, use, and change. Otherwise, they might add a huge amount of tech debt and random crap that are unnecessary.
+
+
+---
+
 ## Roy - Gemini
 
 ### Issue
@@ -77,6 +96,7 @@ After analyzing the existing codebase, generated implementation tasks for multi-
 - Usefuleness: This tool was very useful for quickly creating a high-level implementation plan that considers our existing tech stack. It analyzed our current codebase structure and proposed solutions that integrate with our existing project structure. The plan breaks down this large feature into smaller phases, but we will likely eventually need more in depth and specific sub-issues in order to implement this. This tool could be used to plan other major features like improving the receipt scanning or cashapp/venmo integration.
 - Ensure correctness, understandability, and fair use: I verified that the proposed Firebase SDK and dependencies are compatible with our setup by installing firebase on a local branch. I also checked that the suggested API endpoints in step 1 are compatible with the FastAPI setup that we have in backend/app/routers/. The plan is understandable because it's broken into clear phases and categorized steps. Fair use is ensured as this planning is based on our own specific codebase, not from any external sources.
 
+---
 
 ## Mason Le - Claude
 
