@@ -94,7 +94,7 @@ jobs:
         run: npx tsc --noEmit
         
       - name: Export mobile app bundle
-        working-directory: ./frontend
+        working-directory: ./frontend/apps/mobile
         run: npx expo export --platform all
         
       - name: Upload mobile bundle artifacts
