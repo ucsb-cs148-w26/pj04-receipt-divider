@@ -118,3 +118,19 @@ gave more lists of suggestions
 ### Reflections
 Claude was very useful as it could see the file structure and read files. This helped with know what stuff to test and how to create the tests.
 I would definitely use claude further for both testing but hopefully learning how to use it in other ways!
+
+---
+
+## Ken Thampiratwong - Claude
+
+### Issue
+We wanted to migrate to a monorepo where mobile and web frontends have different functionality.
+
+### AI Tool
+Anthropic's Claude
+
+### Outcomes
+Claude helped structure the repo and created the necessary config files. Now, we can share some logic and components between the two frontends.
+
+### Reflections
+Claude was very useful as it is more SWE oriented compared to other LLMs. Additionally, with its agentic functionality, it could see the repo structure and edit files. This gave it context specific to our repo, and made Claude very easy to use.
