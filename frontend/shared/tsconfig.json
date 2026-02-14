@@ -17,6 +17,12 @@
       "@/*": [
         "src/*"
       ],
+      "@shared/*": [
+        "src/*",
+      ],
+      "@styles/*": [
+        "styles/*"
+      ]
     },
     "strict": true,
     "esModuleInterop": true,
