@@ -350,13 +350,7 @@ export default function ReceiptRoomScreen() {
 
       <Button title='QR' onPress={() => router.push(`/qr?roomId=${roomId}`)} />
       <Button title='Settings' onPress={() => router.push('/setting')} />
-      <Button
-        title='Close Room'
-        onPress={() => {
-          router.dismissAll();
-          router.navigate('/');
-        }}
-      />
+      <Button title='Close Room' onPress={() => router.push('/close-confirmation')} />
     </View>
   );
 }
