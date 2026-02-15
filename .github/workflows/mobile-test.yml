@@ -1,0 +1,55 @@
+name: Mobile Lint and Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/shared/**'
+      - 'frontend/apps/mobile/**'
+      - '.github/workflows/mobile-test.yml'
+      - '.github/workflows/mobile-bundle.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/shared/**'
+      - 'frontend/apps/mobile/**'
+      - '.github/workflows/mobile-test.yml'
+      - '.github/workflows/mobile-bundle.yml'
+
+jobs:
+  lint-and-test:
+    name: Lint and Test Mobile App
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [20.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            frontend/apps/mobile/package-lock.json
+            
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm i
+        
+      - name: Run mobile app linting
+        working-directory: ./frontend/apps/mobile
+        run: npm run lint
+
+      - name: Run mobile tests
+        working-directory: ./frontend
+        run: npm run test:mobile
+        
+      - name: Run mobile tests with coverage
+        working-directory: ./frontend
+        run: npm run test:mobile:coverage
