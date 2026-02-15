@@ -95,7 +95,7 @@ jobs:
         
       - name: Export mobile app bundle
         working-directory: ./frontend/apps/mobile
-        run: npx expo export --platform all
+        run: npx expo export --platform ios && npx expo export --platform android
         
       - name: Upload mobile bundle artifacts
         uses: actions/upload-artifact@v4
