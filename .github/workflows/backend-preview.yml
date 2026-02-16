@@ -1,0 +1,23 @@
+name: "Backend Vercel Preview"
+on:
+  pull_request:
+    types: [labeled]
+    paths:
+      - "backend/**"
+
+jobs:
+  deploy:
+    if: contains(github.event.pull_request.labels.*.name, 'preview')
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Deploy Preview to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_BACKEND_AUTH }}
+        run: |
+          vercel --confirm --token=$VERCEL_TOKEN --prod=false
