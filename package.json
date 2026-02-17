@@ -10,6 +10,8 @@
     "lint-staged": "^16.2.7"
   },
   "workspaces": [
-    "*"
+    "frontend",
+    "frontend/shared",
+    "frontend/apps/*"
   ]
 }
