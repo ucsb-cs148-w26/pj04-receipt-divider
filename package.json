@@ -3,19 +3,13 @@
   "version": "1.0.0",
   "scripts": {
     "prepare": "husky install",
-    "lint-staged": "lint-staged"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,md}": [
-      "prettier --write"
-    ]
+    "pre-commit": "npm run pre-commit --workspaces --if-present"
   },
   "devDependencies": {
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7"
-  }
+  },
+  "workspaces": [
+    "*"
+  ]
 }

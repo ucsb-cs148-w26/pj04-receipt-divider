@@ -16,7 +16,13 @@
     "test:web:coverage": "jest --selectProjects mobile --coverage",
     "test:shared": "jest --selectProjects shared",
     "test:shared:watch": "jest --selectProjects mobile --watch",
-    "test:shared:coverage": "jest --selectProjects mobile --coverage"
+    "test:shared:coverage": "jest --selectProjects mobile --coverage",
+    "pre-commit": "lint-staged"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,css,scss,md}": [
+      "npx prettier --write"
+    ]
   },
   "workspaces": [
     "shared",
