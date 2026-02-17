@@ -20,7 +20,16 @@
     "pre-commit": "lint-staged"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,css,scss,md}": [
+    "apps/mobile/**/*.{js,jsx,ts,tsx}": [
+      "npm run lint -w apps/mobile"
+    ],
+    "apps/web/**/*.{js,jsx,ts,tsx}": [
+      "npm run lint -w apps/web"
+    ],
+    "shared/**/*.{js,jsx,ts,tsx}": [
+      "npm run lint -w shared"
+    ],
+    "**/*.{js,jsx,ts,tsx,css,scss,md}": [
       "npx prettier --write"
     ]
   },
