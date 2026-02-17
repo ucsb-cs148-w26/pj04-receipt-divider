@@ -3,7 +3,8 @@ on:
   pull_request:
     types: [labeled]
     paths:
-      - "backend/**"
+      - "frontend/**"
+      - "!frontend/apps/mobile/**"
 
 jobs:
   deploy:
@@ -19,7 +20,7 @@ jobs:
       - name: Deploy Preview to Vercel
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT: ${{ secrets.VERCEL_BACKEND_PROJ }
+          VERCEL_PROJECT: ${{ secrets.VERCEL_FRONTEND_PROJ }
         run: |
           vercel link --token=$VERCEL_TOKEN --project=$VERCEL_PROJECT --yes
           vercel --token=$VERCEL_TOKEN
