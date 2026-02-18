@@ -1,10 +1,14 @@
 from fastapi import FastAPI
+from dotenv import load_dotenv
 
-from app.routers import index, health, room
+from app.routers import index, health, room, receipt
 from app.database import init_db
 
+# Load environment variables
+load_dotenv()
+
 app = FastAPI(
-    title="Example FastAPI App",
+    title="Eezy Receipt API",
     version="1.0.0",
 )
 
@@ -18,3 +22,4 @@ def on_startup():
 app.include_router(index.router, prefix="", tags=["Index"])
 app.include_router(health.router, prefix="/health", tags=["Health"])
 app.include_router(room.router, prefix="/room", tags=["Room"])
+app.include_router(receipt.router, prefix="/receipt", tags=["Receipt"])

@@ -1,6 +1,3 @@
-import { z } from 'zod';
-import { randomUUID } from 'expo-crypto';
-import OpenAI from 'openai';
 import { ReceiptItemData } from '@shared/types';
 
 interface RawReceiptItemData {
