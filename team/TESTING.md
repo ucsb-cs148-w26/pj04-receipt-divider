@@ -56,178 +56,55 @@ npm run test:web:watch
 npm run test:shared:watch
 ```
 
-## Testing Approaches and Patterns
-
-### 1. Component Testing Approach
-
-We primarily use **component-focused unit testing** that tests individual React components in isolation with mocked dependencies.
-
-### 2. Mocking Strategy
-
-Our tests employ comprehensive mocking of external dependencies:
-
-#### Navigation and Routing Mocks
-```typescript
-jest.mock('expo-router', () => ({
-  router: {
-    navigate: jest.fn(),
-    back: jest.fn(),
-    push: jest.fn(),
-    dismiss: jest.fn(),
-  },
-  useLocalSearchParams: jest.fn(() => ({
-    roomId: 'test-room-id',
-    items: JSON.stringify([]),
-    participantId: '1',
-  })),
-}));
-```
-
-#### Theme and UI Mocks
-```typescript
-jest.mock('@react-navigation/native', () => ({
-  useTheme: jest.fn(() => ({
-    colors: {
-      primary: '#007AFF',
-      background: '#FFFFFF',
-      card: '#FFFFFF',
-      text: '#000000',
-      border: '#C8C8CC',
-      notification: '#FF3B30',
-    },
-  })),
-}));
-```
-
-#### Native Module Mocks
-```typescript
-jest.mock('react-native-gesture-handler', () => {
-  const View = require('react-native').View;
-  return {
-    Gesture: { Pan: () => ({ /* mock implementation */ }) },
-    GestureDetector: ({ children }) => children,
-    GestureHandlerRootView: View,
-  };
-});
-```
-
-### 3. Test Types Implemented
+## Test Types Implemented
 
 1. **Unit Tests**: Testing individual component behavior
 2. **Integration Tests**: Testing component interactions
 3. **Render Tests**: Ensuring components render without errors
-4. **Dependency Tests**: Validating external dependency handling
-
-## Unit Tests Implemented
-
-### 1. ReceiptItem Component Tests
-
-**Location**: [frontend/shared/src/components/__tests__/ReceiptItem.test.tsx](frontend/shared/src/components/__tests__/ReceiptItem.test.tsx)
-
-This is our most comprehensive test suite covering:
-
-#### Test Coverage:
-- **Rendering Tests**: Verifies component renders with correct item name and price
-- **User Interaction Tests**: Tests text input changes for name and price fields
-- **Data Validation**: Tests price input filtering (removes non-numeric characters)
-- **Event Handling**: Tests delete button functionality
-- **State Management**: Tests user tag rendering and display
-- **Edge Cases**: Handles empty item data gracefully
-
-#### Key Test Examples:
-```typescript
-it('calls onUpdate when name is changed', () => {
-  const { getByDisplayValue } = render(
-    <ReceiptItem
-      item={mockItem}
-      onUpdate={mockOnUpdate}
-      onDelete={mockOnDelete}
-      onRemoveFromUser={mockOnRemoveFromUser}
-    />
-  );
-
-  const nameInput = getByDisplayValue('Pizza');
-  fireEvent.changeText(nameInput, 'Burger');
-
-  expect(mockOnUpdate).toHaveBeenCalledWith({ name: 'Burger' });
-});
-
-it('filters out non-numeric characters from price input', () => {
-  const priceInput = getByDisplayValue('12.99');
-  fireEvent.changeText(priceInput, 'abc15.50xyz');
-
-  expect(mockOnUpdate).toHaveBeenCalledWith({ price: '15.50' });
-});
-```
-
-### 2. Application Screen Render Tests
-
-**Location**: [frontend/apps/mobile/__tests__/app-render.test.tsx](frontend/apps/mobile/__tests__/app-render.test.tsx)
-
-#### Test Coverage:
-- **Screen Dependency Tests**: Ensures all screens render without dependency errors
-- **Critical Integration Tests**: Validates screen startup behavior
-- **Error Handling**: Tests graceful handling of missing dependencies
-- **Console Error Monitoring**: Ensures no console errors during rendering
-
-#### Screens Tested:
-- HomeScreen
-- CameraScreen  
-- ReceiptRoomScreen
-- QRScreen
-- YourItemScreen
-- SettingsScreen
-- ModalScreen
-- PictureErrorScreen
-
-### 3. Basic Example Tests
-
-**Locations**: 
-- [frontend/apps/web/__tests__/example.test.tsx](frontend/apps/web/__tests__/example.test.tsx)
-- [frontend/apps/mobile/__tests__/example.test.tsx](frontend/apps/mobile/__tests__/example.test.tsx)
-- [frontend/shared/__tests__/example.test.ts](frontend/shared/__tests__/example.test.ts)
-
-Simple tests ensuring basic functionality and test setup validation.
-
-## Testing Challenges and Solutions
-
-### 1. React Native Testing Complexity
-**Challenge**: Testing React Native components requires extensive mocking of native modules.
-
-**Solution**: Comprehensive mock setup covering gesture handlers, navigation, and Expo modules.
-
-### 2. Cross-Platform Component Testing  
-**Challenge**: Shared components need to work across web and mobile platforms.
-
-**Solution**: Jest-expo preset configuration with appropriate transform ignore patterns.
-
-### 3. External Dependency Management
-**Challenge**: Heavy reliance on Expo and React Navigation requires careful mocking.
-
-**Solution**: Structured mock files with realistic return values for consistent testing.
 
 ## Backend Testing Status
 
-Currently, **no backend testing framework is implemented**. The backend uses FastAPI with Python but doesn't have test dependencies configured in [backend/pyproject.toml](backend/pyproject.toml).
+Currently, **no backend testing framework is implemented**. The backend uses FastAPI with Python but doesn't have test dependencies configured.
 
-**Recommendation**: Consider adding pytest for backend API testing in future iterations.
+## Unit Testing Plans Going Forward
 
-## Coverage and Quality Metrics
+**Decision**: We will maintain our current Jest-based testing framework for frontend components but will **not be expanding** our testing infrastructure significantly.
 
-Tests can be run with coverage reporting using:
-```bash
-npm run test:coverage
-```
+**Reasoning**: 
+- Our current Jest setup with React Testing Library provides adequate coverage for critical frontend functionality
+- Time constraints in our development sprint require prioritizing feature development over comprehensive test expansion
+- Our CI/CD pipeline provides automated testing of existing test suites, ensuring quality control without additional overhead
+- Adding extensive unit testing for every component would require significant time investment that we've allocated to core feature development
 
-Coverage reports are generated in the `frontend/coverage/` directory with:
-- HTML reports ([frontend/coverage/lcov-report/index.html](frontend/coverage/lcov-report/index.html))
-- LCOV format for CI integration
-- JSON format for programmatic analysis
+## Component/Integration/End-to-End Testing Requirement Satisfaction
 
-## Future Testing Improvements
+**Testing Library Used**: Jest with @testing-library/react and @testing-library/react-native
 
-1. **End-to-End Testing**: Consider adding Detox or similar E2E testing framework
-2. **Backend Testing**: Implement pytest for API endpoint testing  
-3. **Visual Regression Testing**: Add screenshot testing for UI components
-4. **Performance Testing**: Add performance benchmarks for critical components
-5. **Accessibility Testing**: Ensure components meet accessibility standards
+**Implementation Coverage**:
+1. **Component Tests**: Individual component behavior testing (e.g., [ReceiptItem.test.tsx](../frontend/shared/src/components/__tests__/ReceiptItem.test.tsx))
+   - Tests component rendering, user interactions, and state management
+   - Validates prop handling and event callbacks
+   
+2. **Integration Tests**: Screen-level integration testing (e.g., [app-render.test.tsx](../frontend/apps/mobile/__tests__/app-render.test.tsx))
+   - Tests multiple components working together within screen contexts
+   - Validates routing and navigation integration
+   - Tests cross-component data flow
+   
+3. **Render Tests**: Comprehensive screen rendering validation
+   - Ensures all major screens (HomeScreen, CameraScreen, ReceiptRoomScreen, etc.) render without errors
+   - Tests component mounting and unmounting behaviors
+   - Validates proper handling of external dependencies through mocking
+
+**Code Coverage**: Our tests cover critical user interfaces across web, mobile, and shared component packages.
+
+## Higher-Level Testing Plans Going Forward
+
+**Decision**: We will **not be implementing** additional higher-level testing frameworks (E2E, backend testing, etc.).
+
+**Reasoning**:
+1. **Resource Constraints**: Our team has limited time remaining in the sprint cycle, and implementing comprehensive E2E testing (Detox, Cypress, etc.) would require significant setup time
+2. **CI/CD Coverage**: Our existing CI/CD pipeline already runs our current test suite automatically, providing continuous quality assurance
+3. **Risk vs. Benefit**: The additional overhead of maintaining E2E tests outweighs the benefits for our project scope and timeline
+4. **Backend Simplicity**: Our FastAPI backend is relatively straightforward, and manual API testing has been sufficient for our current needs
+
+**Quality Assurance Strategy**: We will rely on our existing automated frontend testing combined with manual testing and our CI/CD pipeline to maintain code quality.

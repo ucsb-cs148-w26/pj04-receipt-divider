@@ -50,8 +50,8 @@
 | Wed 02/11   | N/A               | Scribe for Lec10 Scrum                            | 
 | Fri 02/13   | N/A               | Scribe for Lab06 Scrum                            | 
 | **Week 7**  |                   |                                                   | 
-|             | TBA               | Code/PR reviewer for the week                     | 
-| Wed 02/17   | TBA               | Scribe for Lec11 Scrum                            | 
+|             | Ken               | Code/PR reviewer for the week                     | 
+| Wed 02/17   | Leifeng           | Scribe for Lec11 Scrum                            | 
 | Fri 02/19   | TBA               | Scribe for LAB07 Scrum                            | 
 | **Week 8**  |                   |                                                   | 
 |             | TBA               | Code/PR reviewer for the week                     | 
