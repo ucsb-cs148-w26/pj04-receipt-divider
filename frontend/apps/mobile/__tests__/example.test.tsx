@@ -7,8 +7,8 @@ describe('Example', () => {
     const { getByText } = render(
       <View>
         <Text>Welcome!</Text>
-      </View>
+      </View>,
     );
-    getByText("Welcome!");
+    getByText('Welcome!');
   });
 });

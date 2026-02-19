@@ -191,7 +191,7 @@ export default function ReceiptItem({
 
           const distance = Math.sqrt(
             Math.pow(x - participantCenterX, 2) +
-            Math.pow(y - participantCenterY, 2),
+              Math.pow(y - participantCenterY, 2),
           );
 
           // Keep track of the closest participant
@@ -355,10 +355,10 @@ export default function ReceiptItem({
           style={[
             isDraggingOverlay && styles.draggingOverlay,
             isDraggingOverlay &&
-            initialPosition && {
-              top: initialPosition.y,
-              left: initialPosition.x,
-            },
+              initialPosition && {
+                top: initialPosition.y,
+                left: initialPosition.x,
+              },
             {
               transform: isCurrentlyDragging ? pan.getTranslateTransform() : [],
               width: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
