@@ -1,12 +1,6 @@
 name: Web Lint and Test
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'frontend/shared/**'
-      - 'frontend/apps/web/**'
-      - '.github/workflows/web-test.yml'
   pull_request:
     branches: [main]
     paths:

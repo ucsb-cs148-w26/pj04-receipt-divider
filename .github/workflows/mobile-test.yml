@@ -1,13 +1,6 @@
 name: Mobile Lint and Test
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'frontend/shared/**'
-      - 'frontend/apps/mobile/**'
-      - '.github/workflows/mobile-test.yml'
-      - '.github/workflows/mobile-bundle.yml'
   pull_request:
     branches: [main]
     paths:
@@ -57,3 +50,4 @@ jobs:
       - name: Run mobile tests with coverage
         working-directory: ./frontend
         run: npm run test:mobile:coverage
+
