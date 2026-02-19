@@ -8,7 +8,7 @@ from app.database import init_db
 load_dotenv()
 
 app = FastAPI(
-    title="Eezy Receipt API",
+    title="Example FastAPI App",
     version="1.0.0",
 )
 
