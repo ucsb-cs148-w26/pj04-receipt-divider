@@ -32,12 +32,10 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('expo-image-picker', () => ({
-  requestCameraPermissionsAsync: jest.fn(() => 
-    Promise.resolve({ status: 'granted' })
+  requestCameraPermissionsAsync: jest.fn(() =>
+    Promise.resolve({ status: 'granted' }),
   ),
-  launchCameraAsync: jest.fn(() => 
-    Promise.resolve({ canceled: true })
-  ),
+  launchCameraAsync: jest.fn(() => Promise.resolve({ canceled: true })),
   MediaType: ['images'],
 }));
 
@@ -182,7 +180,7 @@ describe('App Dependencies Check', () => {
     it('all screens handle missing optional dependencies gracefully', async () => {
       const screens = [
         HomeScreen,
-        CameraScreen, 
+        CameraScreen,
         ReceiptRoomScreen,
         QRScreen,
         YourItemScreen,
@@ -210,7 +208,7 @@ describe('App Dependencies Check', () => {
         render(<SettingsScreen />);
         render(<ModalScreen />);
         render(<PictureErrorScreen />);
-        
+
         await waitFor(() => {
           expect(consoleErrorSpy).not.toHaveBeenCalled();
         });

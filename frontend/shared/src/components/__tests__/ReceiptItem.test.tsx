@@ -60,7 +60,7 @@ describe('ReceiptItem', () => {
         onUpdate={mockOnUpdate}
         onDelete={mockOnDelete}
         onRemoveFromUser={mockOnRemoveFromUser}
-      />
+      />,
     );
 
     expect(getByDisplayValue('Pizza')).toBeTruthy();
@@ -74,7 +74,7 @@ describe('ReceiptItem', () => {
         onUpdate={mockOnUpdate}
         onDelete={mockOnDelete}
         onRemoveFromUser={mockOnRemoveFromUser}
-      />
+      />,
     );
 
     const nameInput = getByDisplayValue('Pizza');
@@ -90,7 +90,7 @@ describe('ReceiptItem', () => {
         onUpdate={mockOnUpdate}
         onDelete={mockOnDelete}
         onRemoveFromUser={mockOnRemoveFromUser}
-      />
+      />,
     );
 
     const priceInput = getByDisplayValue('12.99');
@@ -106,7 +106,7 @@ describe('ReceiptItem', () => {
         onUpdate={mockOnUpdate}
         onDelete={mockOnDelete}
         onRemoveFromUser={mockOnRemoveFromUser}
-      />
+      />,
     );
 
     const priceInput = getByDisplayValue('12.99');
@@ -122,7 +122,7 @@ describe('ReceiptItem', () => {
         onUpdate={mockOnUpdate}
         onDelete={mockOnDelete}
         onRemoveFromUser={mockOnRemoveFromUser}
-      />
+      />,
     );
 
     const deleteButton = getByLabelText('Delete item');
@@ -138,7 +138,7 @@ describe('ReceiptItem', () => {
         onUpdate={mockOnUpdate}
         onDelete={mockOnDelete}
         onRemoveFromUser={mockOnRemoveFromUser}
-      />
+      />,
     );
 
     // UserTag component should render the user index
@@ -160,7 +160,7 @@ describe('ReceiptItem', () => {
         onUpdate={mockOnUpdate}
         onDelete={mockOnDelete}
         onRemoveFromUser={mockOnRemoveFromUser}
-      />
+      />,
     );
 
     expect(getByPlaceholderText('Item name')).toBeTruthy();

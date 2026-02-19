@@ -35,7 +35,7 @@ export default function CloseConfirmationScreen() {
           <TouchableOpacity
             style={[styles.button, styles.cancelButton]}
             onPress={handleCancel}
-            accessibilityLabel="Cancel closing room"
+            accessibilityLabel='Cancel closing room'
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
@@ -43,7 +43,7 @@ export default function CloseConfirmationScreen() {
           <TouchableOpacity
             style={[styles.button, styles.confirmButton]}
             onPress={handleConfirm}
-            accessibilityLabel="Confirm closing room"
+            accessibilityLabel='Confirm closing room'
           >
             <Text style={styles.confirmButtonText}>Close Room</Text>
           </TouchableOpacity>
