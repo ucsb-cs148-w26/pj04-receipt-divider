@@ -6,7 +6,15 @@ from typing import List
 import requests
 from openai import OpenAI
 
-from app.schemas.ocr_schema import ReceiptItemData
+from pydantic import BaseModel
+
+
+class ReceiptItemData(BaseModel):
+    id: str
+    name: str
+    price: str
+    userTags: list[int] = []
+    discount: str = ""
 
 
 class OCRService:
