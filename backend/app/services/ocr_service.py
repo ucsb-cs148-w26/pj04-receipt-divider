@@ -6,7 +6,7 @@ from typing import List
 import requests
 from openai import OpenAI
 
-from app.schemas.receipt import ReceiptItemData
+from app.schemas.ocr_schema import ReceiptItemData
 
 
 class OCRService:
@@ -36,7 +36,7 @@ class OCRService:
                 ]
             }
 
-            response = requests.post(url, json=body, timeout=60)
+            response = requests.post(url, json=body, timeout=90)
             response.raise_for_status()
             print(f"[OCR] Google Cloud Vision API returned: {response.status_code}")
 
@@ -102,7 +102,7 @@ class OCRService:
                     "content": prompt,
                 }
             ],
-            timeout=60,
+            timeout=90,
         )
 
         print(f"[OCR] OpenAI API call completed")
