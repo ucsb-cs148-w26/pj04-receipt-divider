@@ -8,7 +8,7 @@ engine = create_engine(
     str(settings.database_url),
     connect_args={"sslmode": "require"},
     poolclass=(
-        NullPool()
+        NullPool
         if settings.serverless
         else QueuePool(
             pool_size=settings.db_pool_size,

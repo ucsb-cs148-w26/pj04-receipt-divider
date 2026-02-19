@@ -1,11 +1,8 @@
-from sqlalchemy import (
-    Column,
-    ForeignKey,
-    Float,
-    DateTime,
-)
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+import uuid
+from datetime import datetime
+
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
@@ -14,22 +11,21 @@ from .base import Base
 class ItemClaim(Base):
     __tablename__ = "item_claims"
 
-    item_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("public.items.id"),
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("items.id"),
         primary_key=True,
     )
-    user_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("public.users.id"),
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id"),
         primary_key=True,
     )
-    share = Column(Float, nullable=False)
-    claimed_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-    )
+    share: Mapped[float] = mapped_column(nullable=False)
+    claimed_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     # Relationships
-    item = relationship("Item", back_populates="claims")
-    user = relationship("User", back_populates="item_claims")
+    item_claim_item: Mapped["Item"] = relationship(
+        back_populates="item_claims",
+    )
+    item_claim_user: Mapped["User"] = relationship(
+        back_populates="user_item_claims",
+    )

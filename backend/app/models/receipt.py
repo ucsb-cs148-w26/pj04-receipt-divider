@@ -1,13 +1,9 @@
-from sqlalchemy import (
-    Column,
-    ForeignKey,
-    Text,
-    Float,
-    DateTime,
-    text,
-)
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+import uuid
+from datetime import datetime
+from typing import List
+
+from sqlalchemy import ForeignKey, Text, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
@@ -16,23 +12,22 @@ from .base import Base
 class Receipt(Base):
     __tablename__ = "receipts"
 
-    id = Column(
-        UUID(as_uuid=True),
+    id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    image = Column(Text, nullable=False)
-    total = Column(Float, nullable=False)
-    created_by = Column(
-        UUID(as_uuid=True),
-        ForeignKey("public.users.id"),
+    image: Mapped[str] = mapped_column(Text, nullable=False)
+    total: Mapped[float] = mapped_column(nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id"),
         nullable=False,
     )
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     # Relationships
-    creator = relationship("User", back_populates="receipts_created")
-    items = relationship("Item", back_populates="receipt")
+    receipt_creator: Mapped["User"] = relationship(
+        back_populates="user_receipts_created",
+    )
+    receipt_items: Mapped[List["Item"]] = relationship(
+        back_populates="item_receipt",
+    )

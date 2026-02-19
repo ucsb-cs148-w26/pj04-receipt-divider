@@ -1,10 +1,8 @@
-from sqlalchemy import (
-    Column,
-    ForeignKey,
-    DateTime,
-)
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+import uuid
+from datetime import datetime
+
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
@@ -13,22 +11,23 @@ from .base import Base
 class GroupMember(Base):
     __tablename__ = "group_members"
 
-    user_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("public.users.id"),
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id"),
         primary_key=True,
     )
-    group_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("public.groups.id"),
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("groups.id"),
         primary_key=True,
     )
-    joined_at = Column(
-        DateTime(timezone=True),
+    joined_at: Mapped[datetime] = mapped_column(
         nullable=False,
         server_default=func.now(),
     )
 
     # Relationships
-    user = relationship("User", back_populates="group_memberships")
-    group = relationship("Group", back_populates="members")
+    group_member_user: Mapped["User"] = relationship(
+        back_populates="user_group_memberships",
+    )
+    group_member_group: Mapped["Group"] = relationship(
+        back_populates="group_members",
+    )

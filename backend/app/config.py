@@ -1,4 +1,4 @@
-from pydantic import PostgresDsn, field_validator
+from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,22 +12,22 @@ class Settings(BaseSettings):
     # TODO: change to False when migrating from Vercel
     serverless: bool = True
 
-    database_url: PostgresDsn
+    database_user: str
+    database_password: str
+    database_host: str
+    database_port: int
+    database_name: str
+
+    @computed_field
+    @property
+    def database_url(self) -> str:
+        return f"postgresql+psycopg2://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_name}?sslmode=require"
 
     # Connection pool
     db_pool_size: int = 5
     db_max_overflow: int = 10
     db_pool_recycle: int = 600
     db_pool_timeout: int = 30
-
-    @field_validator("database_url", mode="before")
-    @classmethod
-    def enforce_ssl_in_url(cls, v: str) -> str:
-        """Ensure the driver prefix is correct for SQLAlchemy."""
-        v = str(v)
-        if v.startswith("postgres://"):
-            v = v.replace("postgres://", "postgresql://", 1)
-        return v
 
 
 settings = Settings()

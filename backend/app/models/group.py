@@ -1,12 +1,9 @@
-from sqlalchemy import (
-    Column,
-    ForeignKey,
-    Text,
-    DateTime,
-    text,
-)
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+import uuid
+from datetime import datetime
+from typing import List, Optional
+
+from sqlalchemy import ForeignKey, Text, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
@@ -15,25 +12,25 @@ from .base import Base
 class Group(Base):
     __tablename__ = "groups"
 
-    id = Column(
-        UUID(as_uuid=True),
+    id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    created_at = Column(
-        DateTime(timezone=True),
+    created_at: Mapped[datetime] = mapped_column(
         nullable=False,
         server_default=func.now(),
     )
-    created_by = Column(
-        UUID(as_uuid=True),
-        ForeignKey("public.users.id"),
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id"),
         nullable=False,
     )
-    name = Column(Text, nullable=True)
+    name: Mapped[Optional[str]] = mapped_column(Text)
 
     # Relationships
-    creator = relationship(
-        "User", back_populates="groups_created", foreign_keys=[created_by]
+    group_creator: Mapped["User"] = relationship(
+        back_populates="user_groups_created",
+        foreign_keys=[created_by],
     )
-    members = relationship("GroupMember", back_populates="group")
+    group_members: Mapped[List["GroupMember"]] = relationship(
+        back_populates="group_member_group",
+    )
