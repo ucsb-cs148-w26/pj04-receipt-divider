@@ -15,8 +15,10 @@ import { Button } from '@eezy-receipt/shared';
 import { ReceiptRoomParams } from '@/app/receipt-room/index';
 import { useReceiptItems } from '@/providers';
 
-import { extractItems as extractReceiptItems } from '@/services/ocr';
+import { ErrorMessage, extractItems as extractReceiptItems } from '@/services/ocr';
 import { randomUUID } from 'expo-crypto';
+import { ErrorPictureParams } from '../error/picture';
+
 
 export default function CameraScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -45,6 +47,14 @@ export default function CameraScreen() {
       const imageBase64 = await new File(result.assets[0].uri).base64();
       setIsLoading(true);
       const extractedItems = await extractReceiptItems(imageBase64);
+      if(extractedItems instanceof ErrorMessage) { 
+        setIsLoading(false);
+        router.push({
+          pathname: '/error/picture',
+          params: { message: extractedItems.message } as ErrorPictureParams,
+        });
+        return;
+      }
       receiptItems.setItems(extractedItems);
       setIsLoading(false);
       goToReceiptRoom();

@@ -8,13 +8,26 @@ interface RawReceiptItemData {
   price: string;
 }
 
+export class ErrorMessage {
+  #message: string;
+  constructor(message: string = '') {
+    this.#message = message + "\n\n";
+  }
+  addMessage(newMessage: string) {
+    this.#message += newMessage + '\n\n';
+  }
+  get message() {
+    return this.#message;
+  }
+}
+
 const RawReceiptItemDataSchema: z.ZodType<RawReceiptItemData> = z.object({
   name: z.string(),
   price: z.string(),
 });
 
 interface ExtractionEngine {
-  extract(textBlocks: string[]): Promise<ReceiptItemData[]>;
+  extract(textBlocks: string[]): Promise<ReceiptItemData[] | ErrorMessage>;
 }
 
 class LLMEngine implements ExtractionEngine {
@@ -32,47 +45,70 @@ class LLMEngine implements ExtractionEngine {
     });
   }
 
-  async extract(textBlocks: string[]): Promise<ReceiptItemData[]> {
+  async extract(textBlocks: string[]): Promise<ReceiptItemData[] | ErrorMessage> {
     const text = textBlocks.reduce((prev, curr) => prev + curr, '');
     const prompt = `Given the chunk of text identify receipt items and output them with the given format.\n# Format\nThe output as 'Results: <results>'.For example, 'Results: [{ "name": "carrot", "price": "$2.99" }, { "name": "water", "price": "$1.29" }]\nText: \n${text}`;
     return this.#transformQuery(await this.#query(prompt));
   }
 
-  async #query(prompt: string): Promise<string> {
-    const res = await fetch(this.llmEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey} `,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      }),
-    });
+  async #query(prompt: string): Promise<string | ErrorMessage> {
+    let errorMessage: ErrorMessage = new ErrorMessage();
+    try {
+      const res = await fetch(this.llmEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey} `,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+        }),
+      });
 
-    const response = await this.llmClient.responses.create({
-      model: 'gpt-5-nano',
-      input: prompt,
-      store: false,
-    });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        errorMessage.addMessage(`LLM HTTP error ${res.status} ${res.statusText} ${errorText}`.trim());
+        throw new Error(
+          `LLM HTTP error ${res.status} ${res.statusText} ${errorText}`.trim(),
+        );
+      }
 
-    return response.output_text;
+      const response = await this.llmClient.responses.create({
+        model: 'gpt-5-nano',
+        input: prompt,
+        store: false,
+      });
+
+      if (!response.output_text) {
+        errorMessage.addMessage('LLM returned empty output');
+        throw new Error('LLM returned empty output');
+      }
+
+      return response.output_text;
+    } catch (error) {
+      console.error('LLM request failed:', error);
+      errorMessage.addMessage(`LLM request failed: ${error}`);
+      return errorMessage;
+    }
   }
 
-  #transformQuery(res: string): ReceiptItemData[] {
+  #transformQuery(res: string | ErrorMessage): ReceiptItemData[] | ErrorMessage {
+    if (res instanceof ErrorMessage) {
+      return res;
+    }
     const captureClause: RegExp = /(?:Results:).*(\[.*\])/;
     const extractedText = captureClause.exec(res);
 
     if (!extractedText) {
       console.log("LLM didn't return proper format:\n");
       console.log(res);
-      return [];
+      return new ErrorMessage("LLM didn't return proper format");
     }
 
     try {
@@ -93,7 +129,7 @@ class LLMEngine implements ExtractionEngine {
       });
     } catch (e) {
       console.log(e);
-      return [];
+      return new ErrorMessage('LLM returned data in correct format but parsing failed: ' + e);
     }
   }
 }
@@ -139,7 +175,7 @@ const analyzeReceipt = async (
 
 export const extractItems = async (
   base64ImageData: Base64URLString,
-): Promise<ReceiptItemData[]> => {
+): Promise<ReceiptItemData[] | ErrorMessage> => {
   const textBlocks = await analyzeReceipt(base64ImageData);
   const engine = new LLMEngine();
   return await engine.extract(textBlocks);
