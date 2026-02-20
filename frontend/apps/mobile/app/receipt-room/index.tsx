@@ -4,7 +4,6 @@ import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
 import {
-  Button,
   StyleSheet,
   View,
   Text,
@@ -13,6 +12,7 @@ import {
   LayoutRectangle,
   Animated,
 } from 'react-native';
+import { Button } from '@eezy-receipt/shared';
 import Participant from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
@@ -347,14 +347,12 @@ export default function ReceiptRoomScreen() {
           )}
       </View>
 
-      <Button title='Add Participant' onPress={addParticipant} />
-
-      <Button title='QR' onPress={() => router.push(`/qr?roomId=${roomId}`)} />
-      <Button title='Settings' onPress={() => router.push('/setting')} />
-      <Button
-        title='Close Room'
-        onPress={() => router.push('/close-confirmation')}
-      />
+      <View style={styles.buttonRow}>
+        <Button onPress={addParticipant}>Add Participant</Button>
+        <Button variant='outlined' onPress={() => router.push(`/qr?roomId=${roomId}`)}>QR</Button>
+        <Button variant='secondary' onPress={() => router.push('/setting')}>Settings</Button>
+        <Button variant='outlined' onPress={() => router.push('/close-confirmation')}>Close Room</Button>
+      </View>
     </View>
   );
 }
@@ -449,5 +447,11 @@ const createStyles = (colors: NativeThemeColorType) =>
     addUserButtonText: {
       fontSize: 32,
       color: colors.text,
+    },
+    buttonRow: {
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: 8,
+      padding: 12,
     },
   });
