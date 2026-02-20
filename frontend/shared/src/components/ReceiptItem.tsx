@@ -1,5 +1,6 @@
 import { useTheme } from '@react-navigation/native';
 import { useMemo, useState, useRef, useCallback } from 'react';
+import { NativeThemeColorType } from '@shared/types/native-theme';
 import {
   View,
   Text,
@@ -17,7 +18,7 @@ import {
 } from 'react-native-gesture-handler';
 
 import { ReceiptItemData } from '@shared/types';
-import UserTag from '@shared/components/UserTag';
+import { UserTag } from '@shared/components/UserTag';
 
 export const USER_COLORS = [
   '#60a5fa', // blue-400
@@ -31,15 +32,6 @@ export const USER_COLORS = [
   '#2dd4bf', // teal-400
   '#22d3ee', // cyan-400
 ];
-
-interface NativeThemeColorType {
-  primary: string;
-  background: string;
-  card: string;
-  text: string;
-  border: string;
-  notification: string;
-}
 
 /** Drag-related props grouped together */
 interface DragProps {
@@ -94,7 +86,7 @@ interface ReceiptItemProps extends DragProps {
   onTextFocusChange?: (focused: boolean) => void;
 }
 
-export default function ReceiptItem({
+export function ReceiptItem({
   // Core item data
   item,
   // Item update callbacks

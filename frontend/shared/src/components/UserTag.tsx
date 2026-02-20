@@ -1,18 +1,9 @@
 import { useTheme } from '@react-navigation/native';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
+import { NativeThemeColorType } from '@shared/types/native-theme';
 
-// FIXME: refactor to tailwind
-interface NativeThemeColorType {
-  primary: string;
-  background: string;
-  card: string;
-  text: string;
-  border: string;
-  notification: string;
-}
-
-export default function UserTag({
+export function UserTag({
   userIndex,
   color,
   onRemove,

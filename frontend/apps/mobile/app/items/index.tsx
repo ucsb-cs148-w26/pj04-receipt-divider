@@ -1,17 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
-import {
-  Button,
-  StyleSheet,
-  View,
-  ScrollView,
-  Pressable,
-  Text,
-  TouchableOpacity,
-} from 'react-native';
-import ReceiptItem from '@shared/components/ReceiptItem';
+import { StyleSheet, View, ScrollView, Text } from 'react-native';
+import { Button } from '@eezy-receipt/shared';
+import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
-import DisplayItems from '@shared/components/DisplayItems';
+import { DisplayItems } from '@shared/components/DisplayItems';
 
 export type YourItemsRoomParams = {
   roomId: string;
@@ -69,10 +62,10 @@ export default function YourItemScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.backButton}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
+      <View style={styles.backButtonContainer}>
+        <Button variant='outlined' onPress={() => router.back()}>
+          Back
+        </Button>
       </View>
 
       <View style={styles.scrollContainer}>
@@ -107,7 +100,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    top: -10, // adjust as needed
+    top: -10,
+  },
+  backButtonContainer: {
+    width: '100%',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    position: 'absolute',
+    top: 60,
+    left: 0,
   },
   scrollContainer: {
     flex: 0.8,
@@ -117,16 +118,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     gap: 10,
-  },
-  backButton: {
-    width: '100%',
-    alignItems: 'flex-start',
-    paddingHorizontal: 50,
-    bottom: 10,
-  },
-  backButtonText: {
-    fontSize: 20,
-    color: 'black',
   },
   sumContainer: {
     color: 'rgb(255, 255, 255)',

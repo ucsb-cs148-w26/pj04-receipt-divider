@@ -1,5 +1,6 @@
 import { useTheme } from '@react-navigation/core';
 import React, { useMemo, useRef } from 'react';
+import { NativeThemeColorType } from '@shared/types/native-theme';
 import {
   View,
   Text,
@@ -22,7 +23,7 @@ interface ParticipantsProps {
   onClickTextOut: () => void;
 }
 
-export default function Participant({
+export function Participant({
   id,
   color,
   changeName,
@@ -64,15 +65,6 @@ export default function Participant({
       ></TextInput>
     </Pressable>
   );
-}
-
-interface NativeThemeColorType {
-  primary: string;
-  background: string;
-  card: string;
-  text: string;
-  border: string;
-  notification: string;
 }
 
 const createStyles = (colors: NativeThemeColorType) =>
