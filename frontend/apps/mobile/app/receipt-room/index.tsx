@@ -16,6 +16,7 @@ import {
 import Participant from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
+import { randomUUID } from 'expo-crypto';
 
 interface NativeThemeColorType {
   primary: string;
@@ -29,7 +30,7 @@ export const ITEMCONTAINERPADDING = 16;
 
 interface DragState {
   isDragging: boolean;
-  itemId: number | null;
+  itemId: string | null;
   initialPosition: { x: number; y: number } | null;
   isOverParticipant: boolean;
 }
@@ -104,7 +105,7 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Drag Functions ---------------- */
   const handleItemDragStart = (
-    itemId: number,
+    itemId: string,
     initialPosition?: { x: number; y: number },
   ) => {
     setDragState({
@@ -146,13 +147,8 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
-    const maxID =
-      receiptItems?.items?.length > 0
-        ? Math.max(...receiptItems.items.map((item) => item.id))
-        : 0;
-
     const newItem: ReceiptItemData = {
-      id: maxID + 1,
+      id: randomUUID(),
       name: '',
       price: '',
       userTags: [],
@@ -161,7 +157,7 @@ export default function ReceiptRoomScreen() {
     console.log('All receipt items:', receiptItems);
   };
 
-  const updateReceiptItem = (id: number, updates: Partial<ReceiptItemData>) => {
+  const updateReceiptItem = (id: string, updates: Partial<ReceiptItemData>) => {
     receiptItems.setItems((prevItems) => {
       const updatedItems = prevItems.map((item) =>
         item.id === id ? { ...item, ...updates } : item,
@@ -171,12 +167,12 @@ export default function ReceiptRoomScreen() {
     });
   };
 
-  const deleteReceiptItem = (id: number) => {
+  const deleteReceiptItem = (id: string) => {
     receiptItems.setItems(receiptItems.items.filter((item) => item.id !== id));
     console.log('Deleted receipt items:', receiptItems);
   };
 
-  const removeItemFromUser = (itemId: number, userIndex: number) => {
+  const removeItemFromUser = (itemId: string, userIndex: number) => {
     receiptItems.setItems(
       receiptItems.items.map((item) => {
         if (item.id === itemId) {
