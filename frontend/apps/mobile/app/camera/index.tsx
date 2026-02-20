@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { File } from 'expo-file-system';
+import { Button } from '@eezy-receipt/shared';
 
 import { ReceiptRoomParams } from '@/app/receipt-room/index';
 import { useReceiptItems } from '@/providers';
@@ -58,23 +59,9 @@ export default function CameraScreen() {
           <Text style={styles.subtitle}>
             Use your camera to capture an image
           </Text>
-
-          <TouchableOpacity style={styles.primaryButton} onPress={openCamera}>
-            <Text style={styles.primaryText}>Open Camera</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.secondaryText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => goToReceiptRoom()}
-          >
-            <Text style={styles.secondaryText}>Skip</Text>
-          </TouchableOpacity>
+          <Button onPress={openCamera}>Open Camera</Button>
+          <Button variant='outlined' style={styles.spacer} onPress={() => router.back()}>Cancel</Button>
+          <Button variant='outlined' style={styles.spacer} onPress={() => goToReceiptRoom()}>Skip</Button>
         </View>
         <Modal
           transparent
@@ -162,5 +149,8 @@ const styles = StyleSheet.create({
   uriText: {
     fontSize: 12,
     color: '#64748B',
+  },
+  spacer: {
+    marginTop: 12,
   },
 });

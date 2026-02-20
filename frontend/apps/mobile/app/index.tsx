@@ -1,14 +1,14 @@
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Button, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Button } from '@eezy-receipt/shared';
 
 export default function HomeScreen() {
   return (
     <View style={styles.container}>
-      <Button title='Take Photo' onPress={() => router.navigate('/camera')} />
-      <Button title='Settings' onPress={() => router.navigate('/setting')} />
+      <Button onPress={() => router.navigate('/camera')}>Take Photo</Button>
+      <Button variant='secondary' onPress={() => router.navigate('/setting')}>Settings</Button>
       <StatusBar style='auto' />
-      {/* Globally sets status bar's (the seciton where you see your charge, time, wifi,etc) color scheme to complement the phone's theme (dark/light)*/}
     </View>
   );
 }
@@ -18,5 +18,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
   },
 });

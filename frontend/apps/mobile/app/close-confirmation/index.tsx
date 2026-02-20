@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import { useReceiptItems } from '@/providers';
+import { Button } from '@eezy-receipt/shared';
 
 export default function CloseConfirmationScreen() {
   const { colors } = useTheme();
@@ -32,21 +33,19 @@ export default function CloseConfirmationScreen() {
         </Text>
 
         <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.button, styles.cancelButton]}
+          <Button
+            variant='outlined'
+            style={{ flex: 1 }}
             onPress={handleCancel}
-            accessibilityLabel='Cancel closing room'
           >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.confirmButton]}
+            Cancel
+          </Button>
+          <Button
+            style={[{ flex: 1 }, styles.confirmButton]}
             onPress={handleConfirm}
-            accessibilityLabel='Confirm closing room'
           >
-            <Text style={styles.confirmButtonText}>Close Room</Text>
-          </TouchableOpacity>
+            Close Room
+          </Button>
         </View>
       </View>
     </View>

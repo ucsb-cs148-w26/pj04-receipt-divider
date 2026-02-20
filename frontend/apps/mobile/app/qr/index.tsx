@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
-import { Button, StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
+import { Button } from '@eezy-receipt/shared';
 import QRCode from 'react-native-qrcode-svg';
 
 export default function QRScreen() {
@@ -22,13 +23,11 @@ export default function QRScreen() {
         />
         <Text style={styles.roomIdText}>Room ID: {roomId}</Text>
       </View>
-      <Button
-        title='Back to Room'
+      <Button variant='outlined' 
         onPress={() => {
           router.dismiss();
           router.navigate(`/receipt-room?roomId=${roomId}`);
-        }}
-      />
+        }}>Back to Room</Button>
     </View>
   );
 }
@@ -38,6 +37,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
   },
   qrContainer: {
     justifyContent: 'center',

@@ -1,24 +1,17 @@
 import { router } from 'expo-router';
 import React from 'react';
-import { Button, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Button } from '@eezy-receipt/shared';
 
 export default function PictureErrorScreen() {
   return (
     <View style={styles.container}>
-      <Button
-        title='Back to Home Page'
-        onPress={() => {
-          router.dismiss();
-          router.navigate('/');
-        }}
-      />
-      <Button
-        title='Back to Camera'
-        onPress={() => {
-          router.dismiss();
-          router.navigate('/camera');
-        }}
-      />
+      <Button onPress={() => { router.dismiss(); router.navigate('/'); }}>
+        Back to Home Page
+      </Button>
+      <Button variant='outlined' onPress={() => { router.dismiss(); router.navigate('/camera'); }}>
+        Back to Camera
+      </Button>
     </View>
   );
 }
