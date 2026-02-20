@@ -136,7 +136,7 @@ class LLMEngine implements ExtractionEngine {
 
 const analyzeReceipt = async (
   base64Image: Base64URLString,
-): Promise<string[]> => {
+): Promise<string[] | ErrorMessage> => {
   try {
     const url = new URL(process.env.EXPO_PUBLIC_GOOGLE_URL as string);
     url.searchParams.set(
@@ -162,14 +162,14 @@ const analyzeReceipt = async (
     const data = await response.json();
 
     if (!data.responses || !data.responses[0].textAnnotations) {
-      return [];
+      return new ErrorMessage("Google Vision API returned no text annotations");
     }
 
     const fullText = data.responses[0].textAnnotations[0].description;
     return fullText.split('\n');
   } catch (error) {
     console.error('API Error:', error);
-    return [];
+    return new ErrorMessage(`Google Vision API error: ${error}`);
   }
 };
 
@@ -177,6 +177,9 @@ export const extractItems = async (
   base64ImageData: Base64URLString,
 ): Promise<ReceiptItemData[] | ErrorMessage> => {
   const textBlocks = await analyzeReceipt(base64ImageData);
+  if (textBlocks instanceof ErrorMessage) {
+    return textBlocks;
+  }
   const engine = new LLMEngine();
   return await engine.extract(textBlocks);
 };
