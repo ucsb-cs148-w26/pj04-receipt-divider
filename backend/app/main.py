@@ -1,7 +1,11 @@
 from fastapi import FastAPI
+from dotenv import load_dotenv
 
 from app.routers import index, health, room
 from app.database import init_db
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI(
     title="Example FastAPI App",
