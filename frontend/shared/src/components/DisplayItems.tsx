@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 export interface DisplayClaimedReceiptItemProps {
-  id: number;
+  id: string;
   name: string;
   price: string;
   discount?: string; // Optional discount amount
