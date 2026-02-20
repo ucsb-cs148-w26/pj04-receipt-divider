@@ -9,6 +9,7 @@ dependencies = [
     "google-cloud-vision>=3.12.1",
     "openai>=2.21.0",
     "python-dotenv>=1.2.1",
+    "sqlalchemy>=2.0.46",
 ]
 
 [dependency-groups]
