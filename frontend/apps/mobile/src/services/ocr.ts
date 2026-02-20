@@ -8,6 +8,45 @@ interface RawReceiptItemData {
   price: string;
 }
 
+const FETCH_TIMEOUT_MS = 30000;
+let hasLoggedEnv = false;
+
+const fetchWithTimeout = async (
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs: number = FETCH_TIMEOUT_MS,
+): Promise<Response> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number = FETCH_TIMEOUT_MS,
+  timeoutMessage: string = 'Operation timed out',
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 export class ErrorMessage {
   #message: string;
   constructor(message: string = '') {
@@ -54,7 +93,7 @@ class LLMEngine implements ExtractionEngine {
   async #query(prompt: string): Promise<string | ErrorMessage> {
     let errorMessage: ErrorMessage = new ErrorMessage();
     try {
-      const res = await fetch(this.llmEndpoint, {
+      const res = await fetchWithTimeout(this.llmEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -79,11 +118,15 @@ class LLMEngine implements ExtractionEngine {
         );
       }
 
-      const response = await this.llmClient.responses.create({
-        model: 'gpt-5-nano',
-        input: prompt,
-        store: false,
-      });
+      const response = await withTimeout(
+        this.llmClient.responses.create({
+          model: 'gpt-5-nano',
+          input: prompt,
+          store: false,
+        }),
+        FETCH_TIMEOUT_MS,
+        'LLM response timed out',
+      );
 
       if (!response.output_text) {
         errorMessage.addMessage('LLM returned empty output');
@@ -176,10 +219,28 @@ const analyzeReceipt = async (
 export const extractItems = async (
   base64ImageData: Base64URLString,
 ): Promise<ReceiptItemData[] | ErrorMessage> => {
+  const errorMessage = new ErrorMessage();
+  if (!hasLoggedEnv) {
+    // Log resolved env vars once to help debug release builds.
+    errorMessage.addMessage(`OCR env, {
+      EXPO_PUBLIC_LLM_MODEL: ${process.env.EXPO_PUBLIC_LLM_MODEL},
+      EXPO_PUBLIC_LLM_KEY: ${process.env.EXPO_PUBLIC_LLM_KEY ? '[set]' : '[missing]'},
+      EXPO_PUBLIC_LLM_URL: ${process.env.EXPO_PUBLIC_LLM_URL},
+      EXPO_PUBLIC_GOOGLE_URL: ${process.env.EXPO_PUBLIC_GOOGLE_URL},
+      EXPO_PUBLIC_GOOGLE_API_KEY: ${process.env.EXPO_PUBLIC_GOOGLE_API_KEY ? '[set]' : '[missing]'},
+    }`);
+    hasLoggedEnv = true;
+  }
   const textBlocks = await analyzeReceipt(base64ImageData);
   if (textBlocks instanceof ErrorMessage) {
-    return textBlocks;
+    errorMessage.addMessage(textBlocks.message);
+    return errorMessage;
   }
   const engine = new LLMEngine();
-  return await engine.extract(textBlocks);
+  const extractedItems = await engine.extract(textBlocks);
+  if (extractedItems instanceof ErrorMessage) {
+    errorMessage.addMessage(extractedItems.message);
+    return errorMessage;
+  }
+  return extractedItems;
 };
