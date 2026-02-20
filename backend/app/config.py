@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     database_port: int
     database_name: str
 
+    supabase_url: str
+    supabase_key: str
+
     @computed_field
     @property
     def database_url(self) -> str:
