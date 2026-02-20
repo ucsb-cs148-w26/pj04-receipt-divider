@@ -2,6 +2,7 @@ import React from 'react';
 import { useTheme } from '@react-navigation/native';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { NativeThemeColorType } from '@shared/types/native-theme';
 
 export interface DisplayClaimedReceiptItemProps {
   id: number;
@@ -11,7 +12,7 @@ export interface DisplayClaimedReceiptItemProps {
   percentage?: number; // Percentage of the item claimed by the user
 }
 
-export default function DisplayItems({
+export function DisplayItems({
   id,
   name,
   price,
@@ -61,15 +62,6 @@ export default function DisplayItems({
       )}
     </View>
   );
-}
-
-interface NativeThemeColorType {
-  primary: string;
-  background: string;
-  card: string;
-  text: string;
-  border: string;
-  notification: string;
 }
 
 const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
