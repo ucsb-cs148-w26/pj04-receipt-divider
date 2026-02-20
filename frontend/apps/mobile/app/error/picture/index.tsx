@@ -17,7 +17,7 @@ export default function PictureErrorScreen() {
           <Text className='text-2xl font-bold   text-[#374151] pb-6'>
             Receipt Processing Error:
           </Text>
-          <Text className='mt-4 text-lg font-medium text-gray-700'>
+          <Text className='mt-4 text-sm font-medium text-gray-700'>
             Error details: {params.message}
           </Text>
         </View>

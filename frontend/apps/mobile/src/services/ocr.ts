@@ -162,7 +162,7 @@ const analyzeReceipt = async (
     const data = await response.json();
 
     if (!data.responses || !data.responses[0].textAnnotations) {
-      return new ErrorMessage("Google Vision API returned no text annotations");
+      return new ErrorMessage("Google Vision API returned no response");
     }
 
     const fullText = data.responses[0].textAnnotations[0].description;
