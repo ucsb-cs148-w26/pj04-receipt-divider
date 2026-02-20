@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
-import ReceiptItem from '@/components/ReceiptItem';
+import { ReceiptItem } from '@/components/ReceiptItem';
 import { ReceiptItemData } from '@/types';
 
 // Mock the theme hook

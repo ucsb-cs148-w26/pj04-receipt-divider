@@ -1,5 +1,5 @@
 import { useTheme } from '@react-navigation/native';
-import ReceiptItem, { USER_COLORS } from '@shared/components/ReceiptItem';
+import { ReceiptItem, USER_COLORS } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
@@ -13,7 +13,7 @@ import {
   Animated,
 } from 'react-native';
 import { Button } from '@eezy-receipt/shared';
-import Participant from '@shared/components/Participant';
+import { Participant } from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
 import { randomUUID } from 'expo-crypto';

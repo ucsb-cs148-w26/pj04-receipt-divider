@@ -2,9 +2,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import { StyleSheet, View, ScrollView, Text } from 'react-native';
 import { Button } from '@eezy-receipt/shared';
-import ReceiptItem from '@shared/components/ReceiptItem';
+import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
-import DisplayItems from '@shared/components/DisplayItems';
+import { DisplayItems } from '@shared/components/DisplayItems';
 
 export type YourItemsRoomParams = {
   roomId: string;

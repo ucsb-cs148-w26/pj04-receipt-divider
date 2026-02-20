@@ -1,5 +1,5 @@
-export * from './ReceiptItem';
-export * from './Participant';
-export * from './UserTag';
-export * from './DisplayItems';
-export * from './Button';
+export { ReceiptItem } from './ReceiptItem';
+export { Participant } from './Participant';
+export { UserTag } from './UserTag';
+export { DisplayItems } from './DisplayItems';
+export { Button } from './Button';
