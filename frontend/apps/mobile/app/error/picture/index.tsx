@@ -9,7 +9,7 @@ export type ErrorPictureParams = {
 
 export default function PictureErrorScreen() {
   const params = useLocalSearchParams<ErrorPictureParams>();
-  
+
   return (
     <View style={styles.container}>
       <View className='flex flex-col rounded-2xl w-[80%] bg-[#ffffff] shadow-xl mb-16'>
@@ -40,7 +40,6 @@ export default function PictureErrorScreen() {
         Back to Camera
       </Button>
     </View>
-    
   );
 }
 

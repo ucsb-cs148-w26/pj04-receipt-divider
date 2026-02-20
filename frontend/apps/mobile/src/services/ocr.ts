@@ -50,7 +50,7 @@ const withTimeout = async <T>(
 export class ErrorMessage {
   #message: string;
   constructor(message: string = '') {
-    this.#message = message + "\n\n";
+    this.#message = message + '\n\n';
   }
   addMessage(newMessage: string) {
     this.#message += newMessage + '\n\n';
@@ -84,7 +84,9 @@ class LLMEngine implements ExtractionEngine {
     });
   }
 
-  async extract(textBlocks: string[]): Promise<ReceiptItemData[] | ErrorMessage> {
+  async extract(
+    textBlocks: string[],
+  ): Promise<ReceiptItemData[] | ErrorMessage> {
     const text = textBlocks.reduce((prev, curr) => prev + curr, '');
     const prompt = `Given the chunk of text identify receipt items and output them with the given format.\n# Format\nThe output as 'Results: <results>'.For example, 'Results: [{ "name": "carrot", "price": "$2.99" }, { "name": "water", "price": "$1.29" }]\nText: \n${text}`;
     return this.#transformQuery(await this.#query(prompt));
@@ -112,7 +114,9 @@ class LLMEngine implements ExtractionEngine {
 
       if (!res.ok) {
         const errorText = await res.text().catch(() => '');
-        errorMessage.addMessage(`LLM HTTP error ${res.status} ${res.statusText} ${errorText}`.trim());
+        errorMessage.addMessage(
+          `LLM HTTP error ${res.status} ${res.statusText} ${errorText}`.trim(),
+        );
         throw new Error(
           `LLM HTTP error ${res.status} ${res.statusText} ${errorText}`.trim(),
         );
@@ -141,7 +145,9 @@ class LLMEngine implements ExtractionEngine {
     }
   }
 
-  #transformQuery(res: string | ErrorMessage): ReceiptItemData[] | ErrorMessage {
+  #transformQuery(
+    res: string | ErrorMessage,
+  ): ReceiptItemData[] | ErrorMessage {
     if (res instanceof ErrorMessage) {
       return res;
     }
@@ -172,7 +178,9 @@ class LLMEngine implements ExtractionEngine {
       });
     } catch (e) {
       console.log(e);
-      return new ErrorMessage('LLM returned data in correct format but parsing failed: ' + e);
+      return new ErrorMessage(
+        'LLM returned data in correct format but parsing failed: ' + e,
+      );
     }
   }
 }
@@ -205,7 +213,7 @@ const analyzeReceipt = async (
     const data = await response.json();
 
     if (!data.responses || !data.responses[0].textAnnotations) {
-      return new ErrorMessage("Google Vision API returned no response");
+      return new ErrorMessage('Google Vision API returned no response');
     }
 
     const fullText = data.responses[0].textAnnotations[0].description;
