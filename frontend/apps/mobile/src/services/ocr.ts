@@ -34,7 +34,6 @@ class LLMEngine implements ExtractionEngine {
 
   async extract(textBlocks: string[]): Promise<ReceiptItemData[]> {
     const text = textBlocks.reduce((prev, curr) => prev + curr, '');
-
     const prompt = `Given the chunk of text identify receipt items and output them with the given format.\n# Format\nThe output as 'Results: <results>'.For example, 'Results: [{ "name": "carrot", "price": "$2.99" }, { "name": "water", "price": "$1.29" }]\nText: \n${text}`;
     return this.#transformQuery(await this.#query(prompt));
   }
@@ -85,7 +84,7 @@ class LLMEngine implements ExtractionEngine {
       return extractedItems.map((item) => {
         return {
           // FIXME: id should be randomUUID
-          id: 32,
+          id: randomUUID(),
           name: item.name,
           price: item.price,
           userTags: [],
