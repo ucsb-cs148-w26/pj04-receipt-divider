@@ -1,11 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
-import {
-  StyleSheet,
-  View,
-  ScrollView,
-  Text,
-} from 'react-native';
+import { StyleSheet, View, ScrollView, Text } from 'react-native';
 import { Button } from '@eezy-receipt/shared';
 import ReceiptItem from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
@@ -68,10 +63,7 @@ export default function YourItemScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.backButtonContainer}>
-        <Button
-          variant='outlined'
-          onPress={() => router.back()}
-        >
+        <Button variant='outlined' onPress={() => router.back()}>
           Back
         </Button>
       </View>

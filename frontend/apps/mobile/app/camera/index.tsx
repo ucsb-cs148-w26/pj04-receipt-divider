@@ -60,8 +60,20 @@ export default function CameraScreen() {
             Use your camera to capture an image
           </Text>
           <Button onPress={openCamera}>Open Camera</Button>
-          <Button variant='outlined' style={styles.spacer} onPress={() => router.back()}>Cancel</Button>
-          <Button variant='outlined' style={styles.spacer} onPress={() => goToReceiptRoom()}>Skip</Button>
+          <Button
+            variant='outlined'
+            style={styles.spacer}
+            onPress={() => router.back()}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant='outlined'
+            style={styles.spacer}
+            onPress={() => goToReceiptRoom()}
+          >
+            Skip
+          </Button>
         </View>
         <Modal
           transparent

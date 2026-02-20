@@ -7,7 +7,9 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <Button onPress={() => router.navigate('/camera')}>Take Photo</Button>
-      <Button variant='secondary' onPress={() => router.navigate('/setting')}>Settings</Button>
+      <Button variant='secondary' onPress={() => router.navigate('/setting')}>
+        Settings
+      </Button>
       <StatusBar style='auto' />
     </View>
   );

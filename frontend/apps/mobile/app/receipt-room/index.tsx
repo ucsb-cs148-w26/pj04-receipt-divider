@@ -353,9 +353,21 @@ export default function ReceiptRoomScreen() {
 
       <View style={styles.buttonRow}>
         <Button onPress={addParticipant}>Add Participant</Button>
-        <Button variant='outlined' onPress={() => router.push(`/qr?roomId=${roomId}`)}>QR</Button>
-        <Button variant='secondary' onPress={() => router.push('/setting')}>Settings</Button>
-        <Button variant='outlined' onPress={() => router.push('/close-confirmation')}>Close Room</Button>
+        <Button
+          variant='outlined'
+          onPress={() => router.push(`/qr?roomId=${roomId}`)}
+        >
+          QR
+        </Button>
+        <Button variant='secondary' onPress={() => router.push('/setting')}>
+          Settings
+        </Button>
+        <Button
+          variant='outlined'
+          onPress={() => router.push('/close-confirmation')}
+        >
+          Close Room
+        </Button>
       </View>
     </View>
   );

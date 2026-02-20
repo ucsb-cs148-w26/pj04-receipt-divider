@@ -1,5 +1,13 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, StyleProp, ViewStyle, TextStyle } from 'react-native';
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  StyleProp,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outlined' | 'text';
 export type ButtonSize = 'small' | 'medium' | 'large';
@@ -38,17 +46,31 @@ export function Button({
       style={buttonStyles}
       onPress={onPress}
       disabled={disabled || loading}
-      accessibilityRole="button"
+      accessibilityRole='button'
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' || variant === 'secondary' ? '#fff' : '#007BFF'} />
+        <ActivityIndicator
+          color={
+            variant === 'primary' || variant === 'secondary'
+              ? '#fff'
+              : '#007BFF'
+          }
+        />
       ) : (
-        <Text style={[styles.text, styles[`${variant}Text` as keyof typeof styles], textStyle]}>{children}</Text>
+        <Text
+          style={[
+            styles.text,
+            styles[`${variant}Text` as keyof typeof styles],
+            textStyle,
+          ]}
+        >
+          {children}
+        </Text>
       )}
     </TouchableOpacity>
   );
-};
+}
 
 const styles = StyleSheet.create({
   base: {

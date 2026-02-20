@@ -6,7 +6,9 @@ import { Button } from '@eezy-receipt/shared';
 export default function SettingsScreen() {
   return (
     <View style={styles.container}>
-      <Button variant='outlined' onPress={() => router.back()}>Back</Button>
+      <Button variant='outlined' onPress={() => router.back()}>
+        Back
+      </Button>
     </View>
   );
 }

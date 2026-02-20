@@ -33,11 +33,7 @@ export default function CloseConfirmationScreen() {
         </Text>
 
         <View style={styles.buttonContainer}>
-          <Button
-            variant='outlined'
-            style={{ flex: 1 }}
-            onPress={handleCancel}
-          >
+          <Button variant='outlined' style={{ flex: 1 }} onPress={handleCancel}>
             Cancel
           </Button>
           <Button

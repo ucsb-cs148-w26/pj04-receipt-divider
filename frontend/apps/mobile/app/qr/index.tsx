@@ -23,11 +23,15 @@ export default function QRScreen() {
         />
         <Text style={styles.roomIdText}>Room ID: {roomId}</Text>
       </View>
-      <Button variant='outlined' 
+      <Button
+        variant='outlined'
         onPress={() => {
           router.dismiss();
           router.navigate(`/receipt-room?roomId=${roomId}`);
-        }}>Back to Room</Button>
+        }}
+      >
+        Back to Room
+      </Button>
     </View>
   );
 }

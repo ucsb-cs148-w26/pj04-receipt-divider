@@ -6,10 +6,21 @@ import { Button } from '@eezy-receipt/shared';
 export default function PictureErrorScreen() {
   return (
     <View style={styles.container}>
-      <Button onPress={() => { router.dismiss(); router.navigate('/'); }}>
+      <Button
+        onPress={() => {
+          router.dismiss();
+          router.navigate('/');
+        }}
+      >
         Back to Home Page
       </Button>
-      <Button variant='outlined' onPress={() => { router.dismiss(); router.navigate('/camera'); }}>
+      <Button
+        variant='outlined'
+        onPress={() => {
+          router.dismiss();
+          router.navigate('/camera');
+        }}
+      >
         Back to Camera
       </Button>
     </View>
