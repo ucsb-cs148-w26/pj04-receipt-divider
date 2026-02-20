@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     database_name: str
 
     supabase_url: str
-    supabase_jwt_secret: str
+    supabase_key: str
 
     @computed_field
     @property
