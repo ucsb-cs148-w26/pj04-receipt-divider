@@ -1,0 +1,12 @@
+{
+  "name": "eezy-receipt",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}

@@ -8,3 +8,6 @@
 # local env files
 .env*.local
 .env
+
+# node
+node_modules/
