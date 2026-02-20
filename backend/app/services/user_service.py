@@ -122,5 +122,4 @@ class UserService:
         # 5. unassign the item for guest
         #   5.1 Use atomic action via native db function to umclaim item
         # 6. If the native db function returns error, return http error
->>>>>>> Stashed changes
         pass
