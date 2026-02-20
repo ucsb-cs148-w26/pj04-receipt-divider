@@ -1,3 +1,4 @@
+// FIXME: refactor to tailwind
 export interface NativeThemeColorType {
   primary: string;
   background: string;
