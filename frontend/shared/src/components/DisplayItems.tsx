@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { NativeThemeColorType } from '@shared/types/native-theme';
 
 export interface DisplayClaimedReceiptItemProps {
-  id: number;
+  id: string;
   name: string;
   price: string;
   discount?: string; // Optional discount amount

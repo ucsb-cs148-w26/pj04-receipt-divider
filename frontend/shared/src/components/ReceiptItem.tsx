@@ -38,7 +38,7 @@ interface DragProps {
   participantLayouts?: Record<number, LayoutRectangle>;
   scrollOffset?: number;
   onDragStart?: (
-    itemId?: number,
+    itemId?: string,
     initialPosition?: { x: number; y: number },
   ) => void;
   onDragEnd?: () => void;
