@@ -1,4 +1,7 @@
+from app.models.group_member import GroupMember
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert
 
 from app.models import Group, Item, Receipt
 
@@ -8,17 +11,33 @@ class UserService:
         self.db = db
 
     def create_group(self, user_id: str, name: str) -> str:
-        # TODO:
-        # 1. create a new group with user as the host
+        # 1. Create a new group with user as the host
+        group = Group(created_by=user_id, name=name)
+        self.db.add(group)
+        self.db.flush()  # Flush to get the generated group.id before committing
+
         # 2. Add user to the member table
-        pass
+        member = GroupMember(user_id=user_id, group_id=group.id)
+        self.db.add(member)
+        self.db.commit()
+
+        return str(group.id)
 
     def join_group(self, user_id: str, group_id: str) -> None:
-        # TODO:
-        # 1. check group exists
-        # 2. Add user to group via gorup_member table
-        #   2.1 If user already a member, db should ignore this request natively
-        pass
+        # 1. Check group exists
+        group = self.db.get(Group, group_id)
+        if group is None:
+            raise HTTPException(status_code=404, detail="Group not found")
+
+        # 2. Add user to group via group_member table
+        #    2.1 If user already a member, db should ignore this request natively
+        stmt = (
+            insert(GroupMember)
+            .values(user_id=user_id, group_id=group_id)
+            .on_conflict_do_nothing(index_elements=["user_id", "group_id"])
+        )
+        self.db.execute(stmt)
+        self.db.commit()
 
     def leave_group(self, user_id: str, group_id: str) -> None:
         # TODO:
