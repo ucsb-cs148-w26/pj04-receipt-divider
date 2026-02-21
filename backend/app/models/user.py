@@ -14,7 +14,6 @@ class User(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
-        server_default=text("gen_random_uuid()"),
     )
     created_at: Mapped[datetime] = mapped_column(
         nullable=False,
