@@ -34,3 +34,9 @@ class Group(Base):
     group_members: Mapped[List["GroupMember"]] = relationship(
         back_populates="group_member_group",
     )
+    group_receipts: Mapped[List["Receipt"]] = relationship(
+        back_populates="receipt_group",
+    )
+    group_items: Mapped[List["Item"]] = relationship(
+        back_populates="item_receipt_group",
+    )

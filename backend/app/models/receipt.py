@@ -16,6 +16,10 @@ class Receipt(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("groups.id"),
+        nullable=False,
+    )
     image: Mapped[str] = mapped_column(Text, nullable=False)
     total: Mapped[float] = mapped_column(nullable=False)
     created_by: Mapped[uuid.UUID] = mapped_column(
@@ -30,4 +34,7 @@ class Receipt(Base):
     )
     receipt_items: Mapped[List["Item"]] = relationship(
         back_populates="item_receipt",
+    )
+    receipt_group: Mapped["Group"] = relationship(
+        back_populates="group_receipts",
     )

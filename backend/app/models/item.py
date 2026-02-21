@@ -18,6 +18,9 @@ class Item(Base):
     )
     receipt_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("receipts.id"),
+    )
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("groups.id"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -28,6 +31,9 @@ class Item(Base):
     # Relationships
     item_receipt: Mapped["Receipt"] = relationship(
         back_populates="receipt_items",
+    )
+    item_receipt_group: Mapped["Group"] = relationship(
+        back_populates="group_items",
     )
     item_claims: Mapped[List["ItemClaim"]] = relationship(
         back_populates="item_claim_item",
