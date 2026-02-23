@@ -12,16 +12,15 @@
 |---------------------------------|-------------------|
 | Product Owner                   | Mason Le          | 
 | Scrum Master                    | Leifeng Chen      | 
-| Testing/QA Coordinator          | TBA               | 
-| UX Coordinator                  | TBA               |
-| Design Document Coordinator     | TBA               |
-| Deployment Document Coordinator | TBA               |
-| User Manual Coordinator         | TBA               |
-| Final Presentation Leader       | TBA               |
-| Retro 00 leader                 | Charlie           | 
-| Retro 01 leader                 | Leifeng           | 
-| Retro 02 leader                 | TBA               | 
-| Retro 03 leader                 | TBA               | 
+| Testing/QA Coordinator          | Roy               | 
+| UX Coordinator                  | Charlie           |
+| Design Document Coordinator     | Leifeng           |
+| Deployment Document Coordinator | Ken               |
+| User Manual Coordinator         | YiHeng            |
+| Final Presentation Leader       | Mason             |
+| Retro 01 leader                 | Charlie           | 
+| Retro 02 leader                 | Leifeng           | 
+| Retro 03 leader                 | Edward            | 
 
 # Weekly Roles:
 | **Date**    | **Name**          | **Activity**                                      |
