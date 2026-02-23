@@ -10,8 +10,8 @@
 
 | Role                            | Name              | 
 |---------------------------------|-------------------|
-| Product Owner                   | Mason Le          | 
-| Scrum Master                    | Leifeng Chen      | 
+| Product Owner                   | Mason             | 
+| Scrum Master                    | Leifeng           | 
 | Testing/QA Coordinator          | Roy               | 
 | UX Coordinator                  | Charlie           |
 | Design Document Coordinator     | Leifeng           |
@@ -51,11 +51,11 @@
 | **Week 7**  |                   |                                                   | 
 |             | Ken               | Code/PR reviewer for the week                     | 
 | Wed 02/17   | Leifeng           | Scribe for Lec11 Scrum                            | 
-| Fri 02/19   | TBA               | Scribe for LAB07 Scrum                            | 
+| Fri 02/19   | Mason             | Scribe for LAB07 Scrum                            | 
 | **Week 8**  |                   |                                                   | 
 |             | TBA               | Code/PR reviewer for the week                     | 
-| Mon 02/22   | TBA               | Scribe for Lec12 Scrum                            | 
-| Wed 02/24   | TBA               | Scribe for Lec13 Scrum                            | 
+| Mon 02/22   | N/A               | Scribe for Lec12 Scrum                            | 
+| Wed 02/24   | N/A               | Scribe for Lec13 Scrum                            | 
 | Fri 02/26   | TBA               | Scribe for Lab08 Scrum                            | 
 | **Week 9**  |                   |                                                   | 
 |             | TBA               | Code/PR reviewer for the week                     | 
