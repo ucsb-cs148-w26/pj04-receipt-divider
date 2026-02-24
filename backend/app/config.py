@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_key: str
 
+    receipt_image_bucket: str
+
     @computed_field
     @property
     def database_url(self) -> str:
