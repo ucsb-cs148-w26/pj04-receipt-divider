@@ -1,22 +1,43 @@
-from app.models.group_member import GroupMember
-from fastapi import HTTPException
+import uuid
+import base64
+
+from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 
-from app.models import Group, Item, Receipt
+from app.config import settings
+from app.models import Group, Item, Receipt, GroupMember, ItemClaim
+from app.services.ocr_service import OCRService
+from app.supabase import client
 
 
 class UserService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    def _is_host(self, host_user_id: str, group_id: str) -> bool:
+        group = self.db.get(Group, group_id)
+        if group is None:
+            raise HTTPException(
+                status_codes=status.HTTP_404_NOT_FOUND, detail="Group not found"
+            )
+
+        return str(group.created_by) == host_user_id
+
+    def _is_host_of_item(self, host_user_id: str, item_id: str) -> bool:
+        item = self.db.get(Item, item_id)
+        if item is None:
+            raise HTTPException(
+                status_codes=status.HTTP_404_NOT_FOUND, detail="Item not found"
+            )
+        return self._is_host(host_user_id, item.group_id)
+
     def create_group(self, user_id: str, name: str) -> str:
-        # 1. Create a new group with user as the host
         group = Group(created_by=user_id, name=name)
         self.db.add(group)
         self.db.flush()  # Flush to get the generated group.id before committing
 
-        # 2. Add user to the member table
         member = GroupMember(user_id=user_id, group_id=group.id)
         self.db.add(member)
         self.db.commit()
@@ -24,13 +45,13 @@ class UserService:
         return str(group.id)
 
     def join_group(self, user_id: str, group_id: str) -> None:
-        # 1. Check group exists
         group = self.db.get(Group, group_id)
         if group is None:
-            raise HTTPException(status_code=404, detail="Group not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
+            )
 
-        # 2. Add user to group via group_member table
-        #    2.1 If user already a member, db should ignore this request natively
+        # NOTE: If user already a member, db should ignore this request natively
         stmt = (
             insert(GroupMember)
             .values(user_id=user_id, group_id=group_id)
@@ -40,97 +61,194 @@ class UserService:
         self.db.commit()
 
     def leave_group(self, user_id: str, group_id: str) -> None:
-        # TODO:
-        # 1. Check if group exists, if not return appropriate http error
-        # 2. Check if user is host (host can't levae group)
-        # 3. Remove user from group (OK if user isn't in group)
-        pass
+        # NOTE: host can't leave group
+        if self._is_host(user_id, group_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Host cannot leave the group",
+            )
 
-    def get_groups(self, user_id: str) -> list[Group]:
-        # TODO: return all groups that member is a part of
-        pass
+        member = self.db.get(GroupMember, {"user_id": user_id, "group_id": group_id})
+        if member is not None:
+            self.db.delete(member)
+            self.db.commit()
+
+    def get_all_groups(self, user_id: str) -> list[Group]:
+        stmt = (
+            select(Group)
+            .join(GroupMember, GroupMember.group_id == Group.id)
+            .where(GroupMember.user_id == user_id)
+        )
+
+        return self.db.execute(stmt).scalars().all()
 
     def remove_member(
         self, host_user_id: str, group_id: str, member_user_id: str
     ) -> None:
-        # TODO:
-        # 1. Check that group exists
-        # 2. Check host user != member user (host can't remove themselves)
-        # 3. Check host is actual host (guest can't remove others)
-        # 4. Remove user from group via group_member table
-        # 5. Unclaim their claimed items in the group
-        pass
+        if not self._is_host(host_user_id, group_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the host can remove members",
+            )
 
-    def add_receipt(self, user_id: str, group_id: str, image_64_enc: bytes) -> None:
-        # TODO:
-        # 1. Check if user is host of group
-        # 2. If not, return http unauthorized
-        # 3. Add receipt to receipt table
-        # 4. Process receipt using OCRService
-        # 5. Store items in item table
+        # NOTE: host can't remove themselves
+        if host_user_id == member_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Host cannot remove themselves from the group",
+            )
 
-        pass
+        member = self.db.get(
+            GroupMember, {"user_id": member_user_id, "group_id": group_id}
+        )
+        if member is not None:
+            self.db.delete(member)
+
+        # NOTE: db auto handels unclaiming items, have to expire everything in session
+        self.db.expire_all()
+
+    def add_receipt(
+        self,
+        user_id: str,
+        group_id: str,
+        ocr_service: OCRService,
+        image_bytes: bytes,
+        image_ext: str,
+    ) -> None:
+        # FIXME: fixes requires (blocked by OCR fixes)
+        raise NotImplementedError
+        member = self.db.get(GroupMember, {"user_id": user_id, "group_id": group_id})
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="User is not in group"
+            )
+
+        file_path = f"{group_id}/{uuid.uuid4()}.{image_ext}"
+
+        try:
+            response = client.storage.from_(settings.receipt_image_bucket).upload(
+                file=image_bytes, path=file_path
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload image: {str(e)}",
+            )
+
+        image_url = client.storage.from_(settings.receipt_image_bucket).get_public_url(
+            file_path
+        )
+
+        # TODO: might need fixing
+        items = ocr_service.extract_items(base64.b64encode(image_bytes).decode())
+        total_price = 0.0
+        for extracted_item in items:
+            # FIXME: items should be dupe per quantity (blocked by ORC fixes)
+            item = Item(
+                receipt_id=receipt.id,
+                name=extracted_item.name,
+                # FIXME: item should have currency column and parse orc output (blocked by OCR fixes)
+                unit_price=float(extracted_item.price.replace("$", "")),
+                amount=1,
+            )
+            self.db.add(item)
+
+        receipt = Receipt(image=image_url, total=total_price, created_by=user_id)
+        self.db.add(receipt)
+
+        self.db.commit()
 
     def remove_receipt(self, user_id: str, receipt_id: str) -> None:
-        # TODO:
-        # 1. Check if user own receipt or user is host of the group receipt belongs to, if not return http unauthorized
-        # 2. Remove the receipt and cascade it to the items attatched to the receipts
-        # 3. Cascade removal of items to claim
-        pass
+        receipt = self.db.get(Receipt, receipt_id)
+        if receipt is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Receipt not found"
+            )
+
+        if str(receipt.created_by) != user_id and not self._is_host_of_item(
+            user_id, receipt_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the receipt owner or group host can remove receipts",
+            )
+
+        self.db.delete(receipt)
+        self.db.commit()
 
     def get_items_in_group(self, user_id: str, group_id: str) -> list[Item]:
-        # TODO:
-        # 1. check if user is in group
-        # 2. if user in group return all items in that group
-        # 3. else raise HTTP unauthorized error
-        pass
+        member = self.db.get(GroupMember, {"user_id": user_id, "group_id": group_id})
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is not a member of this group",
+            )
+
+        stmt = select(Item).where(Item.group_id == group_id)
+
+        return self.db.execute(stmt).scalars().all()
 
     def get_receipts_in_group(self, user_id: str, group_id: str) -> list[Receipt]:
-        # TODO:
-        # 1. check if user is in group
-        # 2. if user in group return all receipts in that group
-        # 3. else raise HTTP unauthorized error
-        pass
+        member = self.db.get(GroupMember, {"user_id": user_id, "group_id": group_id})
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is not a member of this group",
+            )
 
-    def claim_item(self, user_id: str, item_id: str, claim_portion: float) -> None:
-        # TODO:
-        # 1. check if user in group that has the item
-        # 2. If not, return http unautorized error
-        # 3. Claim the item with that portion
-        #   3.1 Use atomic action via native db function to check if claim is possible and claim it
-        # 4. If the native db function returns error, return http error
-        pass
+        stmt = select(Receipt).where(Receipt.group_id == group_id)
+
+        return self.db.execute(stmt).scalars().all()
+
+    def claim_item(self, user_id: str, item_id: str) -> None:
+        item = self.db.get(Item, item_id)
+        if item is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
+            )
+
+        member = self.db.get(
+            GroupMember, {"user_id": user_id, "group_id": item.group_id}
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User can't claim an item outside of their group",
+            )
+
+        claim_portion = 1
+        stmt = (
+            insert(ItemClaim)
+            .values(item_id=item_id, user_id=user_id, share=claim_portion)
+            .on_conflict_do_nothing()
+        )
+        self.db.execute(stmt)
+        self.db.commit()
 
     def unclaim_item(self, user_id: str, item_id: str) -> None:
-        # TODO:
-        # 1. check if user claimed the item already
-        # 2. If not, return appropriate http error
-        # 3. Unclaim the item
-        #   3.1 Use atomic action via native db function to unclaim the item
-        pass
+        claim = self.db.get(ItemClaim, {"user_id": user_id, "item_id": item_id})
+        if claim is None:
+            return
 
-    def assign_item(
-        self, host_user_id: str, guest_user_id: str, item_id: str, assign_portion: float
-    ) -> None:
-        # TODO:
-        # 1. Find which group item belongs to
-        # 2. If Item doesn't exists, return http error
-        # 3. For that group check if host is host and guest is in group
-        # 4. If not, return appropriate http error
-        # 5. assign the item with the given portion
-        #   5.1 Use atomic action via native db function to check if claim is possible and claim it
-        # 6. If the native db function returns error, return http error
-        pass
+        self.db.delete(claim)
+        self.db.commit()
+
+    def assign_item(self, host_user_id: str, guest_user_id: str, item_id: str) -> None:
+        if not self._is_host_of_item(host_user_id, item_id):
+            raise HTTPException(
+                status_codes=status.HTTP_403_FORBIDDEN,
+                detail="Only host can assign items",
+            )
+
+        self.claim_item(guest_user_id, item_id)
 
     def unassign_item(
         self, host_user_id: str, guest_user_id: str, item_id: str
     ) -> None:
-        # TODO:
-        # 1. Find which group item belongs to
-        # 2. If Item doesn't exists, return http error
-        # 3. For that group check if host is host and guest is in group
-        # 4. If not, return appropriate http error
-        # 5. unassign the item for guest
-        #   5.1 Use atomic action via native db function to umclaim item
-        # 6. If the native db function returns error, return http error
-        pass
+        if not self._is_host_of_item(host_user_id, item_id):
+            raise HTTPException(
+                status_codes=status.HTTP_403_FORBIDDEN,
+                detail="Only host can unassign items",
+            )
+
+        self.unclaim_item(guest_user_id, item_id)
