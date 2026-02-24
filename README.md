@@ -24,7 +24,7 @@ Our main focus is iOS, and then Web and Android afterwards.
 ## Framework / Tech Stack: 
 - Frontend: Typescript, React Native, Tailwind/Nativewind
 - Expo for frontend app development
-- Vite for frontend web development
+- Vite for frontend web development (we don't use Expo because it exposes secrets for whatever reason)
 - Backend: Python
 - Supabase
 
