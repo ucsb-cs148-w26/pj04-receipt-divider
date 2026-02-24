@@ -1,6 +1,9 @@
 # Title: Eezy Receipt
 
-Eezy Receipt is a cross-platform mobile application that simplifies expense splitting among roommates and friend groups by leveraging OCR and AI to automatically extract items from receipt photos and enable intuitive drag-and-drop assignment to individual users. The app automatically calculates each person's exact cost share, including proportional tax and fees, solving the friction point of manual receipt splitting that currently requires tedious spreadsheets or third-party apps. With a focus on iOS and expanding to Android and web, Eezy Receipt targets the massive roommate and group-travel markets by providing a frictionless, real-time solution to settle shared expenses.
+Eezy Receipt lets you snap a photo of a receipt and quickly split costs with friends or roommates. The app extracts items automatically and makes it easy to assign them to people, so everyone sees their exact share, including tax and fees.
+
+
+It is a cross-platform mobile application that simplifies expense splitting among roommates and friend groups by leveraging OCR and AI to automatically extract items from receipt photos and enable intuitive drag-and-drop assignment to individual users. The app automatically calculates each person's exact cost share, including proportional tax and fees, solving the friction point of manual receipt splitting that currently requires tedious spreadsheets or third-party apps. With a focus on iOS and expanding to Android and web, Eezy Receipt targets the massive roommate and group-travel markets by providing a frictionless, real-time solution to settle shared expenses.
 
 ## Members: 
 **Yiheng Feng** (1274613951)\
