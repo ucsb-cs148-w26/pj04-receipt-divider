@@ -1,34 +1,29 @@
 # User Feedback Needs
 
-## Overview
+## Google Form
 
-As we continue developing our Receipt Divider app, we've identified three critical areas where user feedback would significantly inform our product development decisions and improve the overall user experience.
+Link: https://forms.gle/CDdzvcQt41cVCYwSA
 
-## 1. User Interface Design & Visual Appeal
+## Metric
 
-**Focus Area**: Friendly and approachable UI design
+**Team Metric**: Receipt split success rate:
+* Percent of testers who are confident they could complete a full receipt split without help (a score of 4 or 5)
+* Estimated completion time of a receipt with 3 people and 10 items being less than 5 minutes
 
-**What we want to learn**:
-- How users perceive the visual friendliness and approachability of our current interface
-- Whether our color scheme, typography, and visual hierarchy feel welcoming and professional
-- User preferences on visual elements like icons, button styles, and overall aesthetic
+Why it represents user value: It captures the core promise of the app (fast, low-friction receipt splitting) and ties directly to first-time success.
 
-## 2. User Experience & Interface Intuitiveness
+**How to test in class**:
 
-**Focus Area**: Ease of use and logical app flow
+1. Show the app description at the top of the form.
+2. Let the tester try out the app with a provided receipt.
+3. Ask the confidence question (Q1).
+4. Ask the time-to-complete scenario question (Q2).
+5. Ask the remaining experience and usefulness questions (Q3-Q7).
 
-**What we want to learn**:
-- Whether users can complete key tasks without guidance or confusion
-- Pain points in navigation and feature discovery
-- Time-to-completion for typical receipt splitting scenarios
-- User mental models vs. our app's information architecture
+**What to record**: Confidence rating + time bucket; compute the % who meet both success criteria.
 
-## 3. Product Usefulness & Feature Prioritization
+**Success definition**: 90% of testers meet both criteria.
 
-**Focus Area**: Real-world utility and feature demand
+**Target for Wednesday**: 50% of testers meet both criteria.
 
-**What we want to learn**:
-- Whether users would actually adopt and regularly use the app in real scenarios
-- How well our app solves their receipt splitting pain points compared to current methods
-- What additional features would make the app more valuable to them
-- User willingness to recommend the app to friends/family
+Framework overview for later usage: https://www.geeksforgeeks.org/marketing/the-ultimate-guide-to-the-north-star-product-framework/
