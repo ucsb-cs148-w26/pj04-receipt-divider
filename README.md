@@ -19,9 +19,11 @@ certain items but didn't pay yet (**Friend**). For short receipts, the person wh
 Our main focus is iOS, and then Web and Android afterwards.
 
 ## Framework / Tech Stack: 
-- React Native because it's for both IOS, Android, and the web. 
-- Expo
-- Firebase database to store data - no sql, FREE.
+- Frontend: Typescript, React Native, Tailwind/Nativewind
+- Expo for frontend app development
+- Vite for frontend web development
+- Backend: Python
+- Supabase
 
 ## MVP Expanded Description:
 Take a picture(s) of a receipt and upload it into the app. Once uploaded, the user will be able to create as many baskets as they need, 
@@ -31,63 +33,31 @@ of the person who bought that item. Once all items have been dragged, the total 
 
 
 # Installation
-## Prerequisites
+## v2.0.0 Testflight Build
 
-### Required Software:
+If you have an iOS device, you can install v2.0.0 directly on your phone through the Testflight app.
 
-1. **Node.js** (version 18 or newer recommended)
-   - Download from [nodejs.org](https://nodejs.org)
-   - This includes npm (Node Package Manager)
+1. Download the Testflight app on your phone
+2. Open this link on your phone: https://testflight.apple.com/join/8bhMpGgZ
+3. Accept the beta testing invitation in the Testflight app
 
-2. **Expo CLI** (global installation)
-   - Install with: `npm install -g @expo/cli`
-   - Alternative: Use npx to run without global installation
+And you're set!
+### Notes:
+* Make sure you open the link on your phone
+* Use light mode for the best experience
+* The testflight link is only set to accept a max of 10 users for now, so if it runs out, please tell us!
+ 
+## v2.0.0 Local Development
 
-3. **Git** (for cloning the repository)
-   - Download from [git-scm.com](https://git-scm.com)
+These steps run the app locally. Features that rely on OCR/AI will require API keys. Please contact the developers for the keys.
 
-### Mobile Device Requirements:
+### Requirements
 
-4. **Expo Go App** on your mobile device
-   - **iOS**: Download from the App Store
-   - **Android**: Download from Google Play Store
+- **Node.js 18+** (includes npm)
+- **Git** (to clone the repo)
+- **Expo Go** on a mobile device (for testing the mobile app)
 
-### Optional (but recommended):
-
-5. **Yarn** (alternative package manager)
-   - Install with: `npm install -g yarn`
-   - Can be used instead of npm for faster dependency installation
-
-## Dependencies
-
-### Core Framework:
-- **Expo SDK (~54.0.32)** - Cross-platform development framework for React Native
-- **React Native (0.81.5)** - Core mobile application framework
-- **React (19.1.0)** - JavaScript library for building user interfaces
-
-### Navigation & UI:
-- **Expo Router (~6.0.22)** - File-based routing system for navigation
-- **@react-navigation/native & /bottom-tabs** - Navigation components and tab navigation
-- **NativeWind (^4.2.1)** - Tailwind CSS for React Native styling
-- **React Native Gesture Handler** - Native gesture handling
-- **React Native Reanimated** - Smooth animations and transitions
-
-### Image & OCR Processing:
-- **Expo Image Picker (^17.0.10)** - Camera and gallery access for receipt capture
-- **@google-cloud/vision (^5.3.4)** - OCR (Optical Character Recognition) for extracting text from receipts
-- **OpenAI (^6.17.0)** - AI processing for intelligent item parsing and categorization
-
-### QR Code & File Management:
-- **React Native QRCode SVG (^6.3.21)** - QR code generation for sharing receipts
-- **React Native SVG (15.12.1)** - SVG rendering support
-- **Expo File System (^19.0.21)** - File management capabilities
-
-### Utilities:
-- **Zod (^4.3.6)** - TypeScript-first schema validation
-- **Expo Haptics** - Tactile feedback for user interactions
-- **Expo Crypto** - Cryptographic functions for secure operations
-
-## Installation Steps
+### Setup
 
 1. **Clone the repository:**
    ```bash
@@ -95,36 +65,28 @@ of the person who bought that item. Once all items have been dragged, the total 
    cd pj04-receipt-divider
    ```
 
-2. **Navigate to the app directory:**
-   ```bash
-   cd ./HelloWorld
-   ```
-
-3. **Install dependencies:**
+2. **Install dependencies (workspaces):**
    ```bash
    npm install
-   # OR if using Yarn
-   yarn install
    ```
 
-4. **Start the development server:**
-   ```bash
-   npm start
-   # OR
-   npx expo start
-   ```
+### Run the mobile app (Expo)
 
-5. **Run on your device:**
-   - Install **Expo Go** on your mobile device
-   - Scan the QR code displayed in your terminal/browser with the Expo Go app
-   - The app will load on your device
+```bash
+cd frontend
+npm run start -w apps/mobile
+```
 
-6. **Alternative: Run on simulator/emulator:**
-   ```bash
-   npm run ios      # For iOS simulator (macOS only)
-   npm run android  # For Android emulator
-   npm run web      # For web browser
-   ```
+Then scan the QR code with Expo Go, or use an emulator
+
+### Run the web app (Vite)
+
+```bash
+cd frontend
+npm run dev -w apps/web
+```
+
+Open the local URL printed by Vite in your browser.
 
 ## Functionality
 
