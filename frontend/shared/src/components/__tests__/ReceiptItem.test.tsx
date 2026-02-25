@@ -2,6 +2,7 @@ import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import { ReceiptItem } from '@/components/ReceiptItem';
 import { ReceiptItemData } from '@/types';
+//import { View } from 'react-native';
 
 // Mock the theme hook
 jest.mock('@react-navigation/native', () => ({
@@ -20,7 +21,7 @@ jest.mock('@react-navigation/native', () => ({
 
 // Mock react-native-gesture-handler
 jest.mock('react-native-gesture-handler', () => {
-  const View = require('react-native').View;
+  const { View } = jest.requireActual('react-native');
   return {
     Gesture: {
       Pan: () => ({
@@ -39,7 +40,7 @@ jest.mock('react-native-gesture-handler', () => {
 
 describe('ReceiptItem', () => {
   const mockItem: ReceiptItemData = {
-    id: 1,
+    id: '1',
     name: 'Pizza',
     price: '12.99',
     userTags: [1, 2],
@@ -148,7 +149,7 @@ describe('ReceiptItem', () => {
 
   it('handles empty item gracefully', () => {
     const emptyItem: ReceiptItemData = {
-      id: 1,
+      id: '1',
       name: '',
       price: '',
       userTags: [],
