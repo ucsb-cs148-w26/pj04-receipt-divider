@@ -12,12 +12,7 @@ import {
   LayoutRectangle,
   Animated,
 } from 'react-native';
-import {
-  Button,
-  CloseButton,
-  IconButton,
-  SettingsButton,
-} from '@eezy-receipt/shared';
+import { IconButton, DefaultButtons } from '@eezy-receipt/shared';
 import { Participant } from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
@@ -363,16 +358,14 @@ export default function ReceiptRoomScreen() {
           pressEffect='fade'
           color='#a7a9ae'
         />
-        <IconButton
+        <DefaultButtons.Default
           icon='qrcode'
-          className='bg-white size-[12vw]'
           onPress={() => router.push(`/qr?roomId=${roomId}`)}
-          percentageSize={60}
-          pressEffect='fade'
-          color='#848484'
         />
-        <SettingsButton onPress={() => router.navigate('/setting')} />
-        <CloseButton onPress={() => router.push('/close-confirmation')} />
+        <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
+        <DefaultButtons.Close
+          onPress={() => router.push('/close-confirmation')}
+        />
       </View>
     </View>
   );
