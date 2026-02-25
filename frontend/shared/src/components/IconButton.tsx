@@ -97,3 +97,33 @@ export function IconButton({
     </Animated.View>
   );
 }
+
+export type ReusableButtonProps = {
+  onPress: () => void;
+};
+
+export function SettingsButton({ onPress }: ReusableButtonProps) {
+  return (
+    <IconButton
+      icon='cog-outline'
+      percentageSize={60}
+      color='#848484'
+      pressEffect='overlay'
+      onPress={onPress}
+      className='bg-white size-[12vw]'
+    />
+  );
+}
+
+export function CloseButton({ onPress }: ReusableButtonProps) {
+  return (
+    <IconButton
+      icon='close'
+      percentageSize={60}
+      color='#848484'
+      pressEffect='overlay'
+      onPress={onPress}
+      className='bg-white size-[12vw]'
+    />
+  );
+}
