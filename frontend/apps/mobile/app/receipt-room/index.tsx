@@ -12,7 +12,12 @@ import {
   LayoutRectangle,
   Animated,
 } from 'react-native';
-import { Button } from '@eezy-receipt/shared';
+import {
+  Button,
+  CloseButton,
+  IconButton,
+  SettingsButton,
+} from '@eezy-receipt/shared';
 import { Participant } from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
@@ -226,14 +231,16 @@ export default function ReceiptRoomScreen() {
                 onTextFocusChange={setIsAnyTextFocused}
               />
             ))}
-
-            <TouchableOpacity
+            <IconButton
+              icon='plus'
+              className='bg-white rounded-lg shadow-none border-2 border-gray-400 border-dashed w-full h-[7vh]'
               onPress={addReceiptItem}
-              style={styles.addItemButton}
-              accessibilityLabel='Add receipt item'
-            >
-              <Text style={styles.addItemButtonText}>➕ Add Receipt Item</Text>
-            </TouchableOpacity>
+              percentageSize={8}
+              pressEffect='fade'
+              color='#1c1c1c'
+              text='Add Receipt Item'
+              textPercentageSize={4.5}
+            />
           </View>
         </ScrollView>
 
@@ -348,22 +355,24 @@ export default function ReceiptRoomScreen() {
       </View>
 
       <View style={styles.buttonRow}>
-        <Button onPress={addParticipant}>Add Participant</Button>
-        <Button
-          variant='outlined'
+        <IconButton
+          icon='plus'
+          className='bg-white/0 rounded-lg shadow-none border-2 border-gray-400 border-dashed size-[25vw]'
+          onPress={addParticipant}
+          percentageSize={40}
+          pressEffect='fade'
+          color='#a7a9ae'
+        />
+        <IconButton
+          icon='qrcode'
+          className='bg-white size-[12vw]'
           onPress={() => router.push(`/qr?roomId=${roomId}`)}
-        >
-          QR
-        </Button>
-        <Button variant='secondary' onPress={() => router.push('/setting')}>
-          Settings
-        </Button>
-        <Button
-          variant='outlined'
-          onPress={() => router.push('/close-confirmation')}
-        >
-          Close Room
-        </Button>
+          percentageSize={60}
+          pressEffect='fade'
+          color='#848484'
+        />
+        <SettingsButton onPress={() => router.navigate('/setting')} />
+        <CloseButton onPress={() => router.push('/close-confirmation')} />
       </View>
     </View>
   );
