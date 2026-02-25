@@ -1,4 +1,4 @@
-import { Pressable, LayoutChangeEvent } from 'react-native';
+import { Pressable, LayoutChangeEvent, Text } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withSpring,
@@ -17,6 +17,18 @@ export type IconButtonProps = {
   percentageSize?: number;
   color?: string;
   /**
+   * Optional text to display after the icon
+   */
+  text?: string;
+  /**
+   * Font size for the text (default: matches icon size)
+   */
+  textPercentageSize?: number;
+  /**
+   * Color for the text (default: matches icon color)
+   */
+  textColor?: string;
+  /**
    * `fade`: reduces opacity to 60% when pressed
    *
    * `overlay`: adds a gray overlay with 40% opacity when pressed
@@ -32,6 +44,9 @@ export function IconButton({
   onPress,
   percentageSize = 60,
   color = '#000',
+  text,
+  textPercentageSize,
+  textColor,
   pressEffect,
 }: IconButtonProps) {
   const [containerWidth, setContainerWidth] = useState(0);
@@ -65,6 +80,10 @@ export function IconButton({
   };
 
   const iconSize = (containerWidth * percentageSize) / 100;
+  const textSize =
+    textPercentageSize !== undefined
+      ? (containerWidth * textPercentageSize) / 100
+      : iconSize;
 
   // Extract rounded class from className, or default to 'rounded-full'
   const roundedClass = className?.match(/rounded-\S+/)?.[0] || 'rounded-full';
@@ -81,7 +100,7 @@ export function IconButton({
     >
       <Pressable
         className={
-          `items-center justify-center rounded-full shadow-md shadow-black/15 ` +
+          `flex-row items-center justify-center rounded-full shadow-md shadow-black/15 ` +
           className
         }
         onLayout={handleLayout}
@@ -98,6 +117,11 @@ export function IconButton({
           }
         ></Animated.View>
         <MaterialCommunityIcons name={icon} size={iconSize} color={color} />
+        {text && (
+          <Text style={{ fontSize: textSize, color: textColor || color }}>
+            {text}
+          </Text>
+        )}
       </Pressable>
     </Animated.View>
   );
