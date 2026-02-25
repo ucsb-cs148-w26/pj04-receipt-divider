@@ -1,6 +1,5 @@
 import os
 import re
-import uuid
 import json
 from typing import List
 import requests
@@ -10,14 +9,14 @@ from pydantic import BaseModel
 
 
 class ReceiptItemData(BaseModel):
-    id: str
     name: str
     price: str
-    userTags: list[int] = []
+    quantity: int = 1
     discount: str = ""
 
 
 class OCRService:
+
     # Service for extracting receipt items from images using OCR and LLM
 
     def __init__(self):
@@ -87,8 +86,8 @@ class OCRService:
         prompt = (
             "Given the chunk of text identify receipt items and output them with the given format.\n"
             "# Format\n"
-            'The output as \'Results: <results>\'.For example, \'Results: [{ "name": "carrot", "price": "$2.99" }, '
-            '{ "name": "water", "price": "$1.29" }]\n'
+            'The output as \'Results: <results>\'. For example, \'Results: [{ "name": "carrot", "price": "$2.99", "quantity": 1 }, '
+            '{ "name": "water", "price": "$1.29", "quantity": 3 }]\n'
             f"Text: \n{text}"
         )
 
@@ -135,10 +134,9 @@ class OCRService:
             for item in extracted_items:
                 items.append(
                     ReceiptItemData(
-                        id=str(uuid.uuid4()),
                         name=item.get("name", ""),
                         price=item.get("price", ""),
-                        userTags=[],
+                        quantity=int(item.get("quantity", 1)),
                         discount="",
                     )
                 )
