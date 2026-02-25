@@ -2,12 +2,24 @@ import { router } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button } from '@eezy-receipt/shared';
+import { useAuth } from '@/providers';
 
 export default function SettingsScreen() {
+  const { signOut } = useAuth();
+
   return (
     <View style={styles.container}>
       <Button variant='outlined' onPress={() => router.back()}>
         Back
+      </Button>
+      <Button
+        variant='secondary'
+        onPress={async () => {
+          await signOut();
+          router.replace('/login');
+        }}
+      >
+        Sign out
       </Button>
     </View>
   );
@@ -18,5 +30,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
   },
 });
