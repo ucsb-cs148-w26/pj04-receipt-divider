@@ -3,12 +3,14 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button } from '@eezy-receipt/shared';
 import { useAuth } from '@/providers';
+import { Button, DefaultButtons } from '@eezy-receipt/shared';
 
 export default function SettingsScreen() {
   const { signOut } = useAuth();
 
   return (
     <View style={styles.container}>
+      <DefaultButtons.Close onPress={() => router.back()} />
       <Button variant='outlined' onPress={() => router.back()}>
         Back
       </Button>

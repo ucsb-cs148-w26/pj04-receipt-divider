@@ -6,9 +6,7 @@ import { IconButton, DefaultButtons } from '@eezy-receipt/shared';
 export default function HomeScreen() {
   return (
     <View className='flex-1 items-center justify-center gap-4'>
-      <View className='absolute top-[6vh] right-[4vw]'>
-        <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
-      </View>
+      <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
       <IconButton
         icon='camera-outline'
         percentageSize={60}
