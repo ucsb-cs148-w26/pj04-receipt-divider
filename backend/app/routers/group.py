@@ -15,18 +15,17 @@ def create_group(
     user_service: UserService = Depends(get_user_service),
 ):
     user_id = auth_service.authenticate_registered_user()
-    print(user_id)
     group_id = user_service.create_group(user_id, payload.group_name)
     return CreateGroupResponse(group_id=group_id)
 
 
 @router.get("/join")
 def join_group(
-    id: str,
+    group_id: str,
     auth_service: AuthService = Depends(get_auth_service),
     user_service: UserService = Depends(get_user_service),
 ):
     user_id = auth_service.authenticate_any_user()
-    user_service.join_group(user_id, id)
+    user_service.join_group(user_id, group_id)
 
     return "OK"
