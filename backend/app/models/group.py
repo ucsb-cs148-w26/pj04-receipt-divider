@@ -16,6 +16,9 @@ class Group(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
+    invite_token: Mapped[str] = mapped_column(
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         nullable=False,
         server_default=func.now(),
