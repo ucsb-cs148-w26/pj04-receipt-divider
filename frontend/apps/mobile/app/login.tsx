@@ -91,7 +91,11 @@ export default function LoginScreen() {
           {isSignUpMode ? 'Create account' : 'Sign in'}
         </Button>
 
-        <Button variant='outlined' onPress={handleGoogleLogin} disabled={isSubmitting}>
+        <Button
+          variant='outlined'
+          onPress={handleGoogleLogin}
+          disabled={isSubmitting}
+        >
           Continue with Google
         </Button>
 
@@ -100,7 +104,9 @@ export default function LoginScreen() {
           onPress={() => setIsSignUpMode((prev) => !prev)}
           disabled={isSubmitting}
         >
-          {isSignUpMode ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+          {isSignUpMode
+            ? 'Already have an account? Sign in'
+            : 'Need an account? Sign up'}
         </Button>
       </View>
     </KeyboardAvoidingView>

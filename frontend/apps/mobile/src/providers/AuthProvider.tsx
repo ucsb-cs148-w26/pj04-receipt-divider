@@ -1,5 +1,11 @@
 import * as WebBrowser from 'expo-web-browser';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/services/supabase';
 
@@ -78,7 +84,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: session?.user ?? null,
       isLoading,
       signInWithEmail: async (email, password) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
         if (error) {
           throw error;
         }
@@ -125,7 +134,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const accessToken = getValueFromUrl(browserResult.url, 'access_token');
-        const refreshToken = getValueFromUrl(browserResult.url, 'refresh_token');
+        const refreshToken = getValueFromUrl(
+          browserResult.url,
+          'refresh_token',
+        );
         const authCode = getValueFromUrl(browserResult.url, 'code');
 
         if (accessToken && refreshToken) {
