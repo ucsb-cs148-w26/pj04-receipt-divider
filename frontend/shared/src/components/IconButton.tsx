@@ -66,6 +66,9 @@ export function IconButton({
 
   const iconSize = (containerWidth * percentageSize) / 100;
 
+  // Extract rounded class from className, or default to 'rounded-full'
+  const roundedClass = className?.match(/rounded-\S+/)?.[0] || 'rounded-full';
+
   return (
     <Animated.View
       style={
@@ -89,7 +92,9 @@ export function IconButton({
         <Animated.View
           style={pressEffect === 'overlay' ? overlayStyle : undefined}
           className={
-            pressEffect === 'overlay' ? 'bg-gray-500 absolute inset-0' : ''
+            pressEffect === 'overlay'
+              ? `bg-gray-500 absolute inset-0 ${roundedClass}`
+              : ''
           }
         ></Animated.View>
         <MaterialCommunityIcons name={icon} size={iconSize} color={color} />
