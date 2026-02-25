@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from supabase import client
+from app.supabase import client
 
 
 class AuthService:
