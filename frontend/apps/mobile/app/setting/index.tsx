@@ -1,14 +1,12 @@
 import { router } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button } from '@eezy-receipt/shared';
+import { Button, DefaultButtons } from '@eezy-receipt/shared';
 
 export default function SettingsScreen() {
   return (
     <View style={styles.container}>
-      <Button variant='outlined' onPress={() => router.back()}>
-        Back
-      </Button>
+      <DefaultButtons.Close onPress={() => router.back()} />
     </View>
   );
 }
