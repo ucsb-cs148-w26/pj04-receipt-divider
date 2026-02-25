@@ -75,6 +75,15 @@ jest.mock('@/providers', () => ({
     items: [],
     setItems: jest.fn(),
   })),
+  useAuth: jest.fn(() => ({
+    session: null,
+    user: null,
+    isLoading: false,
+    signInWithEmail: jest.fn(),
+    signUpWithEmail: jest.fn(),
+    signInWithGoogle: jest.fn(),
+    signOut: jest.fn(),
+  })),
 }));
 
 // Mock custom components
