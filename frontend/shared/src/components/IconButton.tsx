@@ -1,4 +1,4 @@
-import { Pressable, LayoutChangeEvent, Text } from 'react-native';
+import { Pressable, LayoutChangeEvent, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withSpring,
@@ -39,6 +39,9 @@ export type IconButtonProps = {
 };
 
 export function IconButton({
+  /**
+   * Name of the icon from MaterialCommunityIcons. See https://icons.expo.fyi/ with the `MaterialCommunityIcons` filter turned on for available icons.
+   */
   icon,
   className,
   onPress,
@@ -47,6 +50,13 @@ export function IconButton({
   text,
   textPercentageSize,
   textColor,
+  /**
+   * `fade`: reduces opacity to 60% when pressed
+   *
+   * `overlay`: adds a gray overlay with 40% opacity when pressed
+   *
+   * `scale`: scales down the button to 92% when pressed
+   */
   pressEffect,
 }: IconButtonProps) {
   const [containerWidth, setContainerWidth] = useState(0);
@@ -151,27 +161,31 @@ export class DefaultButtons {
 
   static Settings({ onPress }: DefaultButtonProps) {
     return (
-      <IconButton
-        icon='cog-outline'
-        percentageSize={60}
-        color='#848484'
-        pressEffect='overlay'
-        onPress={onPress}
-        className='bg-white size-[12vw]'
-      />
+      <View className='absolute top-[6vh] right-[4vw]'>
+        <IconButton
+          icon='cog-outline'
+          percentageSize={60}
+          color='#848484'
+          pressEffect='overlay'
+          onPress={onPress}
+          className='bg-white size-[12vw]'
+        />
+      </View>
     );
   }
 
   static Close({ onPress }: DefaultButtonProps) {
     return (
-      <IconButton
-        icon='close'
-        percentageSize={60}
-        color='#848484'
-        pressEffect='overlay'
-        onPress={onPress}
-        className='bg-white size-[12vw]'
-      />
+      <View className='absolute top-[6vh] left-[4vw]'>
+        <IconButton
+          icon='close'
+          percentageSize={60}
+          color='#848484'
+          pressEffect='overlay'
+          onPress={onPress}
+          className='bg-white size-[12vw]'
+        />
+      </View>
     );
   }
 }
