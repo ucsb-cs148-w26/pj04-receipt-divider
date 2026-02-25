@@ -1,13 +1,13 @@
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
-import { IconButton, SettingsButton } from '@eezy-receipt/shared';
+import { IconButton, DefaultButtons } from '@eezy-receipt/shared';
 
 export default function HomeScreen() {
   return (
     <View className='flex-1 items-center justify-center gap-4'>
       <View className='absolute top-[6vh] right-[4vw]'>
-        <SettingsButton onPress={() => router.navigate('/setting')} />
+        <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
       </View>
       <IconButton
         icon='camera-outline'

@@ -127,32 +127,51 @@ export function IconButton({
   );
 }
 
-export type ReusableButtonProps = {
+export type DefaultDefaultButtonProps = {
+  icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
+  onPress?: () => void;
+};
+export type DefaultButtonProps = {
   onPress: () => void;
 };
 
-export function SettingsButton({ onPress }: ReusableButtonProps) {
-  return (
-    <IconButton
-      icon='cog-outline'
-      percentageSize={60}
-      color='#848484'
-      pressEffect='overlay'
-      onPress={onPress}
-      className='bg-white size-[12vw]'
-    />
-  );
-}
+export class DefaultButtons {
+  static Default({ icon, onPress }: DefaultDefaultButtonProps) {
+    return (
+      <IconButton
+        icon={icon}
+        percentageSize={60}
+        color='#848484'
+        pressEffect='overlay'
+        onPress={onPress}
+        className='bg-white size-[12vw]'
+      />
+    );
+  }
 
-export function CloseButton({ onPress }: ReusableButtonProps) {
-  return (
-    <IconButton
-      icon='close'
-      percentageSize={60}
-      color='#848484'
-      pressEffect='overlay'
-      onPress={onPress}
-      className='bg-white size-[12vw]'
-    />
-  );
+  static Settings({ onPress }: DefaultButtonProps) {
+    return (
+      <IconButton
+        icon='cog-outline'
+        percentageSize={60}
+        color='#848484'
+        pressEffect='overlay'
+        onPress={onPress}
+        className='bg-white size-[12vw]'
+      />
+    );
+  }
+
+  static Close({ onPress }: DefaultButtonProps) {
+    return (
+      <IconButton
+        icon='close'
+        percentageSize={60}
+        color='#848484'
+        pressEffect='overlay'
+        onPress={onPress}
+        className='bg-white size-[12vw]'
+      />
+    );
+  }
 }
