@@ -84,7 +84,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       },
       signUpWithEmail: async (email, password) => {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: GOOGLE_REDIRECT_URI,
+          },
+        });
         if (error) {
           throw error;
         }
@@ -95,6 +101,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           options: {
             redirectTo: GOOGLE_REDIRECT_URI,
             skipBrowserRedirect: true,
+            queryParams: {
+              prompt: 'select_account',
+            },
           },
         });
 
