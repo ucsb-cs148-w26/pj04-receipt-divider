@@ -1,6 +1,6 @@
 import { router, Stack, useSegments } from 'expo-router';
 import 'react-native-reanimated';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { useEffect, useRef } from 'react';
 
 import '@styles/global.css';
@@ -9,44 +9,37 @@ import { AuthProvider, ReceiptItemsProvider, useAuth } from '@/providers';
 function AuthGate() {
   const { session, isLoading } = useAuth();
   const segments = useSegments();
+  const hasNavigated = useRef(false);
   const onLoginScreen = segments[0] === 'login';
-  const initialLoadDone = useRef(false);
 
   useEffect(() => {
-    if (isLoading) return;
-
-    // Mark initial load as done after first auth check
-    if (!initialLoadDone.current) {
-      initialLoadDone.current = true;
-      console.log('Initial auth load complete');
+    // Don't navigate during initial loading
+    if (isLoading) {
+      return;
     }
 
-    // Only navigate on auth state changes, not during hot reload
-    const inAuthGroup = segments[0] === 'login';
+    // Prevent redirect loops during hot reload
+    if (hasNavigated.current) {
+      hasNavigated.current = false;
+      return;
+    }
 
-    if (!session && !inAuthGroup) {
-      console.log('No session, navigating to login');
+    if (!session && !onLoginScreen) {
+      hasNavigated.current = true;
+      router.dismissAll();
       router.replace('/login');
-    } else if (session && inAuthGroup) {
-      console.log('Session exists, navigating to home');
+      console.log('Not authorized, navigating to login');
+    } else if (session && onLoginScreen) {
+      hasNavigated.current = true;
       router.replace('/');
+      console.log('Authorization successful, navigating to home');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, isLoading]);
-
-  console.log(
-    'AuthGate - session:',
-    !!session,
-    'isLoading:',
-    isLoading,
-    'onLoginScreen:',
-    onLoginScreen,
-  );
+  }, [session, isLoading, onLoginScreen]);
 
   return (
     <>
       {isLoading && (
-        <View style={styles.loadingContainer}>
+        <View className='flex-1 flex-center justify-center'>
           <ActivityIndicator size='large' />
         </View>
       )}
@@ -69,11 +62,3 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
