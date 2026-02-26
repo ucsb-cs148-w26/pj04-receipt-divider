@@ -26,7 +26,9 @@ function AuthGate() {
 
     if (!session && !onLoginScreen) {
       hasNavigated.current = true;
-      router.dismissAll();
+      if (segments.length > 0) {
+        router.dismissAll();
+      }
       router.replace('/login');
       console.log('Not authorized, navigating to login');
     } else if (session && onLoginScreen) {
@@ -34,8 +36,7 @@ function AuthGate() {
       router.replace('/');
       console.log('Authorization successful, navigating to home');
     }
-  }, [session, isLoading, onLoginScreen]);
-
+  }, [session, isLoading, onLoginScreen, segments]);
   return (
     <>
       {isLoading && (
