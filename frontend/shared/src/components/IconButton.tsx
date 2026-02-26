@@ -132,6 +132,7 @@ export function IconButton({
 
 export type DefaultDefaultButtonProps = {
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
+  percentageSize?: number;
   onPress?: () => void;
 };
 export type DefaultButtonProps = {
@@ -139,11 +140,11 @@ export type DefaultButtonProps = {
 };
 
 export class DefaultButtons {
-  static Default({ icon, onPress }: DefaultDefaultButtonProps) {
+  static Default({ icon, percentageSize, onPress }: DefaultDefaultButtonProps) {
     return (
       <IconButton
         icon={icon}
-        percentageSize={60}
+        percentageSize={percentageSize || 60}
         color='#848484'
         pressEffect='overlay'
         onPress={onPress}
