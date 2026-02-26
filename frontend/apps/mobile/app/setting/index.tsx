@@ -1,9 +1,8 @@
 import { router } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button } from '@eezy-receipt/shared';
-import { useAuth } from '@/providers';
 import { Button, DefaultButtons } from '@eezy-receipt/shared';
+import { useAuth } from '@/providers';
 
 export default function SettingsScreen() {
   const { signOut } = useAuth();
