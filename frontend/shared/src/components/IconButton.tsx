@@ -8,33 +8,14 @@ import type { ComponentProps } from 'react';
 import { useState } from 'react';
 
 export type IconButtonProps = {
-  /**
-   * Name of the icon from MaterialCommunityIcons. See https://icons.expo.fyi/ with the `MaterialCommunityIcons` filter turned on for available icons.
-   */
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
   className?: string;
   onPress?: () => void;
   percentageSize?: number;
   color?: string;
-  /**
-   * Optional text to display after the icon
-   */
   text?: string;
-  /**
-   * Font size for the text (default: matches icon size)
-   */
   textPercentageSize?: number;
-  /**
-   * Color for the text (default: matches icon color)
-   */
   textColor?: string;
-  /**
-   * `fade`: reduces opacity to 60% when pressed
-   *
-   * `overlay`: adds a gray overlay with 40% opacity when pressed
-   *
-   * `scale`: scales down the button to 92% when pressed
-   */
   pressEffect?: 'fade' | 'overlay' | 'scale';
 };
 
@@ -43,12 +24,24 @@ export function IconButton({
    * Name of the icon from MaterialCommunityIcons. See https://icons.expo.fyi/ with the `MaterialCommunityIcons` filter turned on for available icons.
    */
   icon,
+  /**
+   * Make sure to include a size class (`size-`, `w-`/`h-`, or `width-`/`height-`). Otherwise the button won't be visible.
+   */
   className,
   onPress,
   percentageSize = 60,
   color = '#000',
+  /**
+   * Optional text to display after the icon
+   */
   text,
+  /**
+   * Font size for the text (default: matches icon size)
+   */
   textPercentageSize,
+  /**
+   * Color for the text (default: matches icon color)
+   */
   textColor,
   /**
    * `fade`: reduces opacity to 60% when pressed
