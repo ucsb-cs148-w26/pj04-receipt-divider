@@ -5,7 +5,9 @@ import { useEffect, useRef } from 'react';
 
 import '@styles/global.css';
 import { AuthProvider, ReceiptItemsProvider, useAuth } from '@/providers';
-import { appTheme } from '@eezy-receipt/shared';
+import { ThemeProvider } from '@react-navigation/native';
+import { lightTheme, darkTheme } from '@eezy-receipt/shared';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 function AuthGate() {
   const { session, isLoading } = useAuth();
@@ -56,11 +58,16 @@ function AuthGate() {
 }
 
 export default function RootLayout() {
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+
   return (
-    <AuthProvider>
-      <ReceiptItemsProvider>
-        <AuthGate />
-      </ReceiptItemsProvider>
-    </AuthProvider>
+    <ThemeProvider value={theme}>
+      <AuthProvider>
+        <ReceiptItemsProvider>
+          <AuthGate />
+        </ReceiptItemsProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
