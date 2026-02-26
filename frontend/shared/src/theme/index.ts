@@ -1,26 +1,61 @@
-import { MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { COLORS } from '../constants/colors';
 
 export const lightTheme = {
-  ...MD3LightTheme,
+  dark: false,
   colors: {
-    ...MD3LightTheme.colors,
     primary: COLORS.primary,
-    secondary: COLORS.secondary,
-    error: COLORS.error,
-    tertiary: COLORS.warning,
+    background: '#FFFFFF',
+    card: '#F5F5F5',
+    text: '#000000',
+    border: '#E0E0E0',
+    notification: COLORS.error,
+  },
+  fonts: {
+    regular: {
+      fontFamily: 'System',
+      fontWeight: '400' as const,
+    },
+    medium: {
+      fontFamily: 'System',
+      fontWeight: '600' as const,
+    },
+    bold: {
+      fontFamily: 'System',
+      fontWeight: '700' as const,
+    },
+    heavy: {
+      fontFamily: 'System',
+      fontWeight: '900' as const,
+    },
   },
 };
 
 export const darkTheme = {
-  ...MD3DarkTheme,
+  dark: true,
   colors: {
-    ...MD3DarkTheme.colors,
     primary: COLORS.primary,
-    secondary: COLORS.secondary,
-    error: COLORS.error,
-    tertiary: COLORS.warning,
+    background: '#121212',
+    card: '#1E1E1E',
+    text: '#FFFFFF',
+    border: '#333333',
+    notification: COLORS.error,
+  },
+  fonts: {
+    regular: {
+      fontFamily: 'System',
+      fontWeight: '400' as const,
+    },
+    medium: {
+      fontFamily: 'System',
+      fontWeight: '600' as const,
+    },
+    bold: {
+      fontFamily: 'System',
+      fontWeight: '700' as const,
+    },
+    heavy: {
+      fontFamily: 'System',
+      fontWeight: '900' as const,
+    },
   },
 };
-
-export const appTheme = lightTheme;
