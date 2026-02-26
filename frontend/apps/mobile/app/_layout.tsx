@@ -5,7 +5,6 @@ import { useEffect, useRef } from 'react';
 
 import '@styles/global.css';
 import { AuthProvider, ReceiptItemsProvider, useAuth } from '@/providers';
-import { ReceiptItemsProvider } from '@/providers';
 import { appTheme } from '@eezy-receipt/shared';
 
 function AuthGate() {
