@@ -359,7 +359,8 @@ export default function ReceiptRoomScreen() {
           color='#a7a9ae'
         />
         <DefaultButtons.Default
-          icon='qrcode'
+          icon='share'
+          percentageSize={75}
           onPress={() => router.push(`/qr?roomId=${roomId}`)}
         />
         <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
