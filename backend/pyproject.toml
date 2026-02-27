@@ -18,4 +18,22 @@ dependencies = [
 [dependency-groups]
 dev = [
     "black>=26.1.0",
+    "poethepoet>=0.42.1",
+    "pytest>=9.0.2",
+    "ruff>=0.15.4",
 ]
+
+[tool.poe.tasks]
+dev   = "fastapi dev app/main.py"
+test  = "pytest"
+lint  = "ruff check ."
+lint-fix = "ruff check . --fix"
+format   = "ruff format ."
+
+[tool.ruff.format]
+preview = true
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = true
+line-ending = "auto"
+docstring-code-format=true
