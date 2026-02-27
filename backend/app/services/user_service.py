@@ -51,10 +51,7 @@ class UserService:
         pass
 
     def remove_member(
-        self,
-        host_user_id: str,
-        group_id: str,
-        member_user_id: str,
+        self, host_user_id: str, group_id: str, member_user_id: str
     ) -> None:
         # TODO:
         # 1. Check that group exists
@@ -64,12 +61,7 @@ class UserService:
         # 5. Unclaim their claimed items in the group
         pass
 
-    def add_receipt(
-        self,
-        user_id: str,
-        group_id: str,
-        image_64_enc: bytes,
-    ) -> None:
+    def add_receipt(self, user_id: str, group_id: str, image_64_enc: bytes) -> None:
         # TODO:
         # 1. Check if user is host of group
         # 2. If not, return http unauthorized

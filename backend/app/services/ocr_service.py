@@ -16,7 +16,6 @@ class ReceiptItemData(BaseModel):
 
 
 class OCRService:
-
     # Service for extracting receipt items from images using OCR and LLM
 
     def __init__(self):
@@ -29,7 +28,7 @@ class OCRService:
     def analyze_receipt(self, base64_image: str) -> List[str]:
         # Extract text from image using Google Vision
         try:
-            print(f"[OCR] Starting Google Cloud Vision API call...")
+            print("[OCR] Starting Google Cloud Vision API call...")
             print(f"[OCR] Image size: {len(base64_image)} characters")
 
             url = f"{self.google_vision_url}?key={self.google_api_key}"
@@ -68,7 +67,7 @@ class OCRService:
 
     def extract_items(self, base64_image: str) -> List[ReceiptItemData]:
         # Extract receipt items from receipt image
-        print(f"[OCR] Starting receipt extraction...")
+        print("[OCR] Starting receipt extraction...")
         text_blocks = self.analyze_receipt(base64_image)
         print(f"[OCR] Extracted {len(text_blocks)} text blocks from image")
 
@@ -103,16 +102,11 @@ class OCRService:
 
         response = self.openai_client.chat.completions.create(
             model=self.openai_model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
+            messages=[{"role": "user", "content": prompt}],
             timeout=90,
         )
 
-        print(f"[OCR] OpenAI API call completed")
+        print("[OCR] OpenAI API call completed")
         return response.choices[0].message.content or ""
 
     def _transform_response(self, response: str) -> List[ReceiptItemData]:
