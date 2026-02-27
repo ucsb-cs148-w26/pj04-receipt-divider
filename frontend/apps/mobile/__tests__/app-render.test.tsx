@@ -86,15 +86,6 @@ jest.mock('@/providers', () => ({
   })),
 }));
 
-// Mock custom components
-jest.mock('@/components/ThemedText', () => ({
-  ThemedText: () => null,
-}));
-
-jest.mock('@/components/ThemedView', () => ({
-  ThemedView: () => null,
-}));
-
 // Mock services
 jest.mock('@/services/ocr', () => ({
   extractItems: jest.fn(() => Promise.resolve([])),

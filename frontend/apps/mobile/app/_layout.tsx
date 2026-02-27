@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 
 import '@styles/global.css';
 import { AuthProvider, ReceiptItemsProvider, useAuth } from '@/providers';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 function AuthGate() {
   const { session, isLoading } = useAuth();
@@ -55,11 +56,15 @@ function AuthGate() {
 }
 
 export default function RootLayout() {
+  const colorScheme = useColorScheme();
+
   return (
-    <AuthProvider>
-      <ReceiptItemsProvider>
-        <AuthGate />
-      </ReceiptItemsProvider>
-    </AuthProvider>
+    <View className={`flex-1 ${colorScheme === 'dark' ? 'dark' : ''}`}>
+      <AuthProvider>
+        <ReceiptItemsProvider>
+          <AuthGate />
+        </ReceiptItemsProvider>
+      </AuthProvider>
+    </View>
   );
 }
