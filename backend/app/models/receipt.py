@@ -1,3 +1,8 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models import User, Receipt, Group, Item
+
 import uuid
 from datetime import datetime
 from typing import List
