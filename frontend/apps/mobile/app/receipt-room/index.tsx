@@ -1,10 +1,8 @@
-import { useTheme } from '@react-navigation/native';
 import { ReceiptItem, USER_COLORS } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  StyleSheet,
   View,
   Text,
   ScrollView,
@@ -18,14 +16,6 @@ import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
 import { randomUUID } from 'expo-crypto';
 
-interface NativeThemeColorType {
-  primary: string;
-  background: string;
-  card: string;
-  text: string;
-  border: string;
-  notification: string;
-}
 export const ITEMCONTAINERPADDING = 16;
 
 interface DragState {
@@ -45,8 +35,6 @@ export type ReceiptRoomParams = {
 };
 
 export default function ReceiptRoomScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<ReceiptRoomParams>();
   const receiptItems = useReceiptItems();
 
@@ -188,18 +176,16 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Render ---------------- */
   return (
-    <View style={styles.container}>
-      <View style={styles.scrollArea}>
+    <View className='bg-background flex-1 pt-[60px]'>
+      <View className='flex-1'>
         {/* Middle part - scrollable receipt items */}
         <ScrollView
-          style={{
-            ...styles.itemsContainer,
-            height: editingParticipantName ? '50%' : '80%',
-          }}
-          contentContainerStyle={styles.itemsContent}
+          style={{ height: editingParticipantName ? '50%' : '80%' }}
+          className='p-4'
+          contentContainerClassName='min-w-full self-center z-[1]'
           scrollEnabled={!dragState.isDragging}
         >
-          <View style={styles.itemsList}>
+          <View className='gap-2'>
             {receiptItems.items.map((item) => (
               <ReceiptItem
                 key={item.id}
@@ -241,11 +227,9 @@ export default function ReceiptRoomScreen() {
 
         <ScrollView
           horizontal={true}
-          style={{
-            ...styles.participantsContainer,
-            height: editingParticipantName ? '50%' : '20%',
-          }}
-          contentContainerStyle={styles.participantsScrollContent}
+          style={{ height: editingParticipantName ? '50%' : '20%' }}
+          className='p-4'
+          contentContainerClassName='justify-start -left-[10px] gap-[10px]'
           onScrollEndDrag={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
             console.log(
@@ -312,7 +296,7 @@ export default function ReceiptRoomScreen() {
         </ScrollView>
       </View>
 
-      <View style={styles.overlayContainer}>
+      <View className='absolute inset-0' pointerEvents='box-none'>
         {/* Dragged item overlay - rendered at root level */}
         {dragState.itemId &&
           dragState.initialPosition &&
@@ -349,7 +333,7 @@ export default function ReceiptRoomScreen() {
           )}
       </View>
 
-      <View style={styles.buttonRow}>
+      <View className='flex-col items-center gap-2 p-3'>
         <IconButton
           icon='plus'
           className='bg-white/0 rounded-lg shadow-none border-2 border-gray-400 border-dashed size-[25vw]'
@@ -371,102 +355,3 @@ export default function ReceiptRoomScreen() {
     </View>
   );
 }
-
-const createStyles = (colors: NativeThemeColorType) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-      paddingTop: 60,
-    },
-    overlayContainer: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      pointerEvents: 'box-none',
-    },
-    scrollArea: {
-      flex: 1,
-    },
-    itemsContainer: {
-      padding: ITEMCONTAINERPADDING,
-    },
-    participantsContainer: {
-      padding: 16,
-    },
-    itemsContent: {
-      minWidth: '100%',
-      alignSelf: 'center',
-      zIndex: 1,
-    },
-    participantsScrollContent: {
-      justifyContent: 'flex-start',
-      left: -10,
-      gap: 10,
-    },
-    topBar: {
-      backgroundColor: colors.card,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      padding: 16,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    topBarButton: {
-      padding: 8,
-      borderRadius: 8,
-    },
-    topBarButtonText: {
-      fontSize: 24,
-      color: colors.text,
-    },
-    itemsList: {
-      gap: 8,
-    },
-    addItemButton: {
-      padding: 16,
-      borderRadius: 8,
-      borderWidth: 2,
-      borderStyle: 'dashed',
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    addItemButtonText: {
-      color: colors.text,
-      fontSize: 16,
-    },
-    usersContent: {
-      flexDirection: 'row',
-      gap: 16,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    addUserButton: {
-      width: 128,
-      height: 128,
-      borderRadius: 8,
-      borderWidth: 2,
-      borderStyle: 'dashed',
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    addUserButtonText: {
-      fontSize: 32,
-      color: colors.text,
-    },
-    buttonRow: {
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 8,
-      padding: 12,
-    },
-  });

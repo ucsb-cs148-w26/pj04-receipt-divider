@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import {
   Modal,
   ActivityIndicator,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -53,23 +52,25 @@ export default function CameraScreen() {
 
   return (
     <>
-      <View style={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Take a Photo</Text>
-          <Text style={styles.subtitle}>
+      <View className='bg-surface flex-1 justify-center p-5'>
+        <View className='bg-surface-elevated rounded-2xl p-6 shadow-sm mb-5'>
+          <Text className='text-foreground text-[22px] font-semibold mb-1.5'>
+            Take a Photo
+          </Text>
+          <Text className='text-muted-foreground text-sm mb-5'>
             Use your camera to capture an image
           </Text>
           <Button onPress={openCamera}>Open Camera</Button>
           <Button
             variant='outlined'
-            style={styles.spacer}
+            className='mt-3'
             onPress={() => router.back()}
           >
             Cancel
           </Button>
           <Button
             variant='outlined'
-            style={styles.spacer}
+            className='mt-3'
             onPress={() => goToReceiptRoom()}
           >
             Skip
@@ -82,8 +83,8 @@ export default function CameraScreen() {
           statusBarTranslucent
         >
           <View className='flex-1 justify-center items-center bg-black/50'>
-            <View className='bg-white p-6 rounded-xl items-center'>
-              <ActivityIndicator size='large' color='#4f46e5' />
+            <View className='bg-surface-elevated p-6 rounded-xl items-center'>
+              <ActivityIndicator size='large' color='#007aff' />
               <Text className='mt-4 text-lg font-medium text-gray-700'>
                 Loading...
               </Text>
@@ -94,75 +95,3 @@ export default function CameraScreen() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 20,
-  },
-  primaryButton: {
-    backgroundColor: '#2563EB',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  primaryText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    marginBottom: 12,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  secondaryText: {
-    fontSize: 16,
-    color: '#334155',
-  },
-  previewCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    alignItems: 'center',
-  },
-  previewImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  uriText: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  spacer: {
-    marginTop: 12,
-  },
-});

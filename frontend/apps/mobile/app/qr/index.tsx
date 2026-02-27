@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef } from 'react';
-import { StyleSheet, View, Text } from 'react-native';
-import { Button } from '@eezy-receipt/shared';
+import { View, Text } from 'react-native';
+import { Button, DefaultButtons } from '@eezy-receipt/shared';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -87,8 +87,8 @@ export default function QRScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.qrContainer}>
+    <View className='flex-1 justify-center items-center gap-3'>
+      <View className='justify-center items-center'>
         <QRCode
           ref={qrRef}
           value={qrData}
@@ -97,7 +97,9 @@ export default function QRScreen() {
           color='black'
           getRef={(c) => (qrRef.current = c)}
         />
-        <Text style={styles.roomIdText}>Room ID: {roomId}</Text>
+        <Text className='bg-surface-elevated text-foreground text-base mt-5'>
+          Room ID: {roomId}
+        </Text>
       </View>
       <Button variant='primary' onPress={handleShareQRImage}>
         Share QR Code
@@ -108,37 +110,12 @@ export default function QRScreen() {
       <Button variant='primary' onPress={handleShareSubtotals}>
         Share Subtotals
       </Button>
-      <Button
-        variant='outlined'
+      <DefaultButtons.Close
         onPress={() => {
           router.dismiss();
           router.navigate(`/receipt-room?roomId=${roomId}`);
         }}
-      >
-        Back to Room
-      </Button>
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  qrContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-  },
-  roomIdText: {
-    fontSize: 16,
-    marginTop: 20,
-    color: 'black',
-    fontWeight: 'bold',
-  },
-});
