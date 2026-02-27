@@ -6,6 +6,7 @@ import Animated, {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
+import { twMerge } from 'tailwind-merge';
 
 export type IconButtonProps = {
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -102,10 +103,10 @@ export function IconButton({
       }
     >
       <Pressable
-        className={
-          `flex-row items-center justify-center rounded-full shadow-md shadow-black/15 ` +
-          className
-        }
+        className={twMerge(
+          `flex-row items-center justify-center rounded-full shadow-md shadow-black/15 `,
+          className,
+        )}
         onLayout={handleLayout}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
@@ -113,11 +114,11 @@ export function IconButton({
       >
         <Animated.View
           style={pressEffect === 'overlay' ? overlayStyle : undefined}
-          className={
+          className={twMerge(
             pressEffect === 'overlay'
               ? `bg-gray-500 absolute inset-0 ${roundedClass}`
-              : ''
-          }
+              : '',
+          )}
         ></Animated.View>
         <MaterialCommunityIcons name={icon} size={iconSize} color={color} />
         {text && (
