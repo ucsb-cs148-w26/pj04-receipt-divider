@@ -3,7 +3,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -60,17 +59,17 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      className='bg-surface flex-1 items-center justify-center p-4'
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.card}>
-        <Text style={styles.title}>Welcome</Text>
-        <Text style={styles.subtitle}>
+      <View className='bg-surface-elevated w-full max-w-[420px] rounded-xl p-5 gap-3'>
+        <Text className='text-foreground text-2xl font-bold'>Welcome</Text>
+        <Text className='text-muted-foreground mb-1'>
           Sign in with email or continue with Google.
         </Text>
 
         <TextInput
-          style={styles.input}
+          className='border border-border bg-surface-elevated text-foreground rounded-[10px] px-3 py-[10px] text-base'
           autoCapitalize='none'
           autoCorrect={false}
           keyboardType='email-address'
@@ -80,7 +79,7 @@ export default function LoginScreen() {
         />
 
         <TextInput
-          style={styles.input}
+          className='border border-border bg-surface-elevated text-foreground rounded-[10px] px-3 py-[10px] text-base'
           secureTextEntry
           placeholder='Password'
           value={password}
@@ -112,39 +111,3 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8fafc',
-    padding: 16,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 20,
-    gap: 12,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  subtitle: {
-    color: '#475569',
-    marginBottom: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    backgroundColor: '#ffffff',
-  },
-});

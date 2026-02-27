@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, Text } from 'react-native';
+import { View, ScrollView, Text } from 'react-native';
 import { Button } from '@eezy-receipt/shared';
 import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
@@ -61,15 +61,15 @@ export default function YourItemScreen() {
   calculatePrices();
 
   return (
-    <View style={styles.container}>
-      <View style={styles.backButtonContainer}>
+    <View className='flex-1 items-center justify-center -top-[10px]'>
+      <View className='w-full items-start px-5 absolute top-[60px] left-0'>
         <Button variant='outlined' onPress={() => router.back()}>
           Back
         </Button>
       </View>
 
-      <View style={styles.scrollContainer}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View className='flex-1 -bottom-[10px]'>
+        <ScrollView contentContainerClassName='items-center px-5 gap-[10px]'>
           {receiptItems.map((item) => (
             <DisplayItems
               key={item.id}
@@ -86,60 +86,13 @@ export default function YourItemScreen() {
           ))}
         </ScrollView>
 
-        <View style={styles.sumContainer}>
-          <Text style={styles.sumContainerTextTotal}>Total</Text>
-          <Text style={styles.sumContainerText}>${totalSum.toFixed(2)}</Text>
+        <View className='border-t border-border w-full flex-row justify-between items-center px-5 -bottom-[30px] mt-2'>
+          <Text className='text-foreground text-xl font-bold'>Total</Text>
+          <Text className='text-foreground text-xl font-bold'>
+            ${totalSum.toFixed(2)}
+          </Text>
         </View>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    top: -10,
-  },
-  backButtonContainer: {
-    width: '100%',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    position: 'absolute',
-    top: 60,
-    left: 0,
-  },
-  scrollContainer: {
-    flex: 0.8,
-    bottom: -10,
-  },
-  scrollContent: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  sumContainer: {
-    color: 'rgb(255, 255, 255)',
-    borderColor: 'rgba(0,0,0,.25)',
-    borderTopWidth: 1,
-    paddingTop: 10,
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    bottom: -30,
-    marginTop: 8,
-  },
-  sumContainerText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'black',
-  },
-  sumContainerTextTotal: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'black',
-  },
-});
