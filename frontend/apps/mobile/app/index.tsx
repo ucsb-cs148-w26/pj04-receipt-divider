@@ -9,11 +9,10 @@ export default function HomeScreen() {
       <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
       <IconButton
         icon='camera-outline'
-        percentageSize={60}
-        color='#f8f8f8'
+        bgClassName='bg-blue-500 size-[40vw] shadow-lg'
+        iconClassName='text-white size-[25vw]'
         pressEffect='scale'
         onPress={() => router.navigate('/camera')}
-        className='bg-blue-500 size-[40vw] shadow-lg'
       />
       <StatusBar style='auto' />
     </View>

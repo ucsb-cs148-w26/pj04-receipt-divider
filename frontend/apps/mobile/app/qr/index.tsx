@@ -13,7 +13,7 @@ export default function QRScreen() {
   const qrData = `helloworld://Receipt_Room_Page?roomId=${roomId}`;
 
   return (
-    <View className='flex-1 justify-center items-center gap-3'>
+    <View className='flex-1 bg-background justify-center items-center gap-3'>
       <View className='justify-center items-center'>
         <QRCode
           value={qrData}

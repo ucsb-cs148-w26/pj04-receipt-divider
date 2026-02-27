@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import { View, ScrollView, Text } from 'react-native';
-import { Button } from '@eezy-receipt/shared';
+import { Button, DefaultButtons } from '@eezy-receipt/shared';
 import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { DisplayItems } from '@shared/components/DisplayItems';
@@ -61,14 +61,8 @@ export default function YourItemScreen() {
   calculatePrices();
 
   return (
-    <View className='flex-1 items-center justify-center -top-[10px]'>
-      <View className='w-full items-start px-5 absolute top-[60px] left-0'>
-        <Button variant='outlined' onPress={() => router.back()}>
-          Back
-        </Button>
-      </View>
-
-      <View className='flex-1 -bottom-[10px]'>
+    <View className='bg-background size-full'>
+      <View className='-bottom-[14vh] h-[88vh] w-full'>
         <ScrollView contentContainerClassName='items-center px-5 gap-[10px]'>
           {receiptItems.map((item) => (
             <DisplayItems
@@ -86,13 +80,14 @@ export default function YourItemScreen() {
           ))}
         </ScrollView>
 
-        <View className='border-t border-border w-full flex-row justify-between items-center px-5 -bottom-[30px] mt-2'>
-          <Text className='text-foreground text-xl font-bold'>Total</Text>
+        <View className='border-t border-border w-full h-[14vh] flex-row justify-between items-center px-5 pb-[5vh] mt-2'>
+          <Text className='text-foreground text-xl font-bold'>Subtotal</Text>
           <Text className='text-foreground text-xl font-bold'>
             ${totalSum.toFixed(2)}
           </Text>
         </View>
       </View>
+      <DefaultButtons.Close onPress={() => router.back()} />
     </View>
   );
 }
