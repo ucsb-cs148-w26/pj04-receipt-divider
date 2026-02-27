@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button } from '@eezy-receipt/shared';
+import { Button, DefaultButtons, IconButton } from '@eezy-receipt/shared';
 import { useAuth } from '@/providers';
 
 export default function SettingsScreen() {
@@ -9,18 +9,20 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <Button variant='outlined' onPress={() => router.back()}>
-        Back
-      </Button>
-      <Button
-        variant='secondary'
+      <DefaultButtons.Close onPress={() => router.back()} />
+      <IconButton
+        icon='logout'
         onPress={async () => {
           await signOut();
-          router.replace('/login');
         }}
-      >
-        Sign out
-      </Button>
+        className='bg-gray-500 rounded-lg w-[35vw] h-[5vh]'
+        percentageSize={20}
+        pressEffect='fade'
+        color='#dcdcdc'
+        textPercentageSize={12}
+        textColor='#f1f1f1'
+        text='  Sign out'
+      />
     </View>
   );
 }
