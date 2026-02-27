@@ -20,6 +20,7 @@ const colorExtentions = {
   border: 'var(--color-border)',
   'border-strong': 'var(--color-border-strong)',
   muted: 'var(--color-muted)',
+  'muted-background': 'var(--color-muted-background)',
   'muted-foreground': 'var(--color-muted-foreground)',
 
   // Feedback
@@ -52,6 +53,16 @@ const colorExtentions = {
   'avatar-10': 'var(--color-avatar-10)',
 };
 
+// Safelist all custom color utilities so dynamically-constructed class names
+// (e.g. `bg-avatar-${n}`) are never purged. Automatically stays in sync when
+// new colors are added to colorExtentions.
+const colorSafelist = Object.keys(colorExtentions).flatMap((color) => [
+  `bg-${color}`,
+  `text-${color}`,
+  `border-${color}`,
+  `ring-${color}`,
+]);
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   // NOTE: Update this to include the paths to all files that contain Nativewind classes.
@@ -61,10 +72,11 @@ module.exports = {
     '../../shared/src/**/*.{js,jsx,ts,tsx}',
   ],
   presets: [require('nativewind/preset')],
-  darkMode: 'class',
+  darkMode: 'media',
   theme: {
     extend: {
       colors: colorExtentions,
     },
   },
+  safelist: colorSafelist,
 };

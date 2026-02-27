@@ -59,17 +59,17 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      className='bg-surface flex-1 items-center justify-center p-4'
+      className='bg-background flex-1 items-center justify-center p-4'
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View className='bg-surface-elevated w-full max-w-[420px] rounded-xl p-5 gap-3'>
+      <View className='bg-surface w-full max-w-[420px] rounded-xl p-5 gap-3'>
         <Text className='text-foreground text-2xl font-bold'>Welcome</Text>
         <Text className='text-muted-foreground mb-1'>
           Sign in with email or continue with Google.
         </Text>
 
         <TextInput
-          className='border border-border bg-surface-elevated text-foreground rounded-[10px] px-3 py-[10px] text-base'
+          className='bg-surface-elevated text-foreground rounded-[10px] px-3 py-[10px] text-base'
           autoCapitalize='none'
           autoCorrect={false}
           keyboardType='email-address'
@@ -79,19 +79,23 @@ export default function LoginScreen() {
         />
 
         <TextInput
-          className='border border-border bg-surface-elevated text-foreground rounded-[10px] px-3 py-[10px] text-base'
+          className='bg-surface-elevated text-foreground rounded-[10px] px-3 py-[10px] text-base'
           secureTextEntry
           placeholder='Password'
           value={password}
           onChangeText={setPassword}
         />
 
-        <Button onPress={handleEmailAuth} disabled={isSubmitting}>
+        <Button
+          variant='primary'
+          onPress={handleEmailAuth}
+          disabled={isSubmitting}
+        >
           {isSignUpMode ? 'Create account' : 'Sign in'}
         </Button>
 
         <Button
-          variant='outlined'
+          variant='primary'
           onPress={handleGoogleLogin}
           disabled={isSubmitting}
         >
@@ -99,7 +103,7 @@ export default function LoginScreen() {
         </Button>
 
         <Button
-          variant='secondary'
+          variant='primary'
           onPress={() => setIsSignUpMode((prev) => !prev)}
           disabled={isSubmitting}
         >

@@ -1,20 +1,16 @@
-import { useTheme } from '@react-navigation/core';
-import React, { useMemo, useRef } from 'react';
-import { NativeThemeColorType } from '@shared/types/native-theme';
+import { USER_COLORS } from '@shared/constants';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
-  StyleSheet,
   LayoutRectangle,
-  useColorScheme,
   Pressable,
   TouchableOpacity,
 } from 'react-native';
 
 interface ParticipantsProps {
   id: number;
-  color: string;
   changeName: (text: string) => void;
   onRemove: () => void;
   onLayout: (event: LayoutRectangle) => void;
@@ -25,7 +21,6 @@ interface ParticipantsProps {
 
 export function Participant({
   id,
-  color,
   changeName,
   onRemove,
   onLayout,
@@ -34,8 +29,6 @@ export function Participant({
   onClickTextOut,
 }: ParticipantsProps) {
   const ref = useRef<View>(null);
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <Pressable
@@ -45,65 +38,30 @@ export function Participant({
           onLayout({ x, y, width, height });
         });
       }}
-      style={[styles.box, { backgroundColor: color }]}
+      className={`bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} border border-border rounded-[10px] h-[100px] min-w-[100px] p-5 items-center justify-center relative`}
       onPress={goToYourItemsPage}
     >
       <TouchableOpacity
-        style={styles.deleteButton}
+        className='absolute bg-destructive w-6 h-6 rounded-[10px] items-center justify-center border-2 border-background z-10'
+        style={{ top: -7, left: -7 }}
         onPress={onRemove}
         hitSlop={{ top: 10, bottom: 10, right: 10, left: 10 }}
       >
-        <Text style={styles.deleteText}>x</Text>
+        <Text
+          className='text-background text-[17px] font-bold'
+          style={{ top: -2 }}
+        >
+          x
+        </Text>
       </TouchableOpacity>
       <TextInput
         placeholder={'Name ' + id}
-        placeholderTextColor='#ffffff83'
         onChangeText={changeName}
-        style={[styles.text]}
+        className='text-foreground font-bold'
+        style={{ top: -5 }}
         onFocus={onClickTextIn}
         onBlur={onClickTextOut}
-      ></TextInput>
+      />
     </Pressable>
   );
 }
-
-const createStyles = (colors: NativeThemeColorType) =>
-  StyleSheet.create({
-    box: {
-      padding: 20,
-      borderWidth: 1,
-      borderRadius: 10,
-      height: 100,
-      minWidth: 100,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.background,
-      borderColor: colors.border,
-      position: 'relative',
-    },
-    text: {
-      top: -5,
-      color: '#FFFFFF',
-      fontWeight: 'bold',
-    },
-    deleteButton: {
-      position: 'absolute',
-      top: -7,
-      left: -7,
-      backgroundColor: '#FF3B30',
-      width: 24,
-      height: 24,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 2,
-      borderColor: '#FFFFFF',
-      zIndex: 10,
-    },
-    deleteText: {
-      color: 'white',
-      fontSize: 17,
-      fontWeight: 'bold',
-      top: -2,
-    },
-  });

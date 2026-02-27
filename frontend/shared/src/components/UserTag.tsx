@@ -1,26 +1,21 @@
-import { useTheme } from '@react-navigation/native';
-import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { NativeThemeColorType } from '@shared/types/native-theme';
+import { USER_COLORS } from '@shared/constants';
+import React, { useState } from 'react';
+import { Pressable, Text } from 'react-native';
 
 export function UserTag({
-  userIndex,
-  color,
+  id,
   onRemove,
   isNewlyAdded,
 }: {
-  userIndex: number;
-  color: string;
+  id: number;
   onRemove: () => void;
   isNewlyAdded: boolean;
 }) {
-  const { colors, dark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
   const DOUBLE_TAP_DELAY = 1000; // ms
   const [enableRemoveButton, setEnableRemoveButton] = useState(false);
-  // FIXME: I'm pretty sure NodeJS is not avalible in react native
-  // also, set timeout wihout a hook would lead to a memory leak
-  let buttonIntervalId: NodeJS.Timeout | null = null;
+  // FIXME: I'm pretty sure NodeJS is not available in react native
+  // also, set timeout without a hook would lead to a memory leak
+  let buttonIntervalId: ReturnType<typeof setTimeout> | null = null;
 
   const handlePress = () => {
     if (buttonIntervalId) clearTimeout(buttonIntervalId);
@@ -38,46 +33,15 @@ export function UserTag({
   return (
     <Pressable
       onPress={handlePress}
-      style={[
-        styles.userTag,
-        { backgroundColor: color },
-        isNewlyAdded && styles.userTagNew,
-      ]}
-      accessibilityLabel={`Double-tap to remove from user ${userIndex}`}
+      style={[isNewlyAdded && { transform: [{ scale: 1.1 }] }]}
+      className={`bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} w-10 h-10 rounded-lg justify-center items-center shadow-sm`}
+      accessibilityLabel={`Double-tap to remove from user ${id}`}
     >
       {enableRemoveButton ? (
-        <Text style={styles.userTagRemove}>✕</Text>
+        <Text className='text-foreground text-base font-bold'>✕</Text>
       ) : (
-        <Text style={styles.userTagText}>{userIndex}</Text>
+        <Text className='text-foreground text-sm font-bold'>{id}</Text>
       )}
     </Pressable>
   );
 }
-
-const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
-  StyleSheet.create({
-    userTag: {
-      width: 40,
-      height: 40,
-      borderRadius: 8,
-      justifyContent: 'center',
-      alignItems: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    userTagNew: {
-      transform: [{ scale: 1.1 }],
-    },
-    userTagRemove: {
-      color: colors.text,
-      fontSize: 16,
-      fontWeight: 'bold',
-    },
-    userTagText: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: 'bold',
-    },
-  });

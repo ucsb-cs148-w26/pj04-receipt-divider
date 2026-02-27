@@ -22,7 +22,7 @@ export default function CloseConfirmationScreen() {
   };
 
   return (
-    <View className='bg-black/50 flex-1 justify-center items-center p-5'>
+    <View className='bg-muted-background flex-1 justify-center items-center p-5'>
       <View className='bg-card rounded-2xl p-6 w-full max-w-[400px] shadow-lg'>
         <Text className='text-card-foreground text-2xl font-bold mb-3 text-center'>
           Close Room?

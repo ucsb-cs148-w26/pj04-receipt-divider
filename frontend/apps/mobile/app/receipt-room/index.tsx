@@ -1,4 +1,4 @@
-import { ReceiptItem, USER_COLORS } from '@shared/components/ReceiptItem';
+import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState } from 'react';
@@ -59,6 +59,9 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Participants Functions ---------------- */
   const addParticipant = () => {
+    if (participants.length >= 10) {
+      return;
+    }
     const maxID =
       participants.length > 0 ? Math.max(...participants.map((p) => p.id)) : 0;
 
@@ -160,13 +163,13 @@ export default function ReceiptRoomScreen() {
     console.log('Deleted receipt items:', receiptItems);
   };
 
-  const removeItemFromUser = (itemId: string, userIndex: number) => {
+  const removeItemFromUser = (itemId: string, userId: number) => {
     receiptItems.setItems(
       receiptItems.items.map((item) => {
         if (item.id === itemId) {
           return {
             ...item,
-            userTags: item.userTags?.filter((tag) => tag !== userIndex),
+            userTags: item.userTags?.filter((tag) => tag !== userId),
           };
         }
         return item;
@@ -192,8 +195,8 @@ export default function ReceiptRoomScreen() {
                 item={item}
                 onUpdate={(updates) => updateReceiptItem(item.id, updates)}
                 onDelete={() => deleteReceiptItem(item.id)}
-                onRemoveFromUser={(userIndex) =>
-                  removeItemFromUser(item.id, userIndex)
+                onRemoveFromUser={(userId) =>
+                  removeItemFromUser(item.id, userId)
                 }
                 participantLayouts={participantLayouts.current}
                 scrollOffset={scrollOffset}
@@ -214,13 +217,12 @@ export default function ReceiptRoomScreen() {
             ))}
             <IconButton
               icon='plus'
-              className='bg-white rounded-lg shadow-none border-2 border-gray-400 border-dashed w-full h-[7vh]'
-              onPress={addReceiptItem}
-              percentageSize={8}
-              pressEffect='fade'
-              color='#1c1c1c'
+              bgClassName='bg-background rounded-lg shadow-none border-2 border-border-strong border-dashed w-full h-[7vh]'
+              iconClassName='size-[7vw] text-muted-foreground'
               text='Add Receipt Item'
-              textPercentageSize={4.5}
+              textClassName='text-muted-foreground text-[5vw]'
+              pressEffect='fade'
+              onPress={addReceiptItem}
             />
           </View>
         </ScrollView>
@@ -230,6 +232,7 @@ export default function ReceiptRoomScreen() {
           style={{ height: editingParticipantName ? '50%' : '20%' }}
           className='p-4'
           contentContainerClassName='justify-start -left-[10px] gap-[10px]'
+          showsHorizontalScrollIndicator={false}
           onScrollEndDrag={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
             console.log(
@@ -247,13 +250,10 @@ export default function ReceiptRoomScreen() {
           scrollEventThrottle={16}
         >
           {participants.map((participant) => {
-            const color =
-              USER_COLORS[(participant.id - 1) % USER_COLORS.length];
             return (
               <Participant
                 key={participant.id}
                 id={participant.id}
-                color={color}
                 changeName={(text) =>
                   changeParticipantName(participant.id, text)
                 }
@@ -309,8 +309,8 @@ export default function ReceiptRoomScreen() {
                 updateReceiptItem(dragState.itemId!, updates)
               }
               onDelete={() => {}}
-              onRemoveFromUser={(userIndex) =>
-                removeItemFromUser(dragState.itemId!, userIndex)
+              onRemoveFromUser={(userId) =>
+                removeItemFromUser(dragState.itemId!, userId)
               }
               participantLayouts={participantLayouts.current}
               scrollOffset={scrollOffset}
@@ -336,15 +336,12 @@ export default function ReceiptRoomScreen() {
       <View className='flex-col items-center gap-2 p-3'>
         <IconButton
           icon='plus'
-          className='bg-white/0 rounded-lg shadow-none border-2 border-gray-400 border-dashed size-[25vw]'
+          bgClassName='rounded-lg shadow-none border-2 border-border-strong border-dashed size-[25vw]'
           onPress={addParticipant}
-          percentageSize={40}
-          pressEffect='fade'
-          color='#a7a9ae'
+          pressEffect='scale'
         />
         <DefaultButtons.Default
           icon='account-multiple-plus'
-          percentageSize={75}
           onPress={() => router.push(`/qr?roomId=${roomId}`)}
         />
         <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
