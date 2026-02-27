@@ -4,7 +4,23 @@
 
 @layer base {
   :root {
-    /* Colors that stay the same in light/dark mode */
+    /* Light mode specific colors */
+    --color-background: #ffffff;
+    --color-foreground: #0f172a;
+    --color-surface: #f8f9fa;
+    --color-surface-elevated: #ffffff;
+    --color-card: #e7e7e8;
+    --color-card-foreground: #0f172a;
+    --color-secondary: #6c7d8c;
+    --color-secondary-foreground: #ffffff;
+    --color-border: #e5e7eb;
+    --color-border-strong: #9ca3af;
+    --color-muted: #f9fafb;
+    --color-muted-foreground: #6b7280;
+    --color-receipt-background: #f8f9fa;
+    --color-item-background: #ffffff;
+    --color-item-selected: #dbeafe;
+    --color-scan-overlay: rgba(0, 0, 0, 0.5);
 
     /* Interactive Colors - consistent across themes */
     --color-primary: #007aff;
@@ -36,24 +52,6 @@
     --color-avatar-8: #fb923c; /* orange-400 */
     --color-avatar-9: #2dd4bf; /* teal-400 */
     --color-avatar-10: #22d3ee; /* cyan-400 */
-
-    /* Light mode specific colors */
-    --color-background: #ffffff;
-    --color-foreground: #0f172a;
-    --color-surface: #f8f9fa;
-    --color-surface-elevated: #ffffff;
-    --color-card: #388693;
-    --color-card-foreground: #ffffff;
-    --color-secondary: #6c7d8c;
-    --color-secondary-foreground: #ffffff;
-    --color-border: #e5e7eb;
-    --color-border-strong: #9ca3af;
-    --color-muted: #f9fafb;
-    --color-muted-foreground: #6b7280;
-    --color-receipt-background: #f8f9fa;
-    --color-item-background: #ffffff;
-    --color-item-selected: #dbeafe;
-    --color-scan-overlay: rgba(0, 0, 0, 0.5);
   }
 
   .dark {
@@ -74,5 +72,38 @@
     --color-item-background: #374151;
     --color-item-selected: #1e3a8a;
     --color-scan-overlay: rgba(0, 0, 0, 0.7);
+
+    /* Colors that remain the same in dark mode, but must redefine for some reason*/
+
+    /* Interactive Colors - consistent across themes */
+    --color-primary: #007aff;
+    --color-primary-foreground: #ffffff;
+
+    /* Feedback Colors - consistent across themes */
+    --color-destructive: #ef4444;
+    --color-destructive-foreground: #ffffff;
+    --color-success: #22c55e;
+    --color-success-foreground: #ffffff;
+    --color-warning: #f59e0b;
+    --color-warning-foreground: #ffffff;
+
+    /* Receipt/Financial Colors - consistent across themes */
+    --color-amount-positive: #22c55e;
+    --color-amount-negative: #ef4444;
+
+    /* Camera/Scan Colors - consistent across themes */
+    --color-scan-frame: #007aff;
+
+    /* User Avatar Colors - consistent across themes */
+    --color-avatar-1: #60a5fa; /* blue-400 */
+    --color-avatar-2: #f87171; /* red-400 */
+    --color-avatar-3: #4ade80; /* green-400 */
+    --color-avatar-4: #fbbf24; /* yellow-400 */
+    --color-avatar-5: #a78bfa; /* purple-400 */
+    --color-avatar-6: #f472b6; /* pink-400 */
+    --color-avatar-7: #818cf8; /* indigo-400 */
+    --color-avatar-8: #fb923c; /* orange-400 */
+    --color-avatar-9: #2dd4bf; /* teal-400 */
+    --color-avatar-10: #22d3ee; /* cyan-400 */
   }
 }
