@@ -359,7 +359,7 @@ export default function ReceiptRoomScreen() {
           color='#a7a9ae'
         />
         <DefaultButtons.Default
-          icon='share'
+          icon='account-multiple-plus'
           percentageSize={75}
           onPress={() => router.push(`/qr?roomId=${roomId}`)}
         />
