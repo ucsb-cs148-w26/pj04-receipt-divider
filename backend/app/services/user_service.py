@@ -2,19 +2,20 @@ import uuid
 import base64
 
 from fastapi import HTTPException, status
+from supabase import Client as SupabaseClient
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session as DBSession
 from sqlalchemy.dialects.postgresql import insert
 
 from app.config import settings
 from app.models import Group, Item, Receipt, GroupMember, ItemClaim
 from app.services.ocr_service import OCRService
-from app.supabase import client
 
 
 class UserService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: DBSession, supabase: SupabaseClient) -> None:
         self.db = db
+        self.supabse = supabase
 
     def _is_host(self, host_user_id: str, group_id: str) -> bool:
         group = self.db.get(Group, group_id)
@@ -115,8 +116,6 @@ class UserService:
         image_bytes: bytes,
         image_ext: str,
     ) -> None:
-        # FIXME: fixes requires (blocked by OCR fixes)
-        raise NotImplementedError
         member = self.db.get(GroupMember, {"user_id": user_id, "group_id": group_id})
         if member is None:
             raise HTTPException(
@@ -126,7 +125,7 @@ class UserService:
         file_path = f"{group_id}/{uuid.uuid4()}.{image_ext}"
 
         try:
-            response = client.storage.from_(settings.receipt_image_bucket).upload(
+            response = self.supabse.storage.from_(settings.receipt_image_bucket).upload(
                 file=image_bytes, path=file_path
             )
         except Exception as e:
@@ -135,25 +134,28 @@ class UserService:
                 detail=f"Failed to upload image: {str(e)}",
             )
 
-        image_url = client.storage.from_(settings.receipt_image_bucket).get_public_url(
-            file_path
+        image_url = self.supabse.storage.from_(
+            settings.receipt_image_bucket
+        ).get_public_url(file_path)
+
+        extracted_items = ocr_service.extract_items(
+            base64.b64encode(image_bytes).decode()
         )
-
-        # TODO: might need fixing
-        items = ocr_service.extract_items(base64.b64encode(image_bytes).decode())
         total_price = 0.0
-        for extracted_item in items:
-            # FIXME: items should be dupe per quantity (blocked by ORC fixes)
-            item = Item(
-                receipt_id=receipt.id,
-                name=extracted_item.name,
-                # FIXME: item should have currency column and parse orc output (blocked by OCR fixes)
-                unit_price=float(extracted_item.price.replace("$", "")),
-                amount=1,
-            )
-            self.db.add(item)
+        receipt_id = uuid.uuid4()
+        for extracted_item in extracted_items:
+            for _ in range(extracted_item.quantity):
+                item = Item(
+                    receipt_id=receipt_id,
+                    name=extracted_item.name,
+                    unit_price=float(extracted_item.price.replace("$", "")),
+                    amount=1,
+                )
+                self.db.add(item)
 
-        receipt = Receipt(image=image_url, total=total_price, created_by=user_id)
+        receipt = Receipt(
+            id=receipt_id, image=image_url, total=total_price, created_by=user_id
+        )
         self.db.add(receipt)
 
         self.db.commit()
