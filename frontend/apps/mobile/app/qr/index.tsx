@@ -48,16 +48,38 @@ export default function QRScreen() {
     }
   }
 
-  async function handleShareSMS() {
+  function handleShareJoinLink() {
+    //TODO: GET THE ACTUAL JOIN LINK INSTEAD OF THE PLACEHOLDER
+    //ALSO MAYBE REMOVE ROOM ID IF WE DON'T NEED IT
+
+    const message = `Join my Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nOr tap this link to join: https://example.com/`;
+    handleShareSMS(message);
+  }
+
+  function handleShareSubtotals() {
+    //TODO: THIS BUTTON SHOULDN'T BE HERE
+    //TODO: CANNOT SEND SUBTOTALS UNTIL EVERY ITEM IS CLAIMED && HOST CONFIRMS SPLIT IS FINALIZED
+    //TODO: GET THE ACTUAL SUBTOTALS INSTEAD OF THE PLACEHOLDER
+    //TODO: GET THE ROOM NAME TOO
+
+    const message = `Subtotals for Room:
+    [Costco Trip]
+    ---------------
+      Alice: $10.00
+      Bob: $15.00
+      Charlie: $5.00
+    ---------------
+    Total: $30.00`;
+    handleShareSMS(message);
+  }
+
+  async function handleShareSMS(message: string) {
     try {
       const isAvailable = await SMS.isAvailableAsync();
       if (!isAvailable) {
         console.log('SMS is not available');
         return;
       }
-
-      const message = `Join my Eezy Receipt room!\nRoom ID: ${roomId}\n\n🔗 Or tap this link to join: https://example.com/`;
-
       await SMS.sendSMSAsync([], message);
     } catch (error) {
       console.error('SMS error:', error);
@@ -80,8 +102,11 @@ export default function QRScreen() {
       <Button variant='primary' onPress={handleShareQRImage}>
         Share QR Code
       </Button>
-      <Button variant='primary' onPress={handleShareSMS}>
-        Share via SMS
+      <Button variant='primary' onPress={handleShareJoinLink}>
+        Share via Link
+      </Button>
+      <Button variant='primary' onPress={handleShareSubtotals}>
+        Share Subtotals
       </Button>
       <Button
         variant='outlined'
