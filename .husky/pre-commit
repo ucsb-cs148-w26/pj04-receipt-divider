@@ -1,1 +1,9 @@
+if ! git diff --cached --quiet -- frontend; then
 cd frontend && npx lint-staged
+cd ..
+fi
+
+if ! git diff --cached --quiet -- backend; then
+cd backend && uv run pre-commit run
+cd ..
+fi

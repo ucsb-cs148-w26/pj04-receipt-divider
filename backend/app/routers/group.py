@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Depends
 
 from app.schemas.group import CreateGroupRequest, CreateGroupResponse
 from app.dependencies import get_auth_service, get_user_service

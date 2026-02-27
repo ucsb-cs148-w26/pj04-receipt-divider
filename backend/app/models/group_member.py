@@ -1,3 +1,8 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models import User, GroupMember, Group
+
 import uuid
 from datetime import datetime
 
@@ -11,23 +16,16 @@ from .base import Base
 class GroupMember(Base):
     __tablename__ = "group_members"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"),
-        primary_key=True,
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
     group_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("groups.id"),
-        primary_key=True,
+        ForeignKey("groups.id"), primary_key=True
     )
     joined_at: Mapped[datetime] = mapped_column(
-        nullable=False,
-        server_default=func.now(),
+        nullable=False, server_default=func.now()
     )
 
     # Relationships
     group_member_user: Mapped["User"] = relationship(
-        back_populates="user_group_memberships",
+        back_populates="user_group_memberships"
     )
-    group_member_group: Mapped["Group"] = relationship(
-        back_populates="group_members",
-    )
+    group_member_group: Mapped["Group"] = relationship(back_populates="group_members")
