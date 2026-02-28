@@ -16,7 +16,7 @@ export interface ButtonProps {
   size?: ButtonSize;
   loading?: boolean;
   disabled?: boolean;
-  onPress?: (event: any) => void;
+  onPress?: () => void;
   className?: string;
   textClassName?: string;
   children: React.ReactNode;

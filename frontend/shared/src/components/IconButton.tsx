@@ -1,4 +1,4 @@
-import { Pressable, LayoutChangeEvent, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withSpring,
@@ -49,7 +49,6 @@ export function IconButton({
   pressEffect = 'fade',
   onPress,
 }: IconButtonProps) {
-  const [containerWidth, setContainerWidth] = useState(0);
   const [pressed, setPressed] = useState(false);
 
   const fadeStyle = useAnimatedStyle(() => ({
@@ -75,10 +74,6 @@ export function IconButton({
     ],
   }));
 
-  const handleLayout = (event: LayoutChangeEvent) => {
-    setContainerWidth(event.nativeEvent.layout.width);
-  };
-
   // Extract rounded class from className, or default to 'rounded-full'
   const roundedClass = bgClassName?.match(/rounded-\S+/)?.[0] || 'rounded-full';
 
@@ -97,7 +92,6 @@ export function IconButton({
           `flex-row items-center justify-center rounded-full shadow-md shadow-black/15 size-[12vw] bg-card`,
           bgClassName,
         )}
-        onLayout={handleLayout}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
         onPress={onPress}

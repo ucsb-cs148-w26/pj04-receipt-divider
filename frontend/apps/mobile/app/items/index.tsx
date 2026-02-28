@@ -1,8 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React from 'react';
 import { View, ScrollView, Text } from 'react-native';
-import { Button, DefaultButtons } from '@eezy-receipt/shared';
-import { ReceiptItem } from '@shared/components/ReceiptItem';
+import { DefaultButtons } from '@eezy-receipt/shared';
 import { ReceiptItemData } from '@shared/types';
 import { DisplayItems } from '@shared/components/DisplayItems';
 
@@ -67,7 +66,6 @@ export default function YourItemScreen() {
           {receiptItems.map((item) => (
             <DisplayItems
               key={item.id}
-              id={item.id}
               name={item.name}
               price={item.price}
               discount={item.discount}

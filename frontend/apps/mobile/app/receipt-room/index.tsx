@@ -2,14 +2,7 @@ import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  LayoutRectangle,
-  Animated,
-} from 'react-native';
+import { View, ScrollView, LayoutRectangle, Animated } from 'react-native';
 import { IconButton, DefaultButtons } from '@eezy-receipt/shared';
 import { Participant } from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';

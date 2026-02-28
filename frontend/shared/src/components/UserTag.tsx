@@ -1,5 +1,5 @@
 import { USER_COLORS } from '@shared/constants';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Pressable, Text } from 'react-native';
 
 export function UserTag({
@@ -13,13 +13,11 @@ export function UserTag({
 }) {
   const DOUBLE_TAP_DELAY = 1000; // ms
   const [enableRemoveButton, setEnableRemoveButton] = useState(false);
-  // FIXME: I'm pretty sure NodeJS is not available in react native
-  // also, set timeout without a hook would lead to a memory leak
-  let buttonIntervalId: ReturnType<typeof setTimeout> | null = null;
+  const buttonIntervalId = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handlePress = () => {
-    if (buttonIntervalId) clearTimeout(buttonIntervalId);
-    buttonIntervalId = setTimeout(() => {
+    if (buttonIntervalId.current) clearTimeout(buttonIntervalId.current);
+    buttonIntervalId.current = setTimeout(() => {
       setEnableRemoveButton(false);
     }, DOUBLE_TAP_DELAY);
 
@@ -29,6 +27,12 @@ export function UserTag({
     }
     setEnableRemoveButton(true);
   };
+
+  useEffect(() => {
+    return () => {
+      if (buttonIntervalId.current) clearTimeout(buttonIntervalId.current);
+    };
+  }, []);
 
   return (
     <Pressable

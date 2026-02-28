@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef } from 'react';
 import { View, Text } from 'react-native';
-import { Button, DefaultButtons } from '@eezy-receipt/shared';
+import { DefaultButtons } from '@eezy-receipt/shared';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';

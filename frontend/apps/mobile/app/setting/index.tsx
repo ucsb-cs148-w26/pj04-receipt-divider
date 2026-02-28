@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import React from 'react';
 import { View } from 'react-native';
-import { Button, DefaultButtons, IconButton } from '@eezy-receipt/shared';
+import { DefaultButtons, IconButton } from '@eezy-receipt/shared';
 import { useAuth } from '@/providers';
 
 export default function SettingsScreen() {

@@ -1,5 +1,5 @@
 import { USER_COLORS } from '@shared/constants';
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import {
   View,
   Text,
