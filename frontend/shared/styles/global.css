@@ -1,31 +1,114 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import 'nativewind/theme';
 
 @layer base {
   :root {
-    /* Light mode colors */
-    --color-background: #ffffff;
+    /* Light mode specific colors */
+    --color-background: #f2f2f2;
     --color-foreground: #0f172a;
-    --color-card: #388693;
-    --color-card-foreground: #ffffff;
+    --color-surface: #efefef;
+    --color-surface-elevated: #f2f2f3;
+    --color-card: #f6f6f6;
+    --color-card-foreground: #0f172a;
+    --color-secondary: #6c7d8c;
+    --color-secondary-foreground: #ffffff;
+    --color-border: #e2e5eb;
+    --color-border-strong: #9ca3af;
+    --color-muted: #f9fafb;
+    --color-muted-background: #797979;
+    --color-muted-foreground: #393e44;
+    --color-receipt-background: #f8f9fa;
+    --color-item-background: #ffffff;
+    --color-item-selected: #dbeafe;
+    --color-scan-overlay: rgba(0, 0, 0, 0.5);
+
+    /* Interactive Colors - consistent across themes */
     --color-primary: #007aff;
     --color-primary-foreground: #ffffff;
-    --color-border: #e5e7eb;
-    --color-muted: #f9fafb;
-    --color-muted-foreground: #6b7280;
+
+    /* Feedback Colors - consistent across themes */
+    --color-destructive: #ef4444;
+    --color-destructive-foreground: #ffffff;
+    --color-success: #22c55e;
+    --color-success-foreground: #ffffff;
+    --color-warning: #f59e0b;
+    --color-warning-foreground: #ffffff;
+
+    /* Receipt/Financial Colors - consistent across themes */
+    --color-amount-positive: #22c55e;
+    --color-amount-negative: #ef4444;
+
+    /* Camera/Scan Colors - consistent across themes */
+    --color-scan-frame: #007aff;
+
+    /* User Avatar Colors - consistent across themes */
+    --color-avatar-1: #3b82f699; /* blue-500/60 */
+    --color-avatar-2: #ef444499; /* red-500/60 */
+    --color-avatar-3: #22c55e99; /* green-500/60 */
+    --color-avatar-4: #eab30899; /* yellow-500/60 */
+    --color-avatar-5: #a855f799; /* purple-500/60 */
+    --color-avatar-6: #ec489999; /* pink-500/60 */
+    --color-avatar-7: #6366f199; /* indigo-500/60 */
+    --color-avatar-8: #f9731699; /* orange-500/60 */
+    --color-avatar-9: #14b8a699; /* teal-500/60 */
+    --color-avatar-10: #06b6d499; /* cyan-500/60 */
   }
 
-  .dark {
-    /* Dark mode colors */
-    --color-background: #09090b;
-    --color-foreground: #ffffff;
-    --color-card: #18181b;
-    --color-card-foreground: #ffffff;
-    --color-primary: #007aff;
-    --color-primary-foreground: #ffffff;
-    --color-border: #374151;
-    --color-muted: #1f2937;
-    --color-muted-foreground: #9ca3af;
+  @media (prefers-color-scheme: dark) {
+    :root {
+      /* Only colors that change in dark mode */
+      --color-background: #09090b;
+      --color-foreground: #ffffff;
+      --color-surface: #0e1116;
+      --color-surface-elevated: #06080a;
+      --color-card: #18181b;
+      --color-card-foreground: #ffffff;
+      --color-secondary: #747984;
+      --color-secondary-foreground: #000000;
+      --color-border: #131924;
+      --color-border-strong: #1e2635;
+      --color-muted: #1f2937;
+      --color-muted-background: #2e2e2e;
+      --color-muted-foreground: #9ca3af;
+      --color-receipt-background: #1f2937;
+      --color-item-background: #374151;
+      --color-item-selected: #1e3a8a;
+      --color-scan-overlay: rgba(0, 0, 0, 0.7);
+
+      /* Colors that remain the same in dark mode, but must redefine for some reason*/
+
+      /* Interactive Colors - consistent across themes */
+      --color-primary: #007aff;
+      --color-primary-foreground: #ffffff;
+
+      /* Feedback Colors - consistent across themes */
+      --color-destructive: #ef4444;
+      --color-destructive-foreground: #ffffff;
+      --color-success: #22c55e;
+      --color-success-foreground: #ffffff;
+      --color-warning: #f59e0b;
+      --color-warning-foreground: #ffffff;
+
+      /* Receipt/Financial Colors - consistent across themes */
+      --color-amount-positive: #22c55e;
+      --color-amount-negative: #ef4444;
+
+      /* Camera/Scan Colors - consistent across themes */
+      --color-scan-frame: #007aff;
+
+      /* User Avatar Colors - consistent across themes */
+      --color-avatar-1: #3b82f699; /* blue-500/60 */
+      --color-avatar-2: #ef444499; /* red-500/60 */
+      --color-avatar-3: #22c55e99; /* green-500/60 */
+      --color-avatar-4: #eab30899; /* yellow-500/60 */
+      --color-avatar-5: #a855f799; /* purple-500/60 */
+      --color-avatar-6: #ec489999; /* pink-500/60 */
+      --color-avatar-7: #6366f199; /* indigo-500/60 */
+      --color-avatar-8: #f9731699; /* orange-500/60 */
+      --color-avatar-9: #14b8a699; /* teal-500/60 */
+      --color-avatar-10: #06b6d499; /* cyan-500/60 */
+    }
   }
 }

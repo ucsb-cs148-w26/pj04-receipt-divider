@@ -1,13 +1,12 @@
-import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  StyleProp,
-  ViewStyle,
-  TextStyle,
-} from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, Text, ActivityIndicator } from 'react-native';
+import { twMerge } from 'tailwind-merge';
+import Animated, {
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outlined' | 'text';
 export type ButtonSize = 'small' | 'medium' | 'large';
@@ -17,11 +16,31 @@ export interface ButtonProps {
   size?: ButtonSize;
   loading?: boolean;
   disabled?: boolean;
-  onPress?: (event: any) => void;
-  style?: StyleProp<ViewStyle>;
-  textStyle?: StyleProp<TextStyle>;
+  onPress?: () => void;
+  className?: string;
+  textClassName?: string;
   children: React.ReactNode;
 }
+
+const variantClasses: Record<ButtonVariant, string> = {
+  primary: 'bg-primary',
+  secondary: 'bg-secondary',
+  outlined: 'border border-primary bg-transparent',
+  text: 'bg-transparent',
+};
+
+const sizeClasses: Record<ButtonSize, string> = {
+  small: 'py-1.5 px-3',
+  medium: 'py-2.5 px-4',
+  large: 'py-3.5 px-5',
+};
+
+const variantTextClasses: Record<ButtonVariant, string> = {
+  primary: 'text-primary-foreground',
+  secondary: 'text-secondary-foreground',
+  outlined: 'text-primary',
+  text: 'text-primary',
+};
 
 export function Button({
   variant = 'primary',
@@ -29,96 +48,41 @@ export function Button({
   loading = false,
   disabled = false,
   onPress,
-  style,
-  textStyle,
+  className = '',
+  textClassName = '',
   children,
 }: ButtonProps) {
-  const buttonStyles = [
-    styles.base,
-    styles[variant],
-    styles[size],
-    disabled && styles.disabled,
-    style,
-  ];
+  const [pressed, setPressed] = useState(false);
+
+  const fadeStyle = useAnimatedStyle(() => ({
+    opacity: withSpring(pressed ? 0.6 : 1, {
+      damping: 2000,
+      stiffness: 8000,
+    }),
+  }));
 
   return (
-    <TouchableOpacity
-      style={buttonStyles}
+    <AnimatedPressable
+      style={fadeStyle}
+      className={twMerge(
+        `rounded-lg justify-center items-center ${variantClasses[variant]} ${sizeClasses[size]}${disabled ? ' opacity-60' : ''} ${className}`,
+      )}
       onPress={onPress}
       disabled={disabled || loading}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       accessibilityRole='button'
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
       {loading ? (
         <ActivityIndicator
-          color={
-            variant === 'primary' || variant === 'secondary'
-              ? '#fff'
-              : '#007BFF'
-          }
+          className={`${variant === 'primary' || variant === 'secondary' ? 'text-primary-foreground' : 'text-primary'}`}
         />
       ) : (
-        <Text
-          style={[
-            styles.text,
-            styles[`${variant}Text` as keyof typeof styles],
-            textStyle,
-          ]}
-        >
+        <Text className={twMerge(variantTextClasses[variant], textClassName)}>
           {children}
         </Text>
       )}
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  primary: {
-    backgroundColor: '#007BFF',
-  },
-  secondary: {
-    backgroundColor: '#6C757D',
-  },
-  outlined: {
-    borderWidth: 1,
-    borderColor: '#007BFF',
-    backgroundColor: 'transparent',
-  },
-  text: {
-    backgroundColor: 'transparent',
-  },
-  small: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  medium: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  large: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-  },
-  disabled: {
-    opacity: 0.6,
-  },
-  textText: {
-    color: '#007BFF',
-  },
-  primaryText: {
-    color: '#fff',
-  },
-  secondaryText: {
-    color: '#fff',
-  },
-  outlinedText: {
-    color: '#007BFF',
-  },
-});

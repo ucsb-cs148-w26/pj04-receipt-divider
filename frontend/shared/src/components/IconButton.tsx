@@ -1,4 +1,4 @@
-import { Pressable, LayoutChangeEvent, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withSpring,
@@ -6,17 +6,25 @@ import Animated, {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
+import { twMerge } from 'tailwind-merge';
+import { cssInterop } from 'nativewind';
+
+/**Usage: https://github.com/nativewind/nativewind/issues/614 */
+cssInterop(MaterialCommunityIcons, {
+  className: {
+    target: 'style',
+    nativeStyleToProp: { color: 'color', width: 'size' },
+  },
+});
 
 export type IconButtonProps = {
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
-  className?: string;
-  onPress?: () => void;
-  percentageSize?: number;
-  color?: string;
+  bgClassName?: string;
+  iconClassName?: string;
   text?: string;
-  textPercentageSize?: number;
-  textColor?: string;
+  textClassName?: string;
   pressEffect?: 'fade' | 'overlay' | 'scale';
+  onPress?: () => void;
 };
 
 export function IconButton({
@@ -24,25 +32,13 @@ export function IconButton({
    * Name of the icon from MaterialCommunityIcons. See https://icons.expo.fyi/ with the `MaterialCommunityIcons` filter turned on for available icons.
    */
   icon,
-  /**
-   * Make sure to include a size class (`size-`, `w-`/`h-`, or `width-`/`height-`). Otherwise the button won't be visible.
-   */
-  className,
-  onPress,
-  percentageSize = 60,
-  color = '#000',
+  bgClassName = '',
+  iconClassName = '',
   /**
    * Optional text to display after the icon
    */
-  text,
-  /**
-   * Font size for the text (default: matches icon size)
-   */
-  textPercentageSize,
-  /**
-   * Color for the text (default: matches icon color)
-   */
-  textColor,
+  text = '',
+  textClassName = '',
   /**
    * `fade`: reduces opacity to 60% when pressed
    *
@@ -50,9 +46,9 @@ export function IconButton({
    *
    * `scale`: scales down the button to 92% when pressed
    */
-  pressEffect,
+  pressEffect = 'fade',
+  onPress,
 }: IconButtonProps) {
-  const [containerWidth, setContainerWidth] = useState(0);
   const [pressed, setPressed] = useState(false);
 
   const fadeStyle = useAnimatedStyle(() => ({
@@ -78,18 +74,8 @@ export function IconButton({
     ],
   }));
 
-  const handleLayout = (event: LayoutChangeEvent) => {
-    setContainerWidth(event.nativeEvent.layout.width);
-  };
-
-  const iconSize = (containerWidth * percentageSize) / 100;
-  const textSize =
-    textPercentageSize !== undefined
-      ? (containerWidth * textPercentageSize) / 100
-      : iconSize;
-
   // Extract rounded class from className, or default to 'rounded-full'
-  const roundedClass = className?.match(/rounded-\S+/)?.[0] || 'rounded-full';
+  const roundedClass = bgClassName?.match(/rounded-\S+/)?.[0] || 'rounded-full';
 
   return (
     <Animated.View
@@ -102,26 +88,34 @@ export function IconButton({
       }
     >
       <Pressable
-        className={
-          `flex-row items-center justify-center rounded-full shadow-md shadow-black/15 ` +
-          className
-        }
-        onLayout={handleLayout}
+        className={twMerge(
+          `flex-row items-center justify-center rounded-full shadow-md shadow-black/15 size-[12vw] bg-card`,
+          bgClassName,
+        )}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
         onPress={onPress}
       >
         <Animated.View
           style={pressEffect === 'overlay' ? overlayStyle : undefined}
-          className={
+          className={twMerge(
             pressEffect === 'overlay'
               ? `bg-gray-500 absolute inset-0 ${roundedClass}`
-              : ''
-          }
+              : '',
+          )}
         ></Animated.View>
-        <MaterialCommunityIcons name={icon} size={iconSize} color={color} />
+        <MaterialCommunityIcons
+          name={icon}
+          className={twMerge(
+            'text-muted-foreground size-[7.2vw] ' + iconClassName,
+          )}
+        />
         {text && (
-          <Text style={{ fontSize: textSize, color: textColor || color }}>
+          <Text
+            className={twMerge(
+              `ml-2 text-[7.2vw] text-foreground ${textClassName}`,
+            )}
+          >
             {text}
           </Text>
         )}
@@ -132,7 +126,7 @@ export function IconButton({
 
 export type DefaultDefaultButtonProps = {
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
-  percentageSize?: number;
+  iconClassName?: string;
   onPress?: () => void;
 };
 export type DefaultButtonProps = {
@@ -140,15 +134,13 @@ export type DefaultButtonProps = {
 };
 
 export class DefaultButtons {
-  static Default({ icon, percentageSize, onPress }: DefaultDefaultButtonProps) {
+  static Default({ icon, iconClassName, onPress }: DefaultDefaultButtonProps) {
     return (
       <IconButton
         icon={icon}
-        percentageSize={percentageSize || 60}
-        color='#848484'
         pressEffect='overlay'
         onPress={onPress}
-        className='bg-white size-[12vw]'
+        iconClassName={iconClassName}
       />
     );
   }
@@ -158,11 +150,8 @@ export class DefaultButtons {
       <View className='absolute top-[6vh] right-[4vw]'>
         <IconButton
           icon='cog-outline'
-          percentageSize={60}
-          color='#848484'
           pressEffect='overlay'
           onPress={onPress}
-          className='bg-white size-[12vw]'
         />
       </View>
     );
@@ -171,14 +160,7 @@ export class DefaultButtons {
   static Close({ onPress }: DefaultButtonProps) {
     return (
       <View className='absolute top-[6vh] left-[4vw]'>
-        <IconButton
-          icon='close'
-          percentageSize={60}
-          color='#848484'
-          pressEffect='overlay'
-          onPress={onPress}
-          className='bg-white size-[12vw]'
-        />
+        <IconButton icon='close' pressEffect='overlay' onPress={onPress} />
       </View>
     );
   }
