@@ -53,17 +53,17 @@
 | Wed 02/17   | Leifeng           | Scribe for Lec11 Scrum                            | 
 | Fri 02/19   | Mason             | Scribe for LAB07 Scrum                            | 
 | **Week 8**  |                   |                                                   | 
-|             | TBA               | Code/PR reviewer for the week                     | 
+|             | Everyone          | Code/PR reviewer for the week                     | 
 | Mon 02/22   | N/A               | Scribe for Lec12 Scrum                            | 
 | Wed 02/24   | N/A               | Scribe for Lec13 Scrum                            | 
-| Fri 02/26   | TBA               | Scribe for Lab08 Scrum                            | 
+| Fri 02/26   | Leifeng           | Scribe for Lab08 Scrum                            | 
 | **Week 9**  |                   |                                                   | 
-|             | TBA               | Code/PR reviewer for the week                     | 
+|             | Everyone          | Code/PR reviewer for the week                     | 
 | Mon 03/2    | TBA               | Scribe for Lec14 Scrum                            | 
 | Wed 03/4    | TBA               | Scribe for Lec15 Scrum                            | 
 | Fri 03/6    | TBA               | Scribe for Lab09 Scrum                            | 
 | **Week 10** |                   |                                                   | 
-|             | TBA               | Code/PR reviewer for the week                     | 
+|             | Everyone          | Code/PR reviewer for the week                     | 
 | Mon 03/9    | TBA               | Scribe for Lec16 Scrum                            | 
 | Wed 03/11   | TBA               | Scribe for Lec17 Scrum                            | 
 | Fri 03/13   | TBA               | Scribe for Lab10 Scrum                            | 
