@@ -37,7 +37,7 @@ const sizeClasses: Record<ButtonSize, string> = {
 
 const variantTextClasses: Record<ButtonVariant, string> = {
   primary: 'text-primary-foreground',
-  secondary: 'text-primary-foreground',
+  secondary: 'text-secondary-foreground',
   outlined: 'text-primary',
   text: 'text-primary',
 };
