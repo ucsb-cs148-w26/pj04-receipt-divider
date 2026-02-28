@@ -1,7 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
 import { View, Text } from 'react-native';
-import { Button, DefaultButtons } from '@eezy-receipt/shared';
+import { DefaultButtons } from '@eezy-receipt/shared';
 import QRCode from 'react-native-qrcode-svg';
 
 export default function QRScreen() {

@@ -1,13 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import {
-  Modal,
-  ActivityIndicator,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Modal, ActivityIndicator, Text, View } from 'react-native';
 import { File } from 'expo-file-system';
 import { Button } from '@eezy-receipt/shared';
 

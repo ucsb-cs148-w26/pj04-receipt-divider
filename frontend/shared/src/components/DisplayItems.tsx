@@ -1,8 +1,6 @@
-import React from 'react';
 import { Text, View } from 'react-native';
 
 export interface DisplayClaimedReceiptItemProps {
-  id: string;
   name: string;
   price: string;
   discount?: string; // Optional discount amount
@@ -10,7 +8,6 @@ export interface DisplayClaimedReceiptItemProps {
 }
 
 export function DisplayItems({
-  id,
   name,
   price,
   discount,
