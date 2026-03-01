@@ -1,13 +1,10 @@
 import { router } from 'expo-router';
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '@react-navigation/native';
+import { View, Text } from 'react-native';
 import { useReceiptItems } from '@/providers';
 import { Button } from '@eezy-receipt/shared';
 
 export default function CloseConfirmationScreen() {
-  const { colors } = useTheme();
-  const styles = createStyles(colors);
   const receiptItems = useReceiptItems();
 
   const handleCancel = () => {
@@ -25,21 +22,20 @@ export default function CloseConfirmationScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Close Room?</Text>
-        <Text style={styles.message}>
+    <View className='bg-muted-background flex-1 justify-center items-center p-5'>
+      <View className='bg-card rounded-2xl p-6 w-full max-w-[400px] shadow-lg'>
+        <Text className='text-card-foreground text-2xl font-bold mb-3 text-center'>
+          Close Room?
+        </Text>
+        <Text className='text-card-foreground text-base mb-6 text-center leading-[22px]'>
           Are you sure you want to close this room?
         </Text>
 
-        <View style={styles.buttonContainer}>
-          <Button variant='outlined' style={{ flex: 1 }} onPress={handleCancel}>
+        <View className='flex-row gap-3'>
+          <Button variant='outlined' className='flex-1' onPress={handleCancel}>
             Cancel
           </Button>
-          <Button
-            style={[{ flex: 1 }, styles.confirmButton]}
-            onPress={handleConfirm}
-          >
+          <Button className='flex-1 bg-destructive' onPress={handleConfirm}>
             Close Room
           </Button>
         </View>
@@ -47,79 +43,3 @@ export default function CloseConfirmationScreen() {
     </View>
   );
 }
-
-interface ThemeColors {
-  primary: string;
-  background: string;
-  card: string;
-  text: string;
-  border: string;
-  notification: string;
-}
-
-const createStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-    },
-    card: {
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      padding: 24,
-      width: '100%',
-      maxWidth: 400,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 8,
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: colors.text,
-      marginBottom: 12,
-      textAlign: 'center',
-    },
-    message: {
-      fontSize: 16,
-      color: colors.text,
-      marginBottom: 24,
-      textAlign: 'center',
-      lineHeight: 22,
-    },
-    buttonContainer: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    button: {
-      flex: 1,
-      paddingVertical: 14,
-      paddingHorizontal: 20,
-      borderRadius: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    cancelButton: {
-      backgroundColor: colors.card,
-      borderWidth: 2,
-      borderColor: colors.border,
-    },
-    cancelButtonText: {
-      color: colors.text,
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    confirmButton: {
-      backgroundColor: '#FF3B30',
-    },
-    confirmButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '600',
-    },
-  });
