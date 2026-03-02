@@ -1,9 +1,21 @@
-// TODO: implement join page
-// - if no id in query params (?id=<groupId>), show "Scan a QR code to join a session"
-// - if id present, call endpoint /group/join with Bearer token
-// - on success, redirect to /group/:roomId
-// - show error state if join fails
+import { useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router';
+import { useAuth } from '../providers/AuthContext';
 
 export default function JoinPage() {
-  return <p>JoinPage</p>;
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { isLoading } = useAuth();
+  const roomId = searchParams.get('roomId');
+
+  useEffect(() => {
+    if (!roomId || isLoading) return;
+
+    // TODO: call GET /group/join?group_id=<roomId> with Bearer token before navigating
+    // TODO: error states
+    navigate(`/group/${roomId}`);
+  }, [roomId, isLoading, navigate]);
+
+  if (!roomId) return <p>Scan a QR code to join a group.</p>;
+  return <p>Joining group...</p>;
 }

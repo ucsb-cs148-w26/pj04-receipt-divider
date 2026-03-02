@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@eezy-receipt/shared": "*",
+    "@supabase/supabase-js": "^2.98.0",
     "@tailwindcss/vite": "^4.1.18",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

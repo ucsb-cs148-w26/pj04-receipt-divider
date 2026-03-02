@@ -14,7 +14,9 @@ export default function QRScreen() {
   const qrRef = useRef<QRCode>(null);
 
   // The URL encoded in the QR code
-  const qrData = `helloworld://Receipt_Room_Page?roomId=${roomId}`;
+  // TODO: currently using local web,
+  // will need change to vercel deployment
+  const qrData = `http://localhost:5173/join?roomId=${roomId}`;
 
   async function handleShareQRImage() {
     try {
