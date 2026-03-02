@@ -2,8 +2,19 @@ import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import { View, ScrollView, LayoutRectangle, Animated } from 'react-native';
+import {
+  View,
+  ScrollView,
+  LayoutRectangle,
+  Animated,
+  Modal,
+  ActivityIndicator,
+  Text,
+} from 'react-native';
 import { IconButton, DefaultButtons } from '@eezy-receipt/shared';
+import * as ImagePicker from 'expo-image-picker';
+import { File } from 'expo-file-system';
+import { extractItems as extractReceiptItems } from '@/services/ocr';
 import { Participant } from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
@@ -52,6 +63,25 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Quick Actions State ---------------- */
   const [showQuickActions, setShowQuickActions] = useState(false);
+
+  /**---------------- Add Photo ---------------- */
+  const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
+
+  const addPhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') return;
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+    });
+    if (!result.canceled) {
+      const imageBase64 = await new File(result.assets[0].uri).base64();
+      setIsLoadingPhoto(true);
+      const newItems = await extractReceiptItems(imageBase64);
+      receiptItems.setItems([...receiptItems.items, ...newItems]);
+      setIsLoadingPhoto(false);
+    }
+  };
 
   /**---------------- Participants Functions ---------------- */
   const addParticipant = () => {
@@ -357,6 +387,11 @@ export default function ReceiptRoomScreen() {
           onPress={addParticipant}
           pressEffect='scale'
         />
+        <IconButton
+          icon='camera-plus'
+          pressEffect='overlay'
+          onPress={addPhoto}
+        />
         <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
         <DefaultButtons.Close
           onPress={() => router.push('/close-confirmation')}
@@ -406,6 +441,22 @@ export default function ReceiptRoomScreen() {
           />
         </View>
       </View>
+
+      <Modal
+        transparent
+        animationType='fade'
+        visible={isLoadingPhoto}
+        statusBarTranslucent
+      >
+        <View className='flex-1 justify-center items-center bg-black/50'>
+          <View className='bg-surface-elevated p-6 rounded-xl items-center'>
+            <ActivityIndicator size='large' color='#007aff' />
+            <Text className='mt-4 text-lg font-medium text-gray-700'>
+              Loading...
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
