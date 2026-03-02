@@ -50,6 +50,9 @@ export default function ReceiptRoomScreen() {
   /**---------------- Text Focus State ---------------- */
   const [isAnyTextFocused, setIsAnyTextFocused] = useState(false);
 
+  /**---------------- Quick Actions State ---------------- */
+  const [showQuickActions, setShowQuickActions] = useState(false);
+
   /**---------------- Participants Functions ---------------- */
   const addParticipant = () => {
     if (participants.length >= 10) {
@@ -57,12 +60,8 @@ export default function ReceiptRoomScreen() {
     }
     const maxID =
       participants.length > 0 ? Math.max(...participants.map((p) => p.id)) : 0;
-
     const newID = maxID + 1;
-
-    const newParticipant = {
-      id: newID,
-    };
+    const newParticipant = { id: newID };
     setParticipants([...participants, newParticipant]);
   };
 
@@ -128,6 +127,35 @@ export default function ReceiptRoomScreen() {
     // Otherwise create new room ID for this receipt session
     return Math.random().toString(36).substring(2, 9);
   });
+
+  /**---------------- Quick Actions Functions ---------------- */
+  const claimFirstItemForAll = () => {
+    if (receiptItems.items.length === 0 || participants.length === 0) return;
+    receiptItems.setItems((prevItems) =>
+      prevItems.map((item, index) =>
+        index === 0
+          ? {
+              ...item,
+              userTags: [
+                ...new Set([
+                  ...(item.userTags || []),
+                  ...participants.map((p) => p.id),
+                ]),
+              ],
+            }
+          : item,
+      ),
+    );
+  };
+
+  const unclaimFirstItemForAll = () => {
+    if (receiptItems.items.length === 0) return;
+    receiptItems.setItems((prevItems) =>
+      prevItems.map((item, index) =>
+        index === 0 ? { ...item, userTags: [] } : item,
+      ),
+    );
+  };
 
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
@@ -228,10 +256,6 @@ export default function ReceiptRoomScreen() {
           showsHorizontalScrollIndicator={false}
           onScrollEndDrag={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
-            console.log(
-              'Participants scroll offset:',
-              event.nativeEvent.contentOffset.x,
-            );
           }}
           onMomentumScrollEnd={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
@@ -333,14 +357,54 @@ export default function ReceiptRoomScreen() {
           onPress={addParticipant}
           pressEffect='scale'
         />
-        <DefaultButtons.Default
-          icon='account-multiple-plus'
-          onPress={() => router.push(`/qr?roomId=${roomId}`)}
-        />
         <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
         <DefaultButtons.Close
           onPress={() => router.push('/close-confirmation')}
         />
+        {/* QR Code Button - to the right of Close button */}
+        <View className='absolute top-[6vh] left-[20vw] z-10'>
+          <IconButton
+            icon='account-multiple-plus'
+            pressEffect='overlay'
+            onPress={() => router.push(`/qr?roomId=${roomId}`)}
+          />
+        </View>
+        {/* Quick Actions Toggle Button - to the left of Settings button */}
+        <View className='absolute top-[6vh] right-[20vw] z-10'>
+          {showQuickActions && (
+            <View className='absolute bottom-[110%] right-0 bg-background border border-border-strong rounded-lg shadow-md p-2 gap-2 w-[48vw] z-20'>
+              <IconButton
+                icon='check-all'
+                bgClassName='rounded-lg border border-border-strong bg-background w-full py-2'
+                iconClassName='size-[4vw] text-foreground'
+                text='Claim for all'
+                textClassName='text-foreground text-[3.5vw]'
+                pressEffect='fade'
+                onPress={() => {
+                  claimFirstItemForAll();
+                  setShowQuickActions(false);
+                }}
+              />
+              <IconButton
+                icon='close-circle-outline'
+                bgClassName='rounded-lg border border-border-strong bg-background w-full py-2'
+                iconClassName='size-[4vw] text-foreground'
+                text='Unclaim for all'
+                textClassName='text-foreground text-[3.5vw]'
+                pressEffect='fade'
+                onPress={() => {
+                  unclaimFirstItemForAll();
+                  setShowQuickActions(false);
+                }}
+              />
+            </View>
+          )}
+          <IconButton
+            icon='dots-horizontal'
+            pressEffect='overlay'
+            onPress={() => setShowQuickActions((prev) => !prev)}
+          />
+        </View>
       </View>
     </View>
   );

@@ -1,9 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React from 'react';
-import { View, ScrollView, Text } from 'react-native';
+import React, { useState } from 'react';
+import { View, ScrollView, Text, Pressable } from 'react-native';
 import { DefaultButtons } from '@eezy-receipt/shared';
 import { ReceiptItemData } from '@shared/types';
 import { DisplayItems } from '@shared/components/DisplayItems';
+import { useReceiptItems } from '@/providers';
 
 export type YourItemsRoomParams = {
   roomId: string;
@@ -14,12 +15,16 @@ export type YourItemsRoomParams = {
 export default function YourItemScreen() {
   const params = useLocalSearchParams<YourItemsRoomParams>();
   const participantId = parseInt(params.participantId);
-  const receiptItems = JSON.parse(params.items) as ReceiptItemData[];
+  const receiptItemsContext = useReceiptItems();
+
+  const [localItems, setLocalItems] = useState<ReceiptItemData[]>(
+    JSON.parse(params.items) as ReceiptItemData[],
+  );
+
   let totalSum = 0;
 
-  function calculatePrices() {
-    // Logic to calculate prices for the participant// Distributes item prices amongst by the number of users who claimed them and calculates total
-    receiptItems.forEach((item) => {
+  function calculatePrices(items: ReceiptItemData[]) {
+    items.forEach((item) => {
       const itemPrice = isNaN(parseFloat(item.price))
         ? 0
         : parseFloat(item.price);
@@ -57,24 +62,51 @@ export default function YourItemScreen() {
       }
     });
   }
-  calculatePrices();
+
+  // Calculate on a copy so we don't mutate localItems state directly
+  const displayItems = localItems.map((item) => ({ ...item }));
+  calculatePrices(displayItems);
+
+  const removeItem = (itemId: string) => {
+    receiptItemsContext.setItems((prevItems) =>
+      prevItems.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              userTags: item.userTags?.filter((tag) => tag !== participantId),
+            }
+          : item,
+      ),
+    );
+    setLocalItems((prev) => prev.filter((item) => item.id !== itemId));
+  };
 
   return (
     <View className='bg-background size-full'>
       <View className='-bottom-[14vh] h-[88vh] w-full'>
         <ScrollView contentContainerClassName='items-center px-5 gap-[10px]'>
-          {receiptItems.map((item) => (
-            <DisplayItems
-              key={item.id}
-              name={item.name}
-              price={item.price}
-              discount={item.discount}
-              percentage={
-                item.userTags && item.userTags.length > 0
-                  ? 100 / item.userTags.length
-                  : 100
-              }
-            />
+          {displayItems.map((item) => (
+            <View key={item.id} className='flex-row items-center w-full gap-2'>
+              <Pressable
+                onPress={() => removeItem(item.id)}
+                className='p-2'
+                accessibilityLabel='Remove item'
+              >
+                <Text className='text-destructive text-xl font-bold'>✕</Text>
+              </Pressable>
+              <View className='flex-1'>
+                <DisplayItems
+                  name={item.name}
+                  price={item.price}
+                  discount={item.discount}
+                  percentage={
+                    item.userTags && item.userTags.length > 0
+                      ? 100 / item.userTags.length
+                      : 100
+                  }
+                />
+              </View>
+            </View>
           ))}
         </ScrollView>
 
