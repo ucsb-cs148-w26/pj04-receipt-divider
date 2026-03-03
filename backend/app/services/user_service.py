@@ -21,7 +21,7 @@ class UserService:
         group = self.db.get(Group, group_id)
         if group is None:
             raise HTTPException(
-                status_codes=status.HTTP_404_NOT_FOUND, detail="Group not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
             )
 
         return str(group.created_by) == host_user_id
@@ -30,9 +30,17 @@ class UserService:
         item = self.db.get(Item, item_id)
         if item is None:
             raise HTTPException(
-                status_codes=status.HTTP_404_NOT_FOUND, detail="Item not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
             )
         return self._is_host(host_user_id, item.group_id)
+
+    def _is_host_of_receipt(self, host_user_id: str, receipt_id: str) -> bool:
+        recepit = self.db.get(Receipt, receipt_id)
+        if recepit is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
+            )
+        return self._is_host(host_user_id, recepit.group_id)
 
     def create_group(self, user_id: str, name: str) -> str:
         group = Group(created_by=user_id, name=name)
@@ -125,7 +133,7 @@ class UserService:
         file_path = f"{group_id}/{uuid.uuid4()}.{image_ext}"
 
         try:
-            response = self.supabse.storage.from_(settings.receipt_image_bucket).upload(
+            _ = self.supabse.storage.from_(settings.receipt_image_bucket).upload(
                 file=image_bytes, path=file_path
             )
         except Exception as e:
@@ -147,6 +155,7 @@ class UserService:
             for _ in range(extracted_item.quantity):
                 item = Item(
                     receipt_id=receipt_id,
+                    group_id=group_id,
                     name=extracted_item.name,
                     unit_price=float(extracted_item.price.replace("$", "")),
                     amount=1,
@@ -154,7 +163,11 @@ class UserService:
                 self.db.add(item)
 
         receipt = Receipt(
-            id=receipt_id, image=image_url, total=total_price, created_by=user_id
+            id=receipt_id,
+            group_id=group_id,
+            image=image_url,
+            total=total_price,
+            created_by=user_id,
         )
         self.db.add(receipt)
 
@@ -167,7 +180,7 @@ class UserService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Receipt not found"
             )
 
-        if str(receipt.created_by) != user_id and not self._is_host_of_item(
+        if str(receipt.created_by) != user_id and not self._is_host_of_receipt(
             user_id, receipt_id
         ):
             raise HTTPException(
@@ -238,7 +251,7 @@ class UserService:
     def assign_item(self, host_user_id: str, guest_user_id: str, item_id: str) -> None:
         if not self._is_host_of_item(host_user_id, item_id):
             raise HTTPException(
-                status_codes=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only host can assign items",
             )
 
@@ -249,7 +262,7 @@ class UserService:
     ) -> None:
         if not self._is_host_of_item(host_user_id, item_id):
             raise HTTPException(
-                status_codes=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only host can unassign items",
             )
 

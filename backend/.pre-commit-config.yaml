@@ -24,4 +24,5 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
+        exclude: ^backend/tests
       - id: ruff-format

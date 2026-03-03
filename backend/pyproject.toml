@@ -9,10 +9,10 @@ dependencies = [
     "google-cloud-vision>=3.12.1",
     "openai>=2.21.0",
     "python-dotenv>=1.2.1",
-    "psycopg2-binary>=2.9.11",
     "pydantic-settings>=2.12.0",
     "sqlalchemy>=2.0.46",
     "supabase>=2.28.0",
+    "psycopg[binary]>=3.3.3",
 ]
 
 [dependency-groups]
@@ -21,6 +21,7 @@ dev = [
     "poethepoet>=0.42.1",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",
+    "pytest-postgresql>=8.0.0",
     "ruff>=0.15.4",
 ]
 
@@ -38,3 +39,7 @@ indent-style = "space"
 skip-magic-trailing-comma = true
 line-ending = "auto"
 docstring-code-format=true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
