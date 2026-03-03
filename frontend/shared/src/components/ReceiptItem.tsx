@@ -1,12 +1,9 @@
-import { useTheme } from '@react-navigation/native';
-import { useMemo, useState, useRef, useCallback } from 'react';
-import { NativeThemeColorType } from '@shared/types/native-theme';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Pressable,
   Animated,
   LayoutRectangle,
@@ -19,19 +16,6 @@ import {
 
 import { ReceiptItemData } from '@shared/types';
 import { UserTag } from '@shared/components/UserTag';
-
-export const USER_COLORS = [
-  '#60a5fa', // blue-400
-  '#f87171', // red-400
-  '#4ade80', // green-400
-  '#fbbf24', // yellow-400
-  '#a78bfa', // purple-400
-  '#f472b6', // pink-400
-  '#818cf8', // indigo-400
-  '#fb923c', // orange-400
-  '#2dd4bf', // teal-400
-  '#22d3ee', // cyan-400
-];
 
 /** Drag-related props grouped together */
 interface DragProps {
@@ -76,7 +60,7 @@ interface ReceiptItemProps extends DragProps {
     userTags?: number[];
   }) => void;
   onDelete: () => void;
-  onRemoveFromUser: (userIndex: number) => void;
+  onRemoveFromUser: (userId: number) => void;
 
   /** Function to get current item data (for overlay to get fresh data) */
   getCurrentItemData?: () => ReceiptItemData;
@@ -110,10 +94,6 @@ export function ReceiptItem({
   isAnyTextFocused = false,
   onTextFocusChange,
 }: ReceiptItemProps) {
-  /** ---------------- Theme ---------------- */
-  const { colors, dark } = useTheme();
-  const styles = useMemo(() => createStyles(colors, dark), [colors, dark]);
-
   /** ---------------- UI State ---------------- */
   const [uiState, setUIState] = useState<UIState>({
     showDiscount: !!item.discount && parseFloat(item.discount) > 0,
@@ -345,7 +325,13 @@ export function ReceiptItem({
         <Animated.View
           ref={viewRef}
           style={[
-            isDraggingOverlay && styles.draggingOverlay,
+            isDraggingOverlay && {
+              minWidth: '100%',
+              position: 'absolute' as const,
+              zIndex: 9999,
+              elevation: 9999,
+              padding: 16,
+            },
             isDraggingOverlay &&
               initialPosition && {
                 top: initialPosition.y,
@@ -361,32 +347,34 @@ export function ReceiptItem({
           ]}
         >
           <Pressable
-            style={[styles.topContainer]}
+            className='w-full bg-surface-elevated border border-border rounded-lg p-4 pl-6 pr-6 pb-6 mb-2'
             onHoverIn={() => setIsHovering(true)}
             onHoverOut={() => setIsHovering(false)}
             onPressIn={() => setIsHovering(true)}
             onPressOut={() => setIsHovering(false)}
           >
-            <View style={styles.header}>
-              <View style={styles.leftSection}>
+            <View className='flex-row justify-between gap-2'>
+              <View className='flex-row items-start gap-3 flex-1 min-w-0'>
                 {
                   <Pressable
                     onPress={() => {
                       if (onDelete) onDelete();
                     }}
-                    style={styles.deleteButton}
+                    className='min-w-[24px] items-center mt-1'
                     accessibilityLabel='Delete item'
                   >
-                    <Text style={styles.deleteIcon}>✕</Text>
+                    <Text className='text-destructive text-xl font-bold'>
+                      ✕
+                    </Text>
                   </Pressable>
                 }
-                <View style={styles.nameContainer}>
+                <View className='flex-1 min-w-0'>
                   {
                     <TextInput
                       value={item.name}
                       onChangeText={(text) => onUpdate({ name: text })}
                       placeholder='Item name'
-                      style={styles.nameInput}
+                      className='rounded bg-background p-2 text-foreground'
                       onFocus={() => {
                         onTextFocusChange?.(true);
                         console.log('Name input focused');
@@ -400,17 +388,17 @@ export function ReceiptItem({
                 </View>
               </View>
 
-              <View style={styles.rightSection}>
+              <View className='flex-col items-end gap-2'>
                 {/* Price */}
-                <View style={styles.priceContainer}>
+                <View className='flex-row items-center gap-1'>
                   {
-                    <View style={styles.priceInputContainer}>
-                      <Text style={styles.dollarSign}>$</Text>
+                    <View className='flex-row items-center'>
+                      <Text className='text-foreground font-bold'>$</Text>
                       <TextInput
                         value={item.price}
                         onChangeText={handlePriceChange}
                         placeholder='0.00'
-                        style={styles.priceInput}
+                        className='w-20 bg-background rounded p-2 text-foreground font-bold text-right'
                         keyboardType='numeric'
                         onFocus={() => onTextFocusChange?.(true)}
                         onBlur={() => onTextFocusChange?.(false)}
@@ -421,9 +409,9 @@ export function ReceiptItem({
 
                 {/* Discount section - right justified */}
                 {uiState.showDiscount ? (
-                  <View style={styles.discountContainer}>
-                    <Text style={styles.discountLabel}>Discount:</Text>
-                    <Text style={styles.discountDollar}>$</Text>
+                  <View className='flex-row items-center justify-end gap-1'>
+                    <Text className='text-xs text-foreground'>Discount:</Text>
+                    <Text className='text-foreground text-sm'>$</Text>
                     <TextInput
                       value={item.discount || ''}
                       onChangeText={handleDiscountChange}
@@ -433,17 +421,17 @@ export function ReceiptItem({
                         onTextFocusChange?.(false);
                       }}
                       placeholder='0.00'
-                      style={styles.discountInput}
+                      className='w-16 bg-background rounded p-2 text-foreground text-sm text-right'
                       keyboardType='numeric'
                     />
                   </View>
                 ) : (
                   <TouchableOpacity
                     onPress={() => setShowDiscount(true)}
-                    style={styles.addDiscountButton}
+                    className='flex-row gap-1 p-2 rounded self-end ml-auto items-end justify-end min-w-[130px]'
                     accessibilityLabel='Add discount'
                   >
-                    <Text style={styles.addDiscountText}>+ Discount</Text>
+                    <Text className='text-xs text-primary'>+ Discount</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -451,19 +439,16 @@ export function ReceiptItem({
 
             {/* User tags - positioned at bottom extending below box */}
             {sortedUserTags.length > 0 && (
-              <View style={styles.userTagsContainer}>
-                {sortedUserTags.map((userIndex) => {
-                  const color =
-                    USER_COLORS[(userIndex - 1) % USER_COLORS.length];
+              <View className='absolute -bottom-3 left-4 right-4 flex-row flex-wrap gap-2 z-10'>
+                {sortedUserTags.map((userId) => {
                   const isNewlyAdded =
-                    uiState.newlyAddedTags.has(userIndex) &&
-                    (item.userTags?.includes(userIndex) ?? false);
+                    uiState.newlyAddedTags.has(userId) &&
+                    (item.userTags?.includes(userId) ?? false);
                   return (
                     <UserTag
-                      key={userIndex}
-                      userIndex={userIndex}
-                      color={color}
-                      onRemove={() => onRemoveFromUser?.(userIndex)}
+                      key={userId}
+                      id={userId}
+                      onRemove={() => onRemoveFromUser?.(userId)}
                       isNewlyAdded={isNewlyAdded}
                     />
                   );
@@ -476,171 +461,3 @@ export function ReceiptItem({
     </GestureHandlerRootView>
   );
 }
-
-const createStyles = (colors: NativeThemeColorType, dark: boolean) =>
-  StyleSheet.create({
-    draggingOverlay: {
-      minWidth: '100%',
-      position: 'absolute',
-      zIndex: 9999,
-      elevation: 9999,
-      padding: 16,
-    },
-    topContainer: {
-      minWidth: '100%',
-      backgroundColor: colors.card,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 16,
-      paddingLeft: 24,
-      paddingRight: 24,
-      paddingBottom: 24,
-      marginBottom: 8,
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      gap: 8,
-    },
-    leftSection: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
-      flex: 1,
-      minWidth: 0,
-    },
-    deleteButton: {
-      minWidth: 24,
-      alignItems: 'center',
-      marginTop: 4,
-    },
-    deleteIcon: {
-      color: dark ? '#873030' : '#d42e2e',
-      fontSize: 20,
-      fontWeight: 'bold',
-    },
-    gripIcon: {
-      color: colors.text,
-      fontSize: 20,
-    },
-    nameContainer: {
-      flex: 1,
-      minWidth: 0,
-    },
-    nameInput: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 4,
-      padding: 8,
-      color: colors.text,
-    },
-    nameText: {
-      color: colors.text,
-    },
-    rightSection: {
-      flexDirection: 'column',
-      alignItems: 'flex-end',
-      gap: 8,
-    },
-    priceContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-    },
-    priceInputContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    dollarSign: {
-      color: colors.text,
-      fontWeight: 'bold',
-    },
-    priceInput: {
-      width: 80,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 4,
-      padding: 8,
-      color: colors.text,
-      fontWeight: 'bold',
-      textAlign: 'right',
-    },
-    priceText: {
-      color: colors.text,
-      fontWeight: 'bold',
-    },
-    discountContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'flex-end',
-      gap: 4,
-    },
-    discountLabel: {
-      fontSize: 12,
-      color: colors.text,
-    },
-    discountDollar: {
-      color: colors.text,
-      fontSize: 14,
-    },
-    discountInput: {
-      width: 64,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 4,
-      padding: 8,
-      color: colors.text,
-      fontSize: 14,
-      textAlign: 'right',
-    },
-    addDiscountButton: {
-      minWidth: 130,
-      flexDirection: 'row',
-      gap: 4,
-      padding: 8,
-      borderRadius: 4,
-      alignSelf: 'flex-end',
-      marginLeft: 'auto',
-      alignItems: 'flex-end',
-      justifyContent: 'flex-end',
-    },
-    addDiscountText: {
-      fontSize: 12,
-      color: '#2563eb',
-    },
-    userTagsContainer: {
-      position: 'absolute',
-      bottom: -12,
-      left: 16,
-      right: 16,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      zIndex: 10,
-    },
-    userTag: {
-      width: 40,
-      height: 40,
-      borderRadius: 8,
-      justifyContent: 'center',
-      alignItems: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    userTagNew: {
-      transform: [{ scale: 1.1 }],
-    },
-    userTagRemove: {
-      color: colors.text,
-      fontSize: 16,
-      fontWeight: 'bold',
-    },
-    userTagText: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: 'bold',
-    },
-  });

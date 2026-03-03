@@ -1,10 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, Text } from 'react-native';
-import { Button } from '@eezy-receipt/shared';
-import { ReceiptItem } from '@shared/components/ReceiptItem';
+import { View, ScrollView, Text, Pressable } from 'react-native';
+import { DefaultButtons } from '@eezy-receipt/shared';
 import { ReceiptItemData } from '@shared/types';
 import { DisplayItems } from '@shared/components/DisplayItems';
+import { useReceiptItems } from '@/providers';
 
 export type YourItemsRoomParams = {
   roomId: string;
@@ -15,12 +15,16 @@ export type YourItemsRoomParams = {
 export default function YourItemScreen() {
   const params = useLocalSearchParams<YourItemsRoomParams>();
   const participantId = parseInt(params.participantId);
-  const receiptItems = JSON.parse(params.items) as ReceiptItemData[];
+  const receiptItemsContext = useReceiptItems();
+
+  const [localItems, setLocalItems] = useState<ReceiptItemData[]>(
+    JSON.parse(params.items) as ReceiptItemData[],
+  );
+
   let totalSum = 0;
 
-  function calculatePrices() {
-    // Logic to calculate prices for the participant// Distributes item prices amongst by the number of users who claimed them and calculates total
-    receiptItems.forEach((item) => {
+  function calculatePrices(items: ReceiptItemData[]) {
+    items.forEach((item) => {
       const itemPrice = isNaN(parseFloat(item.price))
         ? 0
         : parseFloat(item.price);
@@ -58,88 +62,62 @@ export default function YourItemScreen() {
       }
     });
   }
-  calculatePrices();
+
+  // Calculate on a copy so we don't mutate localItems state directly
+  const displayItems = localItems.map((item) => ({ ...item }));
+  calculatePrices(displayItems);
+
+  const removeItem = (itemId: string) => {
+    receiptItemsContext.setItems((prevItems) =>
+      prevItems.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              userTags: item.userTags?.filter((tag) => tag !== participantId),
+            }
+          : item,
+      ),
+    );
+    setLocalItems((prev) => prev.filter((item) => item.id !== itemId));
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.backButtonContainer}>
-        <Button variant='outlined' onPress={() => router.back()}>
-          Back
-        </Button>
-      </View>
-
-      <View style={styles.scrollContainer}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {receiptItems.map((item) => (
-            <DisplayItems
-              key={item.id}
-              id={item.id}
-              name={item.name}
-              price={item.price}
-              discount={item.discount}
-              percentage={
-                item.userTags && item.userTags.length > 0
-                  ? 100 / item.userTags.length
-                  : 100
-              }
-            />
+    <View className='bg-background size-full'>
+      <View className='-bottom-[14vh] h-[88vh] w-full'>
+        <ScrollView contentContainerClassName='items-center px-5 gap-[10px]'>
+          {displayItems.map((item) => (
+            <View key={item.id} className='flex-row items-center w-full gap-2'>
+              <Pressable
+                onPress={() => removeItem(item.id)}
+                className='p-2'
+                accessibilityLabel='Remove item'
+              >
+                <Text className='text-destructive text-xl font-bold'>✕</Text>
+              </Pressable>
+              <View className='flex-1'>
+                <DisplayItems
+                  name={item.name}
+                  price={item.price}
+                  discount={item.discount}
+                  percentage={
+                    item.userTags && item.userTags.length > 0
+                      ? 100 / item.userTags.length
+                      : 100
+                  }
+                />
+              </View>
+            </View>
           ))}
         </ScrollView>
 
-        <View style={styles.sumContainer}>
-          <Text style={styles.sumContainerTextTotal}>Total</Text>
-          <Text style={styles.sumContainerText}>${totalSum.toFixed(2)}</Text>
+        <View className='border-t border-border w-full h-[14vh] flex-row justify-between items-center px-5 pb-[5vh] mt-2'>
+          <Text className='text-foreground text-xl font-bold'>Subtotal</Text>
+          <Text className='text-foreground text-xl font-bold'>
+            ${totalSum.toFixed(2)}
+          </Text>
         </View>
       </View>
+      <DefaultButtons.Close onPress={() => router.back()} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    top: -10,
-  },
-  backButtonContainer: {
-    width: '100%',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    position: 'absolute',
-    top: 60,
-    left: 0,
-  },
-  scrollContainer: {
-    flex: 0.8,
-    bottom: -10,
-  },
-  scrollContent: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  sumContainer: {
-    color: 'rgb(255, 255, 255)',
-    borderColor: 'rgba(0,0,0,.25)',
-    borderTopWidth: 1,
-    paddingTop: 10,
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    bottom: -30,
-    marginTop: 8,
-  },
-  sumContainerText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'black',
-  },
-  sumContainerTextTotal: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'black',
-  },
-});

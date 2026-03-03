@@ -1,6 +1,5 @@
 import os
 import re
-import uuid
 import json
 from typing import List
 import requests
@@ -10,10 +9,9 @@ from pydantic import BaseModel
 
 
 class ReceiptItemData(BaseModel):
-    id: str
     name: str
     price: str
-    userTags: list[int] = []
+    quantity: int = 1
     discount: str = ""
 
 
@@ -30,7 +28,7 @@ class OCRService:
     def analyze_receipt(self, base64_image: str) -> List[str]:
         # Extract text from image using Google Vision
         try:
-            print(f"[OCR] Starting Google Cloud Vision API call...")
+            print("[OCR] Starting Google Cloud Vision API call...")
             print(f"[OCR] Image size: {len(base64_image)} characters")
 
             url = f"{self.google_vision_url}?key={self.google_api_key}"
@@ -69,7 +67,7 @@ class OCRService:
 
     def extract_items(self, base64_image: str) -> List[ReceiptItemData]:
         # Extract receipt items from receipt image
-        print(f"[OCR] Starting receipt extraction...")
+        print("[OCR] Starting receipt extraction...")
         text_blocks = self.analyze_receipt(base64_image)
         print(f"[OCR] Extracted {len(text_blocks)} text blocks from image")
 
@@ -87,8 +85,8 @@ class OCRService:
         prompt = (
             "Given the chunk of text identify receipt items and output them with the given format.\n"
             "# Format\n"
-            'The output as \'Results: <results>\'.For example, \'Results: [{ "name": "carrot", "price": "$2.99" }, '
-            '{ "name": "water", "price": "$1.29" }]\n'
+            'The output as \'Results: <results>\'. For example, \'Results: [{ "name": "carrot", "price": "$2.99", "quantity": 1 }, '
+            '{ "name": "water", "price": "$1.29", "quantity": 3 }]\n'
             f"Text: \n{text}"
         )
 
@@ -104,16 +102,11 @@ class OCRService:
 
         response = self.openai_client.chat.completions.create(
             model=self.openai_model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
+            messages=[{"role": "user", "content": prompt}],
             timeout=90,
         )
 
-        print(f"[OCR] OpenAI API call completed")
+        print("[OCR] OpenAI API call completed")
         return response.choices[0].message.content or ""
 
     def _transform_response(self, response: str) -> List[ReceiptItemData]:
@@ -135,10 +128,9 @@ class OCRService:
             for item in extracted_items:
                 items.append(
                     ReceiptItemData(
-                        id=str(uuid.uuid4()),
                         name=item.get("name", ""),
                         price=item.get("price", ""),
-                        userTags=[],
+                        quantity=int(item.get("quantity", 1)),
                         discount="",
                     )
                 )

@@ -75,15 +75,15 @@ jest.mock('@/providers', () => ({
     items: [],
     setItems: jest.fn(),
   })),
-}));
-
-// Mock custom components
-jest.mock('@/components/ThemedText', () => ({
-  ThemedText: () => null,
-}));
-
-jest.mock('@/components/ThemedView', () => ({
-  ThemedView: () => null,
+  useAuth: jest.fn(() => ({
+    session: null,
+    user: null,
+    isLoading: false,
+    signInWithEmail: jest.fn(),
+    signUpWithEmail: jest.fn(),
+    signInWithGoogle: jest.fn(),
+    signOut: jest.fn(),
+  })),
 }));
 
 // Mock services

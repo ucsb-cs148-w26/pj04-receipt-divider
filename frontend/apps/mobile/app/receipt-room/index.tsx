@@ -1,31 +1,14 @@
-import { useTheme } from '@react-navigation/native';
-import { ReceiptItem, USER_COLORS } from '@shared/components/ReceiptItem';
+import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  LayoutRectangle,
-  Animated,
-} from 'react-native';
-import { Button } from '@eezy-receipt/shared';
+import React, { useRef, useState } from 'react';
+import { View, ScrollView, LayoutRectangle, Animated } from 'react-native';
+import { IconButton, DefaultButtons } from '@eezy-receipt/shared';
 import { Participant } from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
 import { randomUUID } from 'expo-crypto';
 
-interface NativeThemeColorType {
-  primary: string;
-  background: string;
-  card: string;
-  text: string;
-  border: string;
-  notification: string;
-}
 export const ITEMCONTAINERPADDING = 16;
 
 interface DragState {
@@ -45,8 +28,6 @@ export type ReceiptRoomParams = {
 };
 
 export default function ReceiptRoomScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<ReceiptRoomParams>();
   const receiptItems = useReceiptItems();
 
@@ -69,16 +50,18 @@ export default function ReceiptRoomScreen() {
   /**---------------- Text Focus State ---------------- */
   const [isAnyTextFocused, setIsAnyTextFocused] = useState(false);
 
+  /**---------------- Quick Actions State ---------------- */
+  const [showQuickActions, setShowQuickActions] = useState(false);
+
   /**---------------- Participants Functions ---------------- */
   const addParticipant = () => {
+    if (participants.length >= 10) {
+      return;
+    }
     const maxID =
       participants.length > 0 ? Math.max(...participants.map((p) => p.id)) : 0;
-
     const newID = maxID + 1;
-
-    const newParticipant = {
-      id: newID,
-    };
+    const newParticipant = { id: newID };
     setParticipants([...participants, newParticipant]);
   };
 
@@ -145,6 +128,35 @@ export default function ReceiptRoomScreen() {
     return Math.random().toString(36).substring(2, 9);
   });
 
+  /**---------------- Quick Actions Functions ---------------- */
+  const claimFirstItemForAll = () => {
+    if (receiptItems.items.length === 0 || participants.length === 0) return;
+    receiptItems.setItems((prevItems) =>
+      prevItems.map((item, index) =>
+        index === 0
+          ? {
+              ...item,
+              userTags: [
+                ...new Set([
+                  ...(item.userTags || []),
+                  ...participants.map((p) => p.id),
+                ]),
+              ],
+            }
+          : item,
+      ),
+    );
+  };
+
+  const unclaimFirstItemForAll = () => {
+    if (receiptItems.items.length === 0) return;
+    receiptItems.setItems((prevItems) =>
+      prevItems.map((item, index) =>
+        index === 0 ? { ...item, userTags: [] } : item,
+      ),
+    );
+  };
+
   /**---------------- Receipt Items Functions ---------------- */
   const addReceiptItem = () => {
     const newItem: ReceiptItemData = {
@@ -172,13 +184,13 @@ export default function ReceiptRoomScreen() {
     console.log('Deleted receipt items:', receiptItems);
   };
 
-  const removeItemFromUser = (itemId: string, userIndex: number) => {
+  const removeItemFromUser = (itemId: string, userId: number) => {
     receiptItems.setItems(
       receiptItems.items.map((item) => {
         if (item.id === itemId) {
           return {
             ...item,
-            userTags: item.userTags?.filter((tag) => tag !== userIndex),
+            userTags: item.userTags?.filter((tag) => tag !== userId),
           };
         }
         return item;
@@ -188,26 +200,24 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Render ---------------- */
   return (
-    <View style={styles.container}>
-      <View style={styles.scrollArea}>
+    <View className='bg-background flex-1 pt-[60px]'>
+      <View className='flex-1'>
         {/* Middle part - scrollable receipt items */}
         <ScrollView
-          style={{
-            ...styles.itemsContainer,
-            height: editingParticipantName ? '50%' : '80%',
-          }}
-          contentContainerStyle={styles.itemsContent}
+          style={{ height: editingParticipantName ? '50%' : '80%' }}
+          className='p-4'
+          contentContainerClassName='min-w-full self-center z-[1]'
           scrollEnabled={!dragState.isDragging}
         >
-          <View style={styles.itemsList}>
+          <View className='gap-2'>
             {receiptItems.items.map((item) => (
               <ReceiptItem
                 key={item.id}
                 item={item}
                 onUpdate={(updates) => updateReceiptItem(item.id, updates)}
                 onDelete={() => deleteReceiptItem(item.id)}
-                onRemoveFromUser={(userIndex) =>
-                  removeItemFromUser(item.id, userIndex)
+                onRemoveFromUser={(userId) =>
+                  removeItemFromUser(item.id, userId)
                 }
                 participantLayouts={participantLayouts.current}
                 scrollOffset={scrollOffset}
@@ -226,30 +236,26 @@ export default function ReceiptRoomScreen() {
                 onTextFocusChange={setIsAnyTextFocused}
               />
             ))}
-
-            <TouchableOpacity
+            <IconButton
+              icon='plus'
+              bgClassName='bg-background rounded-lg shadow-none border-2 border-border-strong border-dashed w-full h-[7vh]'
+              iconClassName='size-[7vw] text-muted-foreground'
+              text='Add Receipt Item'
+              textClassName='text-muted-foreground text-[5vw]'
+              pressEffect='fade'
               onPress={addReceiptItem}
-              style={styles.addItemButton}
-              accessibilityLabel='Add receipt item'
-            >
-              <Text style={styles.addItemButtonText}>➕ Add Receipt Item</Text>
-            </TouchableOpacity>
+            />
           </View>
         </ScrollView>
 
         <ScrollView
           horizontal={true}
-          style={{
-            ...styles.participantsContainer,
-            height: editingParticipantName ? '50%' : '20%',
-          }}
-          contentContainerStyle={styles.participantsScrollContent}
+          style={{ height: editingParticipantName ? '50%' : '20%' }}
+          className='p-4'
+          contentContainerClassName='justify-start -left-[10px] gap-[10px]'
+          showsHorizontalScrollIndicator={false}
           onScrollEndDrag={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
-            console.log(
-              'Participants scroll offset:',
-              event.nativeEvent.contentOffset.x,
-            );
           }}
           onMomentumScrollEnd={(event) => {
             setScrollOffset(event.nativeEvent.contentOffset.x);
@@ -261,13 +267,10 @@ export default function ReceiptRoomScreen() {
           scrollEventThrottle={16}
         >
           {participants.map((participant) => {
-            const color =
-              USER_COLORS[(participant.id - 1) % USER_COLORS.length];
             return (
               <Participant
                 key={participant.id}
                 id={participant.id}
-                color={color}
                 changeName={(text) =>
                   changeParticipantName(participant.id, text)
                 }
@@ -310,7 +313,7 @@ export default function ReceiptRoomScreen() {
         </ScrollView>
       </View>
 
-      <View style={styles.overlayContainer}>
+      <View className='absolute inset-0' pointerEvents='box-none'>
         {/* Dragged item overlay - rendered at root level */}
         {dragState.itemId &&
           dragState.initialPosition &&
@@ -323,8 +326,8 @@ export default function ReceiptRoomScreen() {
                 updateReceiptItem(dragState.itemId!, updates)
               }
               onDelete={() => {}}
-              onRemoveFromUser={(userIndex) =>
-                removeItemFromUser(dragState.itemId!, userIndex)
+              onRemoveFromUser={(userId) =>
+                removeItemFromUser(dragState.itemId!, userId)
               }
               participantLayouts={participantLayouts.current}
               scrollOffset={scrollOffset}
@@ -347,123 +350,62 @@ export default function ReceiptRoomScreen() {
           )}
       </View>
 
-      <View style={styles.buttonRow}>
-        <Button onPress={addParticipant}>Add Participant</Button>
-        <Button
-          variant='outlined'
-          onPress={() => router.push(`/qr?roomId=${roomId}`)}
-        >
-          QR
-        </Button>
-        <Button variant='secondary' onPress={() => router.push('/setting')}>
-          Settings
-        </Button>
-        <Button
-          variant='outlined'
+      <View className='flex-col items-center gap-2 p-3'>
+        <IconButton
+          icon='plus'
+          bgClassName='rounded-lg shadow-none border-2 border-border-strong border-dashed size-[25vw]'
+          onPress={addParticipant}
+          pressEffect='scale'
+        />
+        <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
+        <DefaultButtons.Close
           onPress={() => router.push('/close-confirmation')}
-        >
-          Close Room
-        </Button>
+        />
+        {/* QR Code Button - to the right of Close button */}
+        <View className='absolute top-[6vh] left-[20vw] z-10'>
+          <IconButton
+            icon='account-multiple-plus'
+            pressEffect='overlay'
+            onPress={() => router.push(`/qr?roomId=${roomId}`)}
+          />
+        </View>
+        {/* Quick Actions Toggle Button - to the left of Settings button */}
+        <View className='absolute top-[6vh] right-[20vw] z-10'>
+          {showQuickActions && (
+            <View className='absolute bottom-[110%] right-0 bg-background border border-border-strong rounded-lg shadow-md p-2 gap-2 w-[48vw] z-20'>
+              <IconButton
+                icon='check-all'
+                bgClassName='rounded-lg border border-border-strong bg-background w-full py-2'
+                iconClassName='size-[4vw] text-foreground'
+                text='Claim for all'
+                textClassName='text-foreground text-[3.5vw]'
+                pressEffect='fade'
+                onPress={() => {
+                  claimFirstItemForAll();
+                  setShowQuickActions(false);
+                }}
+              />
+              <IconButton
+                icon='close-circle-outline'
+                bgClassName='rounded-lg border border-border-strong bg-background w-full py-2'
+                iconClassName='size-[4vw] text-foreground'
+                text='Unclaim for all'
+                textClassName='text-foreground text-[3.5vw]'
+                pressEffect='fade'
+                onPress={() => {
+                  unclaimFirstItemForAll();
+                  setShowQuickActions(false);
+                }}
+              />
+            </View>
+          )}
+          <IconButton
+            icon='dots-horizontal'
+            pressEffect='overlay'
+            onPress={() => setShowQuickActions((prev) => !prev)}
+          />
+        </View>
       </View>
     </View>
   );
 }
-
-const createStyles = (colors: NativeThemeColorType) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-      paddingTop: 60,
-    },
-    overlayContainer: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      pointerEvents: 'box-none',
-    },
-    scrollArea: {
-      flex: 1,
-    },
-    itemsContainer: {
-      padding: ITEMCONTAINERPADDING,
-    },
-    participantsContainer: {
-      padding: 16,
-    },
-    itemsContent: {
-      minWidth: '100%',
-      alignSelf: 'center',
-      zIndex: 1,
-    },
-    participantsScrollContent: {
-      justifyContent: 'flex-start',
-      left: -10,
-      gap: 10,
-    },
-    topBar: {
-      backgroundColor: colors.card,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      padding: 16,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    topBarButton: {
-      padding: 8,
-      borderRadius: 8,
-    },
-    topBarButtonText: {
-      fontSize: 24,
-      color: colors.text,
-    },
-    itemsList: {
-      gap: 8,
-    },
-    addItemButton: {
-      padding: 16,
-      borderRadius: 8,
-      borderWidth: 2,
-      borderStyle: 'dashed',
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    addItemButtonText: {
-      color: colors.text,
-      fontSize: 16,
-    },
-    usersContent: {
-      flexDirection: 'row',
-      gap: 16,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    addUserButton: {
-      width: 128,
-      height: 128,
-      borderRadius: 8,
-      borderWidth: 2,
-      borderStyle: 'dashed',
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    addUserButtonText: {
-      fontSize: 32,
-      color: colors.text,
-    },
-    buttonRow: {
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 8,
-      padding: 12,
-    },
-  });

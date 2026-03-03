@@ -6,6 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.database import get_db
 from app.services.user_service import UserService
+from app.supabase import client as supabase_client
 
 security = HTTPBearer()
 
@@ -21,4 +22,4 @@ def get_auth_service(http_auth: HTTPAuthorizationCredentials = Depends(security)
 
 
 def get_user_service(db: Session = Depends(get_db)) -> UserService:
-    return UserService(db)
+    return UserService(db, supabase_client)

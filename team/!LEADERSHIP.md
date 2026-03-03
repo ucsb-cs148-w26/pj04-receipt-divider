@@ -10,18 +10,17 @@
 
 | Role                            | Name              | 
 |---------------------------------|-------------------|
-| Product Owner                   | Mason Le          | 
-| Scrum Master                    | Leifeng Chen      | 
-| Testing/QA Coordinator          | TBA               | 
-| UX Coordinator                  | TBA               |
-| Design Document Coordinator     | TBA               |
-| Deployment Document Coordinator | TBA               |
-| User Manual Coordinator         | TBA               |
-| Final Presentation Leader       | TBA               |
-| Retro 00 leader                 | Charlie           | 
-| Retro 01 leader                 | Leifeng           | 
-| Retro 02 leader                 | TBA               | 
-| Retro 03 leader                 | TBA               | 
+| Product Owner                   | Mason             | 
+| Scrum Master                    | Leifeng           | 
+| Testing/QA Coordinator          | Roy               | 
+| UX Coordinator                  | Charlie           |
+| Design Document Coordinator     | Leifeng           |
+| Deployment Document Coordinator | Ken               |
+| User Manual Coordinator         | YiHeng            |
+| Final Presentation Leader       | Mason             |
+| Retro 01 leader                 | Charlie           | 
+| Retro 02 leader                 | Leifeng           | 
+| Retro 03 leader                 | Edward            | 
 
 # Weekly Roles:
 | **Date**    | **Name**          | **Activity**                                      |
@@ -52,11 +51,11 @@
 | **Week 7**  |                   |                                                   | 
 |             | Ken               | Code/PR reviewer for the week                     | 
 | Wed 02/17   | Leifeng           | Scribe for Lec11 Scrum                            | 
-| Fri 02/19   | TBA               | Scribe for LAB07 Scrum                            | 
+| Fri 02/19   | Mason             | Scribe for LAB07 Scrum                            | 
 | **Week 8**  |                   |                                                   | 
 |             | TBA               | Code/PR reviewer for the week                     | 
-| Mon 02/22   | TBA               | Scribe for Lec12 Scrum                            | 
-| Wed 02/24   | TBA               | Scribe for Lec13 Scrum                            | 
+| Mon 02/22   | N/A               | Scribe for Lec12 Scrum                            | 
+| Wed 02/24   | N/A               | Scribe for Lec13 Scrum                            | 
 | Fri 02/26   | TBA               | Scribe for Lab08 Scrum                            | 
 | **Week 9**  |                   |                                                   | 
 |             | TBA               | Code/PR reviewer for the week                     | 
