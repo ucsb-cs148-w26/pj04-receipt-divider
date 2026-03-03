@@ -20,7 +20,9 @@ class Item(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, server_default=text("gen_random_uuid()")
     )
-    receipt_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("receipts.id"))
+    receipt_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("receipts.id"), nullable=True
+    )
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id"), nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     amount: Mapped[int] = mapped_column(SmallInteger, nullable=False)

@@ -19,10 +19,12 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_key: str
 
+    receipt_image_bucket: str
+
     @computed_field
     @property
     def database_url(self) -> str:
-        return f"postgresql+psycopg2://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_name}?sslmode=require"
+        return f"postgresql+psycopg://{self.database_user}:{self.database_password}@{self.database_host}:{self.database_port}/{self.database_name}?sslmode=require"
 
     # Connection pool
     db_pool_size: int = 5

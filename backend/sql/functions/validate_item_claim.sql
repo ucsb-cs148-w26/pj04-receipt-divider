@@ -28,4 +28,4 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE TRIGGER check_claim_share
 BEFORE INSERT OR UPDATE ON item_claims
 FOR EACH ROW
-EXECUTE FUNCTION validate_claim_share();
+EXECUTE FUNCTION validate_item_claim();
