@@ -1,4 +1,7 @@
-import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import type {
+  RealtimeChannel,
+  RealtimePostgresChangesPayload,
+} from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 const PUBLIC_SCHEMA = 'public';
@@ -21,7 +24,12 @@ export function subscribeToPublicTable<T>(
     .channel(channelName)
     .on(
       'postgres_changes',
-      { event, schema: PUBLIC_SCHEMA, table: tableName, ...(filter ? { filter } : {}) },
+      {
+        event,
+        schema: PUBLIC_SCHEMA,
+        table: tableName,
+        ...(filter ? { filter } : {}),
+      },
       onPayload,
     )
     .subscribe((status) => console.log('[realtime]', channelName, status));

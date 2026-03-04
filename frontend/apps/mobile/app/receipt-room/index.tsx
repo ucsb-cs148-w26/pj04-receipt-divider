@@ -157,8 +157,7 @@ export default function ReceiptRoomScreen() {
     return Math.random().toString(36).substring(2, 9);
   });
 
-  const isGroupRoom =
-    roomId.length >= 32 && /^[0-9a-f-]{36}$/i.test(roomId);
+  const isGroupRoom = roomId.length >= 32 && /^[0-9a-f-]{36}$/i.test(roomId);
   const groupData = useGroupData(isGroupRoom ? roomId : '');
   const groupDisplay = useMemo(() => {
     if (!isGroupRoom || !groupData.members.length) {
@@ -174,31 +173,32 @@ export default function ReceiptRoomScreen() {
       id: i + 1,
     }));
     const claims = groupData.claims as { item_id: string; user_id: string }[];
-    const items = (groupData.items as { id: string; name: string; unit_price?: number; amount?: number }[]).map(
-      (item) => {
-        const claimUserIds = claims
-          .filter((c) => c.item_id === item.id)
-          .map((c) => c.user_id);
-        const userTags = claimUserIds
-          .map((uid) => userIdToParticipantId.get(uid))
-          .filter((id): id is number => id != null);
-        const amount = typeof item.amount === 'number' ? item.amount : 1;
-        const unitPrice = typeof item.unit_price === 'number' ? item.unit_price : 0;
-        return {
-          id: item.id,
-          name: item.name ?? '',
-          price: String(unitPrice * amount),
-          userTags,
-        } as ReceiptItemData;
-      },
-    );
+    const items = (
+      groupData.items as {
+        id: string;
+        name: string;
+        unit_price?: number;
+        amount?: number;
+      }[]
+    ).map((item) => {
+      const claimUserIds = claims
+        .filter((c) => c.item_id === item.id)
+        .map((c) => c.user_id);
+      const userTags = claimUserIds
+        .map((uid) => userIdToParticipantId.get(uid))
+        .filter((id): id is number => id != null);
+      const amount = typeof item.amount === 'number' ? item.amount : 1;
+      const unitPrice =
+        typeof item.unit_price === 'number' ? item.unit_price : 0;
+      return {
+        id: item.id,
+        name: item.name ?? '',
+        price: String(unitPrice * amount),
+        userTags,
+      } as ReceiptItemData;
+    });
     return { items, participants };
-  }, [
-    isGroupRoom,
-    groupData.members,
-    groupData.items,
-    groupData.claims,
-  ]);
+  }, [isGroupRoom, groupData.members, groupData.items, groupData.claims]);
 
   const displayItems = isGroupRoom ? groupDisplay.items : receiptItems.items;
   const displayParticipants = isGroupRoom
@@ -396,9 +396,7 @@ export default function ReceiptRoomScreen() {
           dragState.initialPosition &&
           displayItems.find((item) => item.id === dragState.itemId) && (
             <ReceiptItem
-              item={
-                displayItems.find((item) => item.id === dragState.itemId)!
-              }
+              item={displayItems.find((item) => item.id === dragState.itemId)!}
               onUpdate={(updates) =>
                 updateReceiptItem(dragState.itemId!, updates)
               }
