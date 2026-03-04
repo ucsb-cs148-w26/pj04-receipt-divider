@@ -4,21 +4,23 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
 
-from app.models import User, Group, GroupMember, Item, ItemClaim, Receipt
+from app.models import Profile, Group, GroupMember, Item, ItemClaim, Receipt
 
 
-def _make_user(db_session, name: str | None = None, email: str | None = None) -> User:
-    user = User(id=uuid.uuid4(), email=email or f"{uuid.uuid4()}@test.com")
+def _make_user(
+    db_session, name: str | None = None, email: str | None = None
+) -> Profile:
+    user = Profile(id=uuid.uuid4(), email=email or f"{uuid.uuid4()}@test.com")
     db_session.add(user)
     db_session.flush()
     return user
 
 
-def _make_group(db_session, host: User, name: str = "Test group") -> Group:
+def _make_group(db_session, host: Profile, name: str = "Test group") -> Group:
     group = Group(created_by=host.id, name=name)
     db_session.add(group)
     db_session.flush()
-    member = GroupMember(group_id=group.id, user_id=host.id)
+    member = GroupMember(group_id=group.id, profile_id=host.id)
     db_session.add(member)
     db_session.flush()
     return group
@@ -43,15 +45,15 @@ def _add_item(
     return group
 
 
-def _add_member(db_session, user: User, group: Group) -> GroupMember:
-    member = GroupMember(user_id=user.id, group_id=group.id)
+def _add_member(db_session, user: Profile, group: Group) -> GroupMember:
+    member = GroupMember(profile_id=user.id, group_id=group.id)
     db_session.add(member)
     db_session.flush()
     return member
 
 
-def _claim_item(db_session, user: User, item: Item, share: float = 1.0) -> ItemClaim:
-    claim = ItemClaim(item_id=item.id, user_id=user.id, share=share)
+def _claim_item(db_session, user: Profile, item: Item, share: float = 1.0) -> ItemClaim:
+    claim = ItemClaim(item_id=item.id, profile_id=user.id, share=share)
     db_session.add(claim)
     db_session.flush()
     return claim
@@ -146,7 +148,7 @@ class TestCreateGroup:
         group_id = user_service.create_group(str(user.id), "Team Lunch")
 
         member = db_session.get(
-            GroupMember, {"user_id": user.id, "group_id": uuid.UUID(group_id)}
+            GroupMember, {"profile_id": user.id, "group_id": uuid.UUID(group_id)}
         )
         assert member is not None
 
@@ -168,7 +170,7 @@ class TestJoinGroup:
         user_service.join_group(str(joiner.id), group_id)
 
         member = db_session.get(
-            GroupMember, {"user_id": joiner.id, "group_id": uuid.UUID(group_id)}
+            GroupMember, {"profile_id": joiner.id, "group_id": uuid.UUID(group_id)}
         )
         assert member is not None
 
@@ -210,7 +212,7 @@ class TestLeaveGroup:
         user_service.leave_group(str(member.id), group_id)
 
         row = db_session.get(
-            GroupMember, {"user_id": member.id, "group_id": uuid.UUID(group_id)}
+            GroupMember, {"profile_id": member.id, "group_id": uuid.UUID(group_id)}
         )
         assert row is None
 
@@ -278,7 +280,7 @@ class TestRemoveMember:
         user_service.remove_member(str(host.id), group_id, str(member.id))
 
         row = db_session.get(
-            GroupMember, {"user_id": member.id, "group_id": uuid.UUID(group_id)}
+            GroupMember, {"profile_id": member.id, "group_id": uuid.UUID(group_id)}
         )
         assert row is None
 
@@ -331,7 +333,7 @@ class TestRemoveMember:
         user_service.claim_item(str(member.id), str(item.id))
 
         claim_before = db_session.get(
-            ItemClaim, {"user_id": member.id, "item_id": item.id}
+            ItemClaim, {"profile_id": member.id, "item_id": item.id}
         )
         assert claim_before is not None
 
@@ -340,7 +342,7 @@ class TestRemoveMember:
         db_session.expire_all()
 
         claim_after = db_session.get(
-            ItemClaim, {"user_id": member.id, "item_id": item.id}
+            ItemClaim, {"profile_id": member.id, "item_id": item.id}
         )
         assert claim_after is None
 
@@ -371,7 +373,7 @@ class TestClaimItem:
         user_service.claim_item(str(host.id), str(item.id))
         db_session.expire_all()
 
-        claim = db_session.get(ItemClaim, {"user_id": host.id, "item_id": item.id})
+        claim = db_session.get(ItemClaim, {"profile_id": host.id, "item_id": item.id})
         assert claim is not None
 
     def test_claiming_twice_does_not_create_duplicate(self, user_service, db_session):
@@ -414,7 +416,7 @@ class TestUnclaimItem:
         user_service.unclaim_item(str(host.id), str(item.id))
         db_session.expire_all()
 
-        claim = db_session.get(ItemClaim, {"user_id": host.id, "item_id": item.id})
+        claim = db_session.get(ItemClaim, {"profile_id": host.id, "item_id": item.id})
         assert claim is None
 
     def test_unclaiming_an_item_not_claimed_is_a_no_op(self, user_service, db_session):
@@ -433,7 +435,7 @@ class TestAssignItem:
         user_service.assign_item(str(host.id), str(member.id), str(item.id))
         db_session.expire_all()
 
-        claim = db_session.get(ItemClaim, {"user_id": member.id, "item_id": item.id})
+        claim = db_session.get(ItemClaim, {"profile_id": member.id, "item_id": item.id})
         assert claim is not None
 
     def test_non_host_cannot_assign_items(self, user_service, db_session):
@@ -457,7 +459,7 @@ class TestUnassignItem:
         user_service.unassign_item(str(host.id), str(member.id), str(item.id))
         db_session.expire_all()
 
-        claim = db_session.get(ItemClaim, {"user_id": member.id, "item_id": item.id})
+        claim = db_session.get(ItemClaim, {"profile_id": member.id, "item_id": item.id})
         assert claim is None
 
     def test_non_host_cannot_unassign_items(self, user_service, db_session):
