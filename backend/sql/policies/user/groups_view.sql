@@ -3,5 +3,5 @@ ON public.groups
 FOR SELECT
 TO authenticated
 USING (
-  id IN (SELECT public.get_user_group_ids())
+  id IN (SELECT public.get_profile_group_ids())
 );

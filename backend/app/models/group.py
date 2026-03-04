@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.models import User, GroupMember, Receipt, Item
+    from app.models import Profile, GroupMember, Receipt, Item
 
 import uuid
 from datetime import datetime
@@ -27,13 +27,13 @@ class Group(Base):
         nullable=False, server_default=func.now()
     )
     created_by: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False
+        ForeignKey("profiles.id"), nullable=False
     )
     name: Mapped[Optional[str]] = mapped_column(Text)
 
     # Relationships
-    group_creator: Mapped["User"] = relationship(
-        back_populates="user_groups_created", foreign_keys=[created_by]
+    group_creator: Mapped["Profile"] = relationship(
+        back_populates="profile_groups_created", foreign_keys=[created_by]
     )
     group_members: Mapped[List["GroupMember"]] = relationship(
         back_populates="group_member_group"

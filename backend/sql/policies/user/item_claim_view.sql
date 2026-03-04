@@ -10,6 +10,6 @@ USING (
       ON gm.group_id = i.group_id
     WHERE
       i.id = item_id AND
-      gm.user_id = (SELECT auth.uid())
+      gm.profile_id = (SELECT auth.uid())
   )
 );

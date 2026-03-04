@@ -4,6 +4,6 @@ from .group_member import GroupMember
 from .item import Item
 from .item_claim import ItemClaim
 from .receipt import Receipt
-from .user import User
+from .profile import Profile
 
-__all__ = ["Base", "Group", "GroupMember", "Item", "ItemClaim", "Receipt", "User"]
+__all__ = ["Base", "Group", "GroupMember", "Item", "ItemClaim", "Receipt", "Profile"]

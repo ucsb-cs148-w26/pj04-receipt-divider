@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.models import User, Receipt, Group, Item
+    from app.models import Profile, Group, Item
 
 import uuid
 from datetime import datetime
@@ -24,13 +24,13 @@ class Receipt(Base):
     image: Mapped[str] = mapped_column(Text, nullable=False)
     total: Mapped[float] = mapped_column(nullable=False)
     created_by: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False
+        ForeignKey("profiles.id"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     # Relationships
-    receipt_creator: Mapped["User"] = relationship(
-        back_populates="user_receipts_created"
+    receipt_creator: Mapped["Profile"] = relationship(
+        back_populates="profile_receipts_created"
     )
     receipt_items: Mapped[List["Item"]] = relationship(back_populates="item_receipt")
     receipt_group: Mapped["Group"] = relationship(back_populates="group_receipts")
