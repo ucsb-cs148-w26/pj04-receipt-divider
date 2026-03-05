@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Pressable,
   Animated,
+  Alert,
   LayoutRectangle,
 } from 'react-native';
 import {
@@ -68,6 +69,14 @@ interface ReceiptItemProps extends DragProps {
   /** Text focus state from parent */
   isAnyTextFocused?: boolean;
   onTextFocusChange?: (focused: boolean) => void;
+
+  /** Whether the receipt room is in edit mode */
+  isEditMode?: boolean;
+
+  /** Whether this item is selected (non-edit mode) */
+  isSelected?: boolean;
+  /** Called when item is tapped to toggle selection (non-edit mode) */
+  onToggleSelect?: () => void;
 }
 
 export function ReceiptItem({
@@ -93,6 +102,11 @@ export function ReceiptItem({
   // Text focus state
   isAnyTextFocused = false,
   onTextFocusChange,
+  // Mode
+  isEditMode = true,
+  // Selection
+  isSelected = false,
+  onToggleSelect,
 }: ReceiptItemProps) {
   /** ---------------- UI State ---------------- */
   const [uiState, setUIState] = useState<UIState>({
@@ -109,26 +123,19 @@ export function ReceiptItem({
   });
 
   /** ---------------- Drag Refs ---------------- */
-  // Create local pan first (always)
   const localPan = useRef(new Animated.ValueXY()).current;
-  // Use external pan if provided (for overlay), otherwise use local pan
   const pan = externalDragPan || localPan;
-  // Keep a ref to current pan so panResponder can access it
   const panRef = useRef(pan);
   panRef.current = pan;
   const viewRef = useRef<View>(null);
-  // Ref to track current position (avoids stale closure in gesture)
   const currentPositionRef = useRef({ x: 0, y: 0 });
-  // Ref to track text focus state for immediate access in gesture
   const isAnyTextFocusedRef = useRef(isAnyTextFocused);
   isAnyTextFocusedRef.current = isAnyTextFocused;
 
   /** ---------------- Computed Values ---------------- */
-  // Sort user tags in increasing order
   const sortedUserTags = item.userTags
     ? [...item.userTags].sort((a, b) => a - b)
     : [];
-  // Use prop for overlay, local state for original
   const inParticipantBounds =
     isInParticipantBoundsProp !== undefined
       ? isInParticipantBoundsProp
@@ -148,14 +155,12 @@ export function ReceiptItem({
           x: layout.x - scrollOffset,
         };
 
-        // Check if the gesture position overlaps with this participant
         if (
           x >= adjustedLayout.x &&
           x <= adjustedLayout.x + adjustedLayout.width &&
           y >= adjustedLayout.y &&
           y <= adjustedLayout.y + adjustedLayout.height
         ) {
-          // Calculate distance from gesture position to participant center
           const participantCenterX =
             adjustedLayout.x + adjustedLayout.width / 2;
           const participantCenterY =
@@ -166,7 +171,6 @@ export function ReceiptItem({
               Math.pow(y - participantCenterY, 2),
           );
 
-          // Keep track of the closest participant
           if (!closestParticipant || distance < closestParticipant.distance) {
             closestParticipant = { id, distance };
           }
@@ -190,51 +194,35 @@ export function ReceiptItem({
 
   const handleDragChange = useCallback(
     (x: number, y: number, translationX: number, translationY: number) => {
-      // Update animated value safely
       panRef.current.setValue({ x: translationX, y: translationY });
 
-      // Update ref for use in end handler (avoids stale closure)
       currentPositionRef.current = { x, y };
       setDragState((prev) => ({ ...prev, currentPosition: { x, y } }));
 
-      // Check collision with participants
       const participantId = checkParticipantCollision(x, y);
       const inBounds = participantId !== null;
       setDragState((prev) => ({ ...prev, isInParticipantBounds: inBounds }));
       onParticipantBoundsChange?.(inBounds);
-      //console.log('Dragging over participant:', participantId);
     },
     [checkParticipantCollision, onParticipantBoundsChange],
   );
 
   const handleDragEnd = useCallback(() => {
-    // Use ref to get current position (avoids stale closure)
     const participantId = checkParticipantCollision(
       currentPositionRef.current.x,
       currentPositionRef.current.y,
     );
-    console.log('Dropped on participant:', participantId);
     if (participantId !== null) {
-      // Get the most current item data (especially important for overlay)
       const currentItem = getCurrentItemData ? getCurrentItemData() : item;
-      // Add participant to userTags if not already there
       const updatedTags = currentItem.userTags ? [...currentItem.userTags] : [];
       if (!updatedTags.includes(participantId)) {
         updatedTags.push(participantId);
         onUpdate({ userTags: updatedTags });
-      } else {
-        console.log(
-          'Participant',
-          participantId,
-          'already in tags:',
-          updatedTags,
-        );
       }
     }
   }, [checkParticipantCollision, getCurrentItemData, item, onUpdate]);
 
   const handleDragFinalize = useCallback(() => {
-    // Reset drag state
     setDragState({
       isDragging: false,
       isInParticipantBounds: false,
@@ -242,13 +230,11 @@ export function ReceiptItem({
     });
     onDragEnd?.();
 
-    // Animate back to original position
     Animated.spring(panRef.current, {
       toValue: { x: 0, y: 0 },
       useNativeDriver: false,
     }).start();
 
-    // Reset position ref
     currentPositionRef.current = { x: 0, y: 0 };
   }, [onDragEnd]);
 
@@ -259,18 +245,12 @@ export function ReceiptItem({
         .activateAfterLongPress(250)
         .onStart(() => {
           'worklet';
-          // Check ref value at gesture start to ensure most current state
-          if (isAnyTextFocusedRef.current) {
-            return; // Cancel gesture if text is focused
-          }
+          if (isAnyTextFocusedRef.current) return;
           handleDragStart();
         })
         .onChange((event) => {
           'worklet';
-          // Check ref value at gesture start to ensure most current state
-          if (isAnyTextFocusedRef.current) {
-            return; // Cancel gesture if text is focused
-          }
+          if (isAnyTextFocusedRef.current) return;
           handleDragChange(
             event.absoluteX,
             event.absoluteY,
@@ -309,16 +289,114 @@ export function ReceiptItem({
     }
   };
 
-  /** ---------------- UI State Handlers ---------------- */
   const setShowDiscount = (show: boolean) => {
     setUIState((prev) => ({ ...prev, showDiscount: show }));
   };
 
-  const setIsHovering = (hovering: boolean) => {
-    setUIState((prev) => ({ ...prev, isHovering: hovering }));
+  /** ---------------- Delete with Warning ---------------- */
+  const confirmDelete = () => {
+    Alert.alert(
+      'Delete Item',
+      `Are you sure you want to delete "${item.name || 'this item'}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => onDelete() },
+      ],
+    );
+  };
+
+  const confirmRemoveTag = (userId: number) => {
+    Alert.alert(
+      'Remove User',
+      `Remove user ${userId} from "${item.name || 'this item'}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => onRemoveFromUser(userId),
+        },
+      ],
+    );
   };
 
   /** ---------------- Render ---------------- */
+
+  // Non-edit mode (claim mode) rendering
+  if (!isEditMode) {
+    return (
+      <GestureHandlerRootView>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View
+            ref={viewRef}
+            style={[
+              isDraggingOverlay && {
+                minWidth: '100%',
+                position: 'absolute' as const,
+                zIndex: 9999,
+                elevation: 9999,
+                padding: 16,
+              },
+              isDraggingOverlay &&
+                initialPosition && {
+                  top: initialPosition.y,
+                  left: initialPosition.x,
+                },
+              {
+                transform: isCurrentlyDragging
+                  ? pan.getTranslateTransform()
+                  : [],
+                zIndex: isCurrentlyDragging ? 9999 : 0,
+                elevation: isCurrentlyDragging ? 9999 : 0,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={onToggleSelect}
+              className={`w-full bg-card rounded-2xl p-4 mb-2 ${
+                isSelected ? 'border-2 border-primary' : ''
+              }`}
+            >
+              <View className='flex-row items-center'>
+                {/* Selection circle indicator */}
+                <View className='w-10 h-10 rounded-full border-2 border-accent-light mr-3' />
+
+                {/* Item name */}
+                <Text
+                  className='text-foreground font-extrabold text-xl flex-1 mr-2'
+                  numberOfLines={1}
+                >
+                  {item.name || 'Unnamed Item'}
+                </Text>
+
+                {/* Price */}
+                <Text className='text-foreground font-extrabold text-xl'>
+                  ${item.price || '0.00'}
+                </Text>
+              </View>
+
+              {/* User tags at bottom */}
+              {sortedUserTags.length > 0 && (
+                <View className='flex-row flex-wrap gap-1.5 mt-2 ml-[52px]'>
+                  {sortedUserTags.map((userId) => (
+                    <UserTag
+                      key={userId}
+                      id={userId}
+                      onRemove={() => {}}
+                      isNewlyAdded={false}
+                      isEditMode={false}
+                    />
+                  ))}
+                </View>
+              )}
+            </Pressable>
+          </Animated.View>
+        </GestureDetector>
+      </GestureHandlerRootView>
+    );
+  }
+
+  // Edit mode rendering
   return (
     <GestureHandlerRootView>
       <GestureDetector gesture={panGesture}>
@@ -339,123 +417,96 @@ export function ReceiptItem({
               },
             {
               transform: isCurrentlyDragging ? pan.getTranslateTransform() : [],
-              width: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
-              height: isCurrentlyDragging && inParticipantBounds ? 150 : 'auto',
               zIndex: isCurrentlyDragging ? 9999 : 0,
               elevation: isCurrentlyDragging ? 9999 : 0,
             },
           ]}
         >
-          <Pressable
-            className='w-full bg-surface-elevated border border-border rounded-lg p-4 pl-6 pr-6 pb-6 mb-2'
-            onHoverIn={() => setIsHovering(true)}
-            onHoverOut={() => setIsHovering(false)}
-            onPressIn={() => setIsHovering(true)}
-            onPressOut={() => setIsHovering(false)}
-          >
-            <View className='flex-row justify-between gap-2'>
-              <View className='flex-row items-start gap-3 flex-1 min-w-0'>
-                {
-                  <Pressable
-                    onPress={() => {
-                      if (onDelete) onDelete();
-                    }}
-                    className='min-w-[24px] items-center mt-1'
-                    accessibilityLabel='Delete item'
-                  >
-                    <Text className='text-destructive text-xl font-bold'>
-                      ✕
-                    </Text>
-                  </Pressable>
-                }
-                <View className='flex-1 min-w-0'>
-                  {
-                    <TextInput
-                      value={item.name}
-                      onChangeText={(text) => onUpdate({ name: text })}
-                      placeholder='Item name'
-                      className='rounded bg-background p-2 text-foreground'
-                      onFocus={() => {
-                        onTextFocusChange?.(true);
-                        console.log('Name input focused');
-                      }}
-                      onBlur={() => {
-                        onTextFocusChange?.(false);
-                        console.log('Name input blurred');
-                      }}
-                    />
-                  }
-                </View>
-              </View>
+          <View className='w-full bg-card rounded-2xl p-4 mb-2'>
+            <View className='flex-row items-center'>
+              {/* Delete button */}
+              <Pressable
+                onPress={confirmDelete}
+                className='w-10 h-10 items-center justify-center mr-3'
+                accessibilityLabel='Delete item'
+              >
+                <Text className='text-destructive text-2xl font-bold'>✕</Text>
+              </Pressable>
 
-              <View className='flex-col items-end gap-2'>
-                {/* Price */}
-                <View className='flex-row items-center gap-1'>
-                  {
-                    <View className='flex-row items-center'>
-                      <Text className='text-foreground font-bold'>$</Text>
-                      <TextInput
-                        value={item.price}
-                        onChangeText={handlePriceChange}
-                        placeholder='0.00'
-                        className='w-20 bg-background rounded p-2 text-foreground font-bold text-right'
-                        keyboardType='numeric'
-                        onFocus={() => onTextFocusChange?.(true)}
-                        onBlur={() => onTextFocusChange?.(false)}
-                      />
-                    </View>
-                  }
-                </View>
+              {/* Editable item name */}
+              <TextInput
+                value={item.name}
+                onChangeText={(text) => onUpdate({ name: text })}
+                placeholder='Item name'
+                placeholderTextColor='var(--color-muted-foreground)'
+                className='text-muted-foreground font-extrabold text-xl flex-1 mr-2'
+                numberOfLines={1}
+                onFocus={() => onTextFocusChange?.(true)}
+                onBlur={() => onTextFocusChange?.(false)}
+              />
 
-                {/* Discount section - right justified */}
-                {uiState.showDiscount ? (
-                  <View className='flex-row items-center justify-end gap-1'>
-                    <Text className='text-xs text-foreground'>Discount:</Text>
-                    <Text className='text-foreground text-sm'>$</Text>
-                    <TextInput
-                      value={item.discount || ''}
-                      onChangeText={handleDiscountChange}
-                      onFocus={() => onTextFocusChange?.(true)}
-                      onBlur={() => {
-                        handleDiscountBlur();
-                        onTextFocusChange?.(false);
-                      }}
-                      placeholder='0.00'
-                      className='w-16 bg-background rounded p-2 text-foreground text-sm text-right'
-                      keyboardType='numeric'
-                    />
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => setShowDiscount(true)}
-                    className='flex-row gap-1 p-2 rounded self-end ml-auto items-end justify-end min-w-[130px]'
-                    accessibilityLabel='Add discount'
-                  >
-                    <Text className='text-xs text-primary'>+ Discount</Text>
-                  </TouchableOpacity>
-                )}
+              {/* Editable price */}
+              <View className='flex-row items-center'>
+                <Text className='text-foreground font-extrabold text-xl'>
+                  $
+                </Text>
+                <TextInput
+                  value={item.price}
+                  onChangeText={handlePriceChange}
+                  placeholder='0.00'
+                  placeholderTextColor='var(--color-muted-foreground)'
+                  className='text-foreground font-extrabold text-xl'
+                  style={{ minWidth: 20 }}
+                  keyboardType='numeric'
+                  onFocus={() => onTextFocusChange?.(true)}
+                  onBlur={() => onTextFocusChange?.(false)}
+                />
               </View>
             </View>
 
-            {/* User tags - positioned at bottom extending below box */}
+            {/* Discount section */}
+            {uiState.showDiscount ? (
+              <View className='flex-row items-center justify-end gap-1 mt-1'>
+                <Text className='text-xs text-foreground'>Discount:</Text>
+                <Text className='text-foreground text-sm'>$</Text>
+                <TextInput
+                  value={item.discount || ''}
+                  onChangeText={handleDiscountChange}
+                  onFocus={() => onTextFocusChange?.(true)}
+                  onBlur={() => {
+                    handleDiscountBlur();
+                    onTextFocusChange?.(false);
+                  }}
+                  placeholder='0.00'
+                  className='w-16 bg-background rounded p-1 text-foreground text-sm text-right'
+                  keyboardType='numeric'
+                />
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowDiscount(true)}
+                className='self-end mt-1'
+                accessibilityLabel='Add discount'
+              >
+                <Text className='text-xs text-primary'>+ Discount</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* User tags with X for removal */}
             {sortedUserTags.length > 0 && (
-              <View className='absolute -bottom-3 left-4 right-4 flex-row flex-wrap gap-2 z-10'>
-                {sortedUserTags.map((userId) => {
-                  const isNewlyAdded =
-                    uiState.newlyAddedTags.has(userId) &&
-                    (item.userTags?.includes(userId) ?? false);
-                  return (
-                    <UserTag
-                      key={userId}
-                      id={userId}
-                      onRemove={() => onRemoveFromUser?.(userId)}
-                      isNewlyAdded={isNewlyAdded}
-                    />
-                  );
-                })}
+              <View className='flex-row flex-wrap gap-1.5 mt-3 ml-[52px]'>
+                {sortedUserTags.map((userId) => (
+                  <UserTag
+                    key={userId}
+                    id={userId}
+                    onRemove={() => confirmRemoveTag(userId)}
+                    isNewlyAdded={false}
+                    isEditMode={true}
+                  />
+                ))}
               </View>
             )}
-          </Pressable>
+          </View>
         </Animated.View>
       </GestureDetector>
     </GestureHandlerRootView>

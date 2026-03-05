@@ -11,8 +11,20 @@ const MOCK_GROUPS = [
   { id: '2', name: 'Chipotle', status: 'pending', amount: -25.12, members: 2 },
   { id: '3', name: 'Target', status: 'pending', amount: 75.21, members: 5 },
   { id: '4', name: 'Taco Bell', status: 'completed', amount: 5.99, members: 2 },
-  { id: '5', name: "Trader Joe's", status: 'completed', amount: 7.02, members: 4 },
-  { id: '6', name: "Trader Joe's", status: 'completed', amount: 7.02, members: 4 },
+  {
+    id: '5',
+    name: "Trader Joe's",
+    status: 'completed',
+    amount: 7.02,
+    members: 4,
+  },
+  {
+    id: '6',
+    name: "Trader Joe's",
+    status: 'completed',
+    amount: 7.02,
+    members: 4,
+  },
 ];
 
 const MOCK_PEOPLE = [
@@ -51,14 +63,11 @@ export default function HomeScreen() {
         <Text className='flex-1 text-foreground text-2xl font-bold'>
           Eezy Receipt
         </Text>
-        <Pressable
-          onPress={() => router.navigate('/setting')}
-          hitSlop={8}
-        >
+        <Pressable onPress={() => router.navigate('/setting')} hitSlop={8}>
           <MaterialCommunityIcons
             name='menu'
             size={28}
-            color='#9ca3af'
+            color='var(--color-accent-dark)'
           />
         </Pressable>
       </View>
@@ -73,13 +82,13 @@ export default function HomeScreen() {
           Finances
         </Text>
         <View className='flex-row gap-3 mb-6'>
-          <View className='flex-1 bg-white rounded-2xl p-4'>
+          <View className='flex-1 bg-card rounded-2xl p-4'>
             <Text className='text-muted-foreground text-sm mb-1'>You Owe</Text>
             <Text className='text-amount-negative text-2xl font-bold'>
               $64.91
             </Text>
           </View>
-          <View className='flex-1 bg-white rounded-2xl p-4'>
+          <View className='flex-1 bg-card rounded-2xl p-4'>
             <Text className='text-muted-foreground text-sm mb-1'>
               You Are Owed
             </Text>
@@ -95,7 +104,7 @@ export default function HomeScreen() {
           <View className='flex-row border border-border rounded-full overflow-hidden'>
             <Pressable
               onPress={() => setActiveTab('groups')}
-              className={`px-4 py-1.5 ${activeTab === 'groups' ? 'bg-white' : ''}`}
+              className={`px-4 py-1.5 ${activeTab === 'groups' ? 'bg-card' : ''}`}
             >
               <Text
                 className={`text-sm font-medium ${
@@ -109,7 +118,7 @@ export default function HomeScreen() {
             </Pressable>
             <Pressable
               onPress={() => setActiveTab('people')}
-              className={`px-4 py-1.5 ${activeTab === 'people' ? 'bg-white' : ''}`}
+              className={`px-4 py-1.5 ${activeTab === 'people' ? 'bg-card' : ''}`}
             >
               <Text
                 className={`text-sm font-medium ${
@@ -125,7 +134,7 @@ export default function HomeScreen() {
         </View>
 
         {/* History list */}
-        <View className='bg-white rounded-2xl overflow-hidden'>
+        <View className='bg-card rounded-2xl overflow-hidden'>
           {data.map((item, index) => (
             <View key={item.id}>
               {index > 0 && <View className='h-px bg-border mx-4' />}
@@ -159,12 +168,13 @@ export default function HomeScreen() {
                       : 'text-amount-negative'
                   }`}
                 >
-                  {item.amount >= 0 ? '+' : ''}${Math.abs(item.amount).toFixed(2)}
+                  {item.amount >= 0 ? '+' : ''}$
+                  {Math.abs(item.amount).toFixed(2)}
                 </Text>
                 <MaterialCommunityIcons
                   name='chevron-right'
                   size={18}
-                  color='#9ca3af'
+                  color='var(--color-accent-dark)'
                 />
               </Pressable>
             </View>
@@ -195,12 +205,18 @@ export default function HomeScreen() {
         >
           <View className='flex-1 justify-end pb-28 pr-6 items-end'>
             <Pressable onPress={() => {}}>
-              <View className='bg-white rounded-2xl shadow-xl shadow-black/40 w-52 overflow-hidden'>
+              <View className='bg-card rounded-2xl shadow-xl shadow-black/40 w-52 overflow-hidden'>
                 {/* Header */}
                 <View className='flex-row items-center justify-between px-4 pt-4 pb-3'>
-                  <Text className='text-foreground text-lg font-bold'>New Room</Text>
+                  <Text className='text-foreground text-lg font-bold'>
+                    New Room
+                  </Text>
                   <Pressable onPress={() => setShowNewRoom(false)} hitSlop={8}>
-                    <MaterialCommunityIcons name='close' size={20} color='#9ca3af' />
+                    <MaterialCommunityIcons
+                      name='close'
+                      size={20}
+                      color='var(--color-accent-dark)'
+                    />
                   </Pressable>
                 </View>
 
@@ -214,7 +230,11 @@ export default function HomeScreen() {
                     router.navigate('/create-room');
                   }}
                 >
-                  <MaterialCommunityIcons name='checkbox-outline' size={22} color='#9ca3af' />
+                  <MaterialCommunityIcons
+                    name='checkbox-outline'
+                    size={22}
+                    color='var(--color-accent-dark)'
+                  />
                   <Text className='text-foreground text-base'>Create Room</Text>
                 </Pressable>
 
@@ -228,7 +248,11 @@ export default function HomeScreen() {
                     router.navigate('/qr');
                   }}
                 >
-                  <MaterialCommunityIcons name='export-variant' size={22} color='#9ca3af' />
+                  <MaterialCommunityIcons
+                    name='export-variant'
+                    size={22}
+                    color='var(--color-accent-dark)'
+                  />
                   <Text className='text-foreground text-base'>Join Room</Text>
                 </Pressable>
               </View>

@@ -10,6 +10,11 @@ const colorExtentions = {
   card: 'var(--color-card)',
   'card-foreground': 'var(--color-card-foreground)',
 
+  // Accent
+  'accent-dark': 'var(--color-accent-dark)',
+  accent: 'var(--color-accent)',
+  'accent-light': 'var(--color-accent-light)',
+
   // Interactive
   primary: 'var(--color-primary)',
   'primary-foreground': 'var(--color-primary-foreground)',
