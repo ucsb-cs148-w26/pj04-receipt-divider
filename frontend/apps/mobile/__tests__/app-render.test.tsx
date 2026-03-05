@@ -54,7 +54,7 @@ jest.mock('expo-crypto', () => ({
 jest.mock('@react-navigation/native', () => ({
   useTheme: jest.fn(() => ({
     colors: {
-      primary: '#007AFF',
+      primary: '#4999DF',
       background: '#FFFFFF',
       card: '#FFFFFF',
       text: '#000000',

@@ -8,7 +8,7 @@ import { ReceiptItemData } from '@/types';
 jest.mock('@react-navigation/native', () => ({
   useTheme: () => ({
     colors: {
-      primary: '#007AFF',
+      primary: '#4999DF',
       background: '#FFFFFF',
       card: '#F8F8F8',
       text: '#000000',

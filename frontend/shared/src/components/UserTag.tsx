@@ -1,50 +1,31 @@
 import { USER_COLORS } from '@shared/constants';
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { Pressable, Text } from 'react-native';
 
 export function UserTag({
   id,
   onRemove,
   isNewlyAdded,
+  isEditMode = true,
 }: {
   id: number;
   onRemove: () => void;
   isNewlyAdded: boolean;
+  isEditMode?: boolean;
 }) {
-  const DOUBLE_TAP_DELAY = 1000; // ms
-  const [enableRemoveButton, setEnableRemoveButton] = useState(false);
-  const buttonIntervalId = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handlePress = () => {
-    if (buttonIntervalId.current) clearTimeout(buttonIntervalId.current);
-    buttonIntervalId.current = setTimeout(() => {
-      setEnableRemoveButton(false);
-    }, DOUBLE_TAP_DELAY);
-
-    if (enableRemoveButton) {
-      onRemove();
-      return;
-    }
-    setEnableRemoveButton(true);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (buttonIntervalId.current) clearTimeout(buttonIntervalId.current);
-    };
-  }, []);
-
   return (
     <Pressable
-      onPress={handlePress}
+      onPress={isEditMode ? onRemove : undefined}
       style={[isNewlyAdded && { transform: [{ scale: 1.1 }] }]}
-      className={`bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} w-10 h-10 rounded-lg justify-center items-center shadow-sm`}
-      accessibilityLabel={`Double-tap to remove from user ${id}`}
+      className={`bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} w-9 h-9 rounded-lg justify-center items-center shadow-sm`}
+      accessibilityLabel={
+        isEditMode ? `Tap to remove user ${id}` : `Claimed by user ${id}`
+      }
     >
-      {enableRemoveButton ? (
-        <Text className='text-foreground text-base font-bold'>✕</Text>
+      {isEditMode ? (
+        <Text className='text-white text-sm font-bold'>✕</Text>
       ) : (
-        <Text className='text-foreground text-sm font-bold'>{id}</Text>
+        <Text className='text-white text-sm font-bold'>{id}</Text>
       )}
     </Pressable>
   );

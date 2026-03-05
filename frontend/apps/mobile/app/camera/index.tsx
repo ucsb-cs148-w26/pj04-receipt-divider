@@ -78,7 +78,7 @@ export default function CameraScreen() {
         >
           <View className='flex-1 justify-center items-center bg-black/50'>
             <View className='bg-surface-elevated p-6 rounded-xl items-center'>
-              <ActivityIndicator size='large' color='#007aff' />
+              <ActivityIndicator size='large' color='#4999DF' />
               <Text className='mt-4 text-lg font-medium text-gray-700'>
                 Loading...
               </Text>

@@ -24,8 +24,13 @@
     --color-item-selected: #dbeafe;
     --color-scan-overlay: rgba(0, 0, 0, 0.5);
 
+    /* Accent Colors */
+    --color-accent-dark: #546079;
+    --color-accent: #8fa4ce;
+    --color-accent-light: #d8dde6;
+
     /* Interactive Colors - consistent across themes */
-    --color-primary: #007aff;
+    --color-primary: #4999df;
     --color-primary-foreground: #ffffff;
 
     /* Feedback Colors - consistent across themes */
@@ -41,7 +46,7 @@
     --color-amount-negative: #ef4444;
 
     /* Camera/Scan Colors - consistent across themes */
-    --color-scan-frame: #007aff;
+    --color-scan-frame: #4999df;
 
     /* User Avatar Colors - consistent across themes */
     --color-avatar-1: #3b82f699; /* blue-500/60 */
@@ -77,10 +82,15 @@
       --color-item-selected: #1e3a8a;
       --color-scan-overlay: rgba(0, 0, 0, 0.7);
 
+      /* Accent Colors */
+      --color-accent-dark: #8fa4ce;
+      --color-accent: #a8bbd8;
+      --color-accent-light: #2a3040;
+
       /* Colors that remain the same in dark mode, but must redefine for some reason*/
 
       /* Interactive Colors - consistent across themes */
-      --color-primary: #007aff;
+      --color-primary: #4999df;
       --color-primary-foreground: #ffffff;
 
       /* Feedback Colors - consistent across themes */
@@ -96,7 +106,7 @@
       --color-amount-negative: #ef4444;
 
       /* Camera/Scan Colors - consistent across themes */
-      --color-scan-frame: #007aff;
+      --color-scan-frame: #4999df;
 
       /* User Avatar Colors - consistent across themes */
       --color-avatar-1: #3b82f699; /* blue-500/60 */
