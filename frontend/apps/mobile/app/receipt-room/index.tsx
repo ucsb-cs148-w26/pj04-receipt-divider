@@ -166,13 +166,18 @@ export default function ReceiptRoomScreen() {
         participants: [] as ParticipantType[],
       };
     }
-    const members = groupData.members as { user_id: string }[];
-    const userIdToParticipantId = new Map<string, number>();
-    members.forEach((m, i) => userIdToParticipantId.set(m.user_id, i + 1));
+    const members = groupData.members as { profile_id: string }[];
+    const profileIdToParticipantId = new Map<string, number>();
+    members.forEach((m, i) =>
+      profileIdToParticipantId.set(m.profile_id, i + 1),
+    );
     const participants: ParticipantType[] = members.map((m, i) => ({
       id: i + 1,
     }));
-    const claims = groupData.claims as { item_id: string; user_id: string }[];
+    const claims = groupData.claims as {
+      item_id: string;
+      profile_id: string;
+    }[];
     const items = (
       groupData.items as {
         id: string;
@@ -181,11 +186,11 @@ export default function ReceiptRoomScreen() {
         amount?: number;
       }[]
     ).map((item) => {
-      const claimUserIds = claims
+      const claimProfileIds = claims
         .filter((c) => c.item_id === item.id)
-        .map((c) => c.user_id);
-      const userTags = claimUserIds
-        .map((uid) => userIdToParticipantId.get(uid))
+        .map((c) => c.profile_id);
+      const userTags = claimProfileIds
+        .map((pid) => profileIdToParticipantId.get(pid))
         .filter((id): id is number => id != null);
       const amount = typeof item.amount === 'number' ? item.amount : 1;
       const unitPrice =
