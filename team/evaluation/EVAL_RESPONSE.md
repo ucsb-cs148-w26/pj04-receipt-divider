@@ -25,18 +25,6 @@ The reviewers evaluated our product using the custom metrics we defined in **USE
 - Some users did not immediately realize that items must be **dragged to participants** to assign them.
 - Reviewers liked the **concept of visual item assignment**, but suggested improving how the interaction is introduced.
 
-### Team Response
-We agree with the reviewers that **discoverability of the drag interaction is an important usability issue**. While the drag-and-drop interaction was designed to feel intuitive, the feedback indicates that first-time users may not immediately understand the workflow.
-
-### Planned Actions
-Our team is considering several improvements:
-
-- Adding **visual hints or onboarding tips** explaining the drag-and-drop interaction.
-- Adding an **alternative tap-to-assign interaction** for accessibility and clarity.
-- Adding **highlight effects or animations** when an item is draggable.
-- Evaluating ways to **reduce the number of steps required** to split a receipt.
-
-These changes should improve the custom metrics we defined around **confidence and efficiency**.
 
 ---
 
@@ -67,16 +55,6 @@ Reviewers suggested improvements including:
 - Making the **item assignment interaction clearer**
 - Adding features to **automatically request payments**
 
-### Team Response
-We were encouraged that the reviewers clearly understood our product’s goals and core functionality. The suggestions they provided align closely with areas we already identified as potential improvements.
-
-### Planned Actions
-Potential improvements include:
-
-- Improving the **OCR parsing accuracy**
-- Making **assignment interactions more discoverable**
-- Exploring ways to integrate **payment-request messaging**
-
 ---
 
 # 3. Effectiveness of the Product in Its Current State (UI/UX and Robustness)
@@ -90,23 +68,6 @@ The reviewers noted that:
 - Users sometimes felt uncertain about **where to assign items or where totals were displayed**
 
 The reviewers also mentioned that improving the clarity of UI elements would increase confidence in using the app.
-
-### Team Response
-We agree that the current version is **functional but still early in terms of polish and guidance**. The feedback highlights the importance of improving:
-
-- **Visual affordances**
-- **Interaction guidance**
-- **Feedback to users after actions**
-
-### Planned Actions
-Possible UI/UX improvements include:
-
-- Adding **visual indicators showing where items can be dropped**
-- Improving **display of user totals**
-- Adding **interaction hints or onboarding instructions**
-- Improving **error handling and feedback messages**
-
-These improvements should make the app feel more robust and easier to learn for new users.
 
 ---
 
@@ -143,9 +104,8 @@ Overall, we are grateful for the reviewers’ thoughtful and constructive feedba
 
 Our team will focus on:
 
-- Improving **interaction discoverability**
-- Enhancing **UI feedback and usability**
-- Improving **OCR accuracy and robustness**
-- Expanding **user maunal and deployment documentation**
+- Improving **UI feedback and usability** by adding visual hints or onboarding tips explaining the drag-and-drop interaction, highlight effects or animations when an item is draggable, and evaluating ways to reduce the number of steps required to split a receipt.
+- Improving **OCR accuracy and robustness** by implementing a muti-stage receipt parsing paradigm for higher accuracy, using both conventional algorithms and lightweight LLMs.
+- Expanding **user maunal and deployment documentation** in the near future.
 
 We appreciate the time the reviewers spent evaluating our project and the helpful suggestions they provided. The feedback will guide our next development iterations as we continue refining Eezy Receipt.
