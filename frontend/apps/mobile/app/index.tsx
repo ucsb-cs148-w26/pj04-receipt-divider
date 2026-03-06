@@ -140,12 +140,21 @@ export default function HomeScreen() {
               {index > 0 && <View className='h-px bg-border mx-4' />}
               <Pressable
                 className='flex-row items-center px-4 py-3 active:opacity-70'
-                onPress={() => router.navigate('/receipt-room')}
+                onPress={() =>
+                  router.navigate({
+                    pathname: '/receipt-detail',
+                    params: {
+                      id: item.id,
+                      name: item.name,
+                      amount: item.amount.toString(),
+                    },
+                  })
+                }
               >
                 <View className='flex-1 mr-3'>
                   <View className='flex-row items-center flex-wrap'>
                     <Text
-                      className='text-foreground font-bold text-base'
+                      className={`font-bold text-base ${item.status === 'completed' ? 'text-muted-foreground line-through' : 'text-foreground'}`}
                       numberOfLines={1}
                     >
                       {item.name.length > 10
@@ -163,7 +172,9 @@ export default function HomeScreen() {
                 </View>
                 <Text
                   className={`font-semibold mr-1 ${
-                    item.amount >= 0
+                    item.status === 'completed'
+                      ? 'text-muted-foreground line-through'
+                      : item.amount >= 0
                       ? 'text-amount-positive'
                       : 'text-amount-negative'
                   }`}
