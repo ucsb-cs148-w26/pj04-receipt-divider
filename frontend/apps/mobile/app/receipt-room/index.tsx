@@ -9,9 +9,12 @@ import {
   Animated,
   Modal,
   ActivityIndicator,
+  Alert,
   Text,
+  TextInput,
   Pressable,
 } from 'react-native';
+import * as SMS from 'expo-sms';
 import { IconButton } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -39,6 +42,7 @@ interface ParticipantType {
 export type ReceiptRoomParams = {
   roomId: string;
   items: string;
+  participants: string; // JSON stringified ParticipantType[]
 };
 
 export default function ReceiptRoomScreen() {
@@ -54,7 +58,13 @@ export default function ReceiptRoomScreen() {
   );
 
   /**---------------- Participants State ---------------- */
-  const [participants, setParticipants] = useState<ParticipantType[]>([]);
+  const [participants, setParticipants] = useState<ParticipantType[]>(() => {
+    try {
+      return params.participants ? JSON.parse(params.participants) : [];
+    } catch {
+      return [];
+    }
+  });
   const participantLayouts = useRef<Record<number, LayoutRectangle>>({});
   const [scrollOffset, setScrollOffset] = useState(0);
 
@@ -72,6 +82,11 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Quick Actions State ---------------- */
   const [showQuickActions, setShowQuickActions] = useState(false);
+
+  /**---------------- Add Participant State ---------------- */
+  const [showAddOptions, setShowAddOptions] = useState(false);
+  const [showAddManual, setShowAddManual] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
 
   /**---------------- Add Photo ---------------- */
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
@@ -93,12 +108,46 @@ export default function ReceiptRoomScreen() {
   };
 
   /**---------------- Participants Functions ---------------- */
-  const addParticipant = () => {
+  const addParticipant = (name: string) => {
     if (participants.length >= 10) return;
     const maxID =
       participants.length > 0 ? Math.max(...participants.map((p) => p.id)) : 0;
     const newID = maxID + 1;
-    setParticipants([...participants, { id: newID, name: `Name ${newID}` }]);
+    setParticipants((prev) => [...prev, { id: newID, name }]);
+    setNewUserName('');
+    setShowAddManual(false);
+  };
+
+  const handleShareSMS = async () => {
+    setShowAddOptions(false);
+    try {
+      const isAvailable = await SMS.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('SMS not available', 'SMS is not available on this device.');
+        return;
+      }
+      const message = `Join my Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nOr tap this link to join: https://example.com/join?roomId=${roomId}`;
+      await SMS.sendSMSAsync([], message);
+    } catch (error) {
+      console.error('SMS error:', error);
+    }
+  };
+
+  const handleShowQR = () => {
+    setShowAddOptions(false);
+    router.push(`/qr?roomId=${roomId}`);
+  };
+
+  const handleAddManually = () => {
+    setShowAddOptions(false);
+    Alert.alert(
+      'Manual Participant',
+      "Adding a participant manually means they won't be linked to a real user account.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Add Anyway', onPress: () => setShowAddManual(true) },
+      ],
+    );
   };
 
   const removeParticipant = (removeID: number) => {
@@ -175,6 +224,19 @@ export default function ReceiptRoomScreen() {
     }
     return Math.random().toString(36).substring(2, 9);
   });
+
+  /**---------------- Claim Selected Items ---------------- */
+  const claimSelectedToParticipant = (participantId: number) => {
+    receiptItems.setItems((prevItems) =>
+      prevItems.map((item) => {
+        if (!selectedItemIds.has(item.id)) return item;
+        const tags = item.userTags ?? [];
+        if (tags.includes(participantId)) return item;
+        return { ...item, userTags: [...tags, participantId] };
+      }),
+    );
+    setSelectedItemIds(new Set());
+  };
 
   /**---------------- Quick Actions Functions ---------------- */
   const claimForAll = () => {
@@ -278,26 +340,14 @@ export default function ReceiptRoomScreen() {
 
           {/* Center toggle button */}
           <Pressable
-            className='bg-card shadow-md shadow-black/20 size-[14vw] rounded-full items-center justify-center'
+            className='bg-card shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70'
             onPress={() => setIsEditMode(!isEditMode)}
           >
-            {isEditMode ? (
-              <IconButton
-                icon='receipt'
-                bgClassName='bg-card shadow-md shadow-black/20 size-[14vw]'
-                iconClassName='text-primary'
-                pressEffect='fade'
-                onPress={() => setIsEditMode(false)}
-              />
-            ) : (
-              <IconButton
-                icon='pencil-outline'
-                bgClassName='bg-card shadow-md shadow-black/20 size-[14vw]'
-                iconClassName='text-primary'
-                pressEffect='fade'
-                onPress={() => setIsEditMode(true)}
-              />
-            )}
+            <MaterialCommunityIcons
+              name={isEditMode ? 'receipt' : 'pencil-outline'}
+              size={26}
+              color='var(--color-primary)'
+            />
           </Pressable>
 
           {/* Right side buttons */}
@@ -471,7 +521,7 @@ export default function ReceiptRoomScreen() {
                 }
                 participantLayouts={participantLayouts.current}
                 scrollOffset={scrollOffset}
-                onDragStart={(itemId, initialPosition) =>
+                onDragStart={(_itemId, initialPosition) =>
                   handleItemDragStart(item.id, initialPosition)
                 }
                 onDragEnd={handleItemDragEnd}
@@ -494,6 +544,7 @@ export default function ReceiptRoomScreen() {
                 isEditMode={isEditMode}
                 isSelected={selectedItemIds.has(item.id)}
                 onToggleSelect={() => toggleItemSelection(item.id)}
+                onClaimToParticipant={claimSelectedToParticipant}
               />
             ))}
 
@@ -521,23 +572,6 @@ export default function ReceiptRoomScreen() {
             <Text className='text-accent text-center text-sm mb-1'>
               Drop to Claim
             </Text>
-          )}
-
-          {/* Claim button - show when items are selected and not dragging */}
-          {!isEditMode && selectedItemIds.size > 0 && !dragState.isDragging && (
-            <View className='px-4 mb-2'>
-              <Pressable
-                className='bg-primary rounded-2xl py-4 items-center active:opacity-80'
-                onPress={() => {
-                  // Placeholder - users should drag to claim
-                }}
-              >
-                <Text className='text-primary-foreground font-bold text-lg'>
-                  Claim {selectedItemIds.size}{' '}
-                  {selectedItemIds.size === 1 ? 'item' : 'items'}
-                </Text>
-              </Pressable>
-            </View>
           )}
 
           <ScrollView
@@ -588,7 +622,7 @@ export default function ReceiptRoomScreen() {
             <Pressable
               className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
               style={{ width: 160 }}
-              onPress={addParticipant}
+              onPress={() => setShowAddOptions(true)}
             >
               <View className='h-2 bg-accent-light' />
               <View className='flex-1 items-center justify-center py-6'>
@@ -626,6 +660,96 @@ export default function ReceiptRoomScreen() {
           </View>
         </Animated.View>
       )}
+
+      {/* Add Participant Options Modal */}
+      <Modal
+        transparent
+        animationType='fade'
+        visible={showAddOptions}
+        onRequestClose={() => setShowAddOptions(false)}
+      >
+        <Pressable
+          className='flex-1 bg-black/50 justify-end'
+          onPress={() => setShowAddOptions(false)}
+        >
+          <Pressable onPress={() => {}}>
+            <View className='bg-card rounded-t-2xl p-6'>
+              <Text className='text-foreground text-xl font-bold mb-4'>
+                Add Participant
+              </Text>
+              <Pressable
+                className='flex-row items-center gap-4 py-3 active:opacity-70'
+                onPress={handleShareSMS}
+              >
+                <MaterialCommunityIcons name='message-text' size={24} color='#4999DF' />
+                <Text className='text-foreground text-base'>Share Link via SMS</Text>
+              </Pressable>
+              <View className='h-px bg-border my-1' />
+              <Pressable
+                className='flex-row items-center gap-4 py-3 active:opacity-70'
+                onPress={handleShowQR}
+              >
+                <MaterialCommunityIcons name='qrcode' size={24} color='#4999DF' />
+                <Text className='text-foreground text-base'>Show Room QR Code</Text>
+              </Pressable>
+              <View className='h-px bg-border my-1' />
+              <Pressable
+                className='flex-row items-center gap-4 py-3 active:opacity-70'
+                onPress={handleAddManually}
+              >
+                <MaterialCommunityIcons name='account-plus' size={24} color='#4999DF' />
+                <Text className='text-foreground text-base'>Add Manually</Text>
+              </Pressable>
+              <Pressable
+                className='mt-3 py-3 items-center active:opacity-70'
+                onPress={() => setShowAddOptions(false)}
+              >
+                <Text className='text-accent-dark text-base font-medium'>Cancel</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Add Participant Manual Modal */}
+      <Modal
+        transparent
+        animationType='fade'
+        visible={showAddManual}
+        onRequestClose={() => setShowAddManual(false)}
+      >
+        <Pressable
+          className='flex-1 bg-black/50 justify-center items-center px-6'
+          onPress={() => setShowAddManual(false)}
+        >
+          <Pressable onPress={() => {}}>
+            <View className='bg-card rounded-2xl p-6 w-80'>
+              <View className='flex-row items-center justify-between mb-4'>
+                <Text className='text-foreground text-xl font-bold'>Add Participant</Text>
+                <Pressable onPress={() => setShowAddManual(false)} hitSlop={8}>
+                  <MaterialCommunityIcons name='close' size={22} color='var(--color-accent-dark)' />
+                </Pressable>
+              </View>
+              <TextInput
+                placeholder='Name'
+                placeholderTextColor='var(--color-muted-foreground)'
+                value={newUserName}
+                onChangeText={setNewUserName}
+                onSubmitEditing={() => newUserName.trim() && addParticipant(newUserName.trim())}
+                returnKeyType='done'
+                className='border border-border rounded-xl px-4 py-3 text-foreground mb-4'
+                autoFocus
+              />
+              <Pressable
+                className='bg-primary rounded-xl py-3 items-center active:opacity-80'
+                onPress={() => newUserName.trim() && addParticipant(newUserName.trim())}
+              >
+                <Text className='text-primary-foreground font-bold'>Add</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal
         transparent

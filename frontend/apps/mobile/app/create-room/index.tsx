@@ -259,7 +259,16 @@ export default function CreateRoomScreen() {
       <View className='absolute bottom-10 left-5 right-5'>
         <Pressable
           className='bg-primary rounded-2xl py-4 items-center active:opacity-80'
-          onPress={() => router.navigate('/receipt-room')}
+          onPress={() =>
+            router.navigate({
+              pathname: '/receipt-room',
+              params: {
+                participants: JSON.stringify(
+                  users.map((u) => ({ id: u.id, name: u.name })),
+                ),
+              },
+            })
+          }
         >
           <Text className='text-primary-foreground font-bold text-base'>
             Create Room
