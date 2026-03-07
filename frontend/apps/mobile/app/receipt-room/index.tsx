@@ -20,7 +20,11 @@ import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
 import { randomUUID } from 'expo-crypto';
 import { useGroupData } from '@/hooks';
-import type { GroupMember as DbGroupMember, ItemClaim as DbItemClaim, Item as DbItem } from '@eezy-receipt/shared';
+import type {
+  GroupMember as DbGroupMember,
+  ItemClaim as DbItemClaim,
+  Item as DbItem,
+} from '@eezy-receipt/shared';
 
 export const ITEMCONTAINERPADDING = 16;
 

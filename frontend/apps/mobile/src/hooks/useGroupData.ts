@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/services/supabase';
 import { useRealtimeRefetch } from './useRealtimeTable';
-import type { Item, ItemClaim, GroupMember, Receipt } from '@eezy-receipt/shared';
+import type {
+  Item,
+  ItemClaim,
+  GroupMember,
+  Receipt,
+} from '@eezy-receipt/shared';
 
 export function useGroupData(groupId: string) {
   const [items, setItems] = useState<Item[]>([]);
