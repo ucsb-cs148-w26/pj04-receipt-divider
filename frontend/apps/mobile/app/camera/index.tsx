@@ -8,11 +8,12 @@ import { Button } from '@eezy-receipt/shared';
 import { ReceiptRoomParams } from '@/app/receipt-room/index';
 import { useReceiptItems } from '@/providers';
 
-import { extractItems as extractReceiptItems } from '@/services/ocr';
+import { scanReceipt } from '@/services/ocr';
 import { randomUUID } from 'expo-crypto';
 
 export default function CameraScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const receiptItems = useReceiptItems();
 
   const goToReceiptRoom = () => {
@@ -35,12 +36,27 @@ export default function CameraScreen() {
     });
 
     if (!result.canceled) {
-      const imageBase64 = await new File(result.assets[0].uri).base64();
       setIsLoading(true);
-      const extractedItems = await extractReceiptItems(imageBase64);
-      receiptItems.setItems(extractedItems);
-      setIsLoading(false);
-      goToReceiptRoom();
+      setErrorMsg(null);
+      try {
+        const scanResult = await scanReceipt(result.assets[0].uri);
+        receiptItems.setItems(scanResult.items);
+        receiptItems.setScanMeta({
+          calculatedSubtotal: scanResult.calculatedSubtotal,
+          ocrSubtotal: scanResult.ocrSubtotal,
+          ocrTax: scanResult.ocrTax,
+          ocrTotal: scanResult.ocrTotal,
+          taxRate: scanResult.taxRate,
+          confidence: scanResult.confidence,
+          warnings: scanResult.warnings,
+          suggestions: scanResult.suggestions,
+        });
+        setIsLoading(false);
+        goToReceiptRoom();
+      } catch (e) {
+        setIsLoading(false);
+        setErrorMsg(e instanceof Error ? e.message : 'Failed to scan receipt');
+      }
     }
   };
 
@@ -55,6 +71,9 @@ export default function CameraScreen() {
             Use your camera to capture an image
           </Text>
           <Button onPress={openCamera}>Open Camera</Button>
+          {errorMsg && (
+            <Text className='text-red-500 text-sm mt-2'>{errorMsg}</Text>
+          )}
           <Button
             variant='outlined'
             className='mt-3'
