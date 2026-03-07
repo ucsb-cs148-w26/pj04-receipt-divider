@@ -22,7 +22,9 @@ uv sync --locked
 Start dev server
 
 ```sh
-uv run fastapi dev app/main.py
+uv run fastapi dev app/main.py --host 0.0.0.0
+#OR
+uv run poe dev
 ```
 
 ## Project structure

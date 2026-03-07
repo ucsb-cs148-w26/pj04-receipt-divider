@@ -1,146 +1,106 @@
-import { z } from 'zod';
 import { randomUUID } from 'expo-crypto';
-import OpenAI from 'openai';
 import { ReceiptItemData } from '@shared/types';
 
-interface RawReceiptItemData {
+/** Shape of each item returned by the backend /receipt/scan endpoint. */
+interface BackendReceiptItem {
   name: string;
-  price: string;
+  originalPrice: number;
+  discount: number;
+  finalPrice: number;
+  taxed: boolean;
+  taxCode: string | null;
+  taxRate: number | null;
+  rawPrice: string;
 }
 
-const RawReceiptItemDataSchema: z.ZodType<RawReceiptItemData> = z.object({
-  name: z.string(),
-  price: z.string(),
-});
-
-interface ExtractionEngine {
-  extract(textBlocks: string[]): Promise<ReceiptItemData[]>;
+interface BackendSuggestion {
+  type: 'info' | 'warning' | 'error';
+  message: string;
+  suggestion: string;
 }
 
-class LLMEngine implements ExtractionEngine {
-  model: string;
-  readonly apiKey: string;
-  readonly llmEndpoint: string;
-  readonly llmClient: OpenAI;
-
-  constructor() {
-    this.model = process.env.EXPO_PUBLIC_LLM_MODEL as string;
-    this.apiKey = process.env.EXPO_PUBLIC_LLM_KEY as string;
-    this.llmEndpoint = process.env.EXPO_PUBLIC_LLM_URL as string;
-    this.llmClient = new OpenAI({
-      apiKey: process.env.EXPO_PUBLIC_LLM_KEY as string,
-    });
-  }
-
-  async extract(textBlocks: string[]): Promise<ReceiptItemData[]> {
-    const text = textBlocks.reduce((prev, curr) => prev + curr, '');
-    const prompt = `Given the chunk of text identify receipt items and output them with the given format.\n# Format\nThe output as 'Results: <results>'.For example, 'Results: [{ "name": "carrot", "price": "$2.99" }, { "name": "water", "price": "$1.29" }]\nText: \n${text}`;
-    return this.#transformQuery(await this.#query(prompt));
-  }
-
-  async #query(prompt: string): Promise<string> {
-    const res = await fetch(this.llmEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey} `,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      }),
-    });
-
-    const response = await this.llmClient.responses.create({
-      model: 'gpt-5-nano',
-      input: prompt,
-      store: false,
-    });
-
-    return response.output_text;
-  }
-
-  #transformQuery(res: string): ReceiptItemData[] {
-    const captureClause: RegExp = /(?:Results:).*(\[.*\])/;
-    const extractedText = captureClause.exec(res);
-
-    if (!extractedText) {
-      console.log("LLM didn't return proper format:\n");
-      console.log(res);
-      return [];
-    }
-
-    try {
-      const ExtractedReceiptItemsSchema = z.array(RawReceiptItemDataSchema);
-      const extractedItems = ExtractedReceiptItemsSchema.parse(
-        JSON.parse(extractedText[1]),
-      );
-
-      return extractedItems.map((item) => {
-        return {
-          // FIXME: id should be randomUUID
-          id: randomUUID(),
-          name: item.name,
-          price: item.price,
-          userTags: [],
-          discount: '',
-        } as ReceiptItemData;
-      });
-    } catch (e) {
-      console.log(e);
-      return [];
-    }
-  }
+interface BackendCheck {
+  id: string;
+  severity: 'info' | 'warn' | 'error';
+  message: string;
 }
 
-const analyzeReceipt = async (
-  base64Image: Base64URLString,
-): Promise<string[]> => {
-  try {
-    const url = new URL(process.env.EXPO_PUBLIC_GOOGLE_URL as string);
-    url.searchParams.set(
-      'key',
-      process.env.EXPO_PUBLIC_GOOGLE_API_KEY as string,
-    );
+/** Full response from POST /receipt/scan */
+export interface ReceiptScanResult {
+  items: ReceiptItemData[];
+  calculatedSubtotal: number;
+  ocrSubtotal: number | null;
+  ocrTax: number | null;
+  ocrTotal: number | null;
+  taxRate: number | null;
+  confidence: number;
+  checks: BackendCheck[];
+  warnings: string[];
+  suggestions: BackendSuggestion[];
+}
 
-    const body = {
-      requests: [
-        {
-          image: { content: base64Image },
-          features: [{ type: 'TEXT_DETECTION' }],
-        },
-      ],
-    };
+const BACKEND_URL =
+  process.env.EXPO_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+/**
+ * Send an image (by local file URI) to the backend OCR pipeline.
+ * Uses React Native's native FormData URI upload — no base64 conversion needed.
+ * Returns parsed items + confidence/suggestions metadata.
+ */
+export const scanReceipt = async (
+  imageUri: string,
+): Promise<ReceiptScanResult> => {
+  const formData = new FormData();
+  // React Native FormData accepts { uri, type, name } directly
+  formData.append('file', {
+    uri: imageUri,
+    type: 'image/jpeg',
+    name: 'receipt.jpg',
+  } as unknown as Blob);
 
-    const data = await response.json();
+  const response = await fetch(`${BACKEND_URL}/receipt/scan`, {
+    method: 'POST',
+    body: formData,
+  });
 
-    if (!data.responses || !data.responses[0].textAnnotations) {
-      return [];
-    }
-
-    const fullText = data.responses[0].textAnnotations[0].description;
-    return fullText.split('\n');
-  } catch (error) {
-    console.error('API Error:', error);
-    return [];
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Receipt scan failed (${response.status}): ${errorBody}`);
   }
+
+  const data = await response.json();
+
+  const items: ReceiptItemData[] = (data.items as BackendReceiptItem[]).map(
+    (item) => ({
+      id: randomUUID(),
+      name: item.name,
+      price: `$${item.finalPrice.toFixed(2)}`,
+      userTags: [],
+      discount:
+        item.discount !== 0 ? `$${Math.abs(item.discount).toFixed(2)}` : '',
+    }),
+  );
+
+  return {
+    items,
+    calculatedSubtotal: data.calculatedSubtotal,
+    ocrSubtotal: data.ocrSubtotal,
+    ocrTax: data.ocrTax,
+    ocrTotal: data.ocrTotal,
+    taxRate: data.taxRate,
+    confidence: data.confidence,
+    checks: data.checks,
+    warnings: data.warnings,
+    suggestions: data.suggestions,
+  };
 };
 
+/**
+ * Convenience wrapper that returns just items (backward-compatible URI-based API).
+ */
 export const extractItems = async (
-  base64ImageData: Base64URLString,
+  imageUri: string,
 ): Promise<ReceiptItemData[]> => {
-  const textBlocks = await analyzeReceipt(base64ImageData);
-  const engine = new LLMEngine();
-  return await engine.extract(textBlocks);
+  const result = await scanReceipt(imageUri);
+  return result.items;
 };

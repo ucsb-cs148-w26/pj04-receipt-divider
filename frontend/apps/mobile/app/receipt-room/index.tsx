@@ -14,7 +14,7 @@ import {
 import { IconButton, DefaultButtons } from '@eezy-receipt/shared';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
-import { extractItems as extractReceiptItems } from '@/services/ocr';
+import { scanReceipt } from '@/services/ocr';
 import { Participant } from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
@@ -75,10 +75,23 @@ export default function ReceiptRoomScreen() {
       quality: 1,
     });
     if (!result.canceled) {
-      const imageBase64 = await new File(result.assets[0].uri).base64();
       setIsLoadingPhoto(true);
-      const newItems = await extractReceiptItems(imageBase64);
-      receiptItems.setItems([...receiptItems.items, ...newItems]);
+      try {
+        const scanResult = await scanReceipt(result.assets[0].uri);
+        receiptItems.setItems([...receiptItems.items, ...scanResult.items]);
+        receiptItems.setScanMeta({
+          calculatedSubtotal: scanResult.calculatedSubtotal,
+          ocrSubtotal: scanResult.ocrSubtotal,
+          ocrTax: scanResult.ocrTax,
+          ocrTotal: scanResult.ocrTotal,
+          taxRate: scanResult.taxRate,
+          confidence: scanResult.confidence,
+          warnings: scanResult.warnings,
+          suggestions: scanResult.suggestions,
+        });
+      } catch (e) {
+        console.error('Failed to scan receipt:', e);
+      }
       setIsLoadingPhoto(false);
     }
   };
@@ -229,9 +242,69 @@ export default function ReceiptRoomScreen() {
   };
 
   /**---------------- Render ---------------- */
+  const scanMeta = receiptItems.scanMeta;
+  const confidencePct = scanMeta ? Math.round(scanMeta.confidence * 100) : null;
+  const confidenceColor =
+    confidencePct !== null
+      ? confidencePct >= 80
+        ? 'bg-green-100 border-green-300'
+        : confidencePct >= 50
+          ? 'bg-yellow-100 border-yellow-300'
+          : 'bg-red-100 border-red-300'
+      : '';
+  const confidenceTextColor =
+    confidencePct !== null
+      ? confidencePct >= 80
+        ? 'text-green-800'
+        : confidencePct >= 50
+          ? 'text-yellow-800'
+          : 'text-red-800'
+      : '';
+
   return (
     <View className='bg-background flex-1 pt-[60px]'>
       <View className='flex-1'>
+        {/* Confidence banner + suggestions */}
+        {scanMeta && (
+          <View className='px-4 pt-2'>
+            <View className={`rounded-lg border p-3 mb-2 ${confidenceColor}`}>
+              <Text
+                className={`font-semibold text-base ${confidenceTextColor}`}
+              >
+                Scan Confidence: {confidencePct}%
+              </Text>
+              {scanMeta.ocrTotal !== null && (
+                <Text className={`text-xs mt-1 ${confidenceTextColor}`}>
+                  Total: ${scanMeta.ocrTotal.toFixed(2)}
+                  {scanMeta.ocrTax !== null
+                    ? ` (incl. $${scanMeta.ocrTax.toFixed(2)} tax)`
+                    : ''}
+                </Text>
+              )}
+            </View>
+            {scanMeta.suggestions.length > 0 && (
+              <View className='mb-2'>
+                {scanMeta.suggestions.map((s, i) => (
+                  <View
+                    key={i}
+                    className={`rounded-lg border p-2 mb-1 ${
+                      s.type === 'error'
+                        ? 'bg-red-50 border-red-200'
+                        : s.type === 'warning'
+                          ? 'bg-yellow-50 border-yellow-200'
+                          : 'bg-blue-50 border-blue-200'
+                    }`}
+                  >
+                    <Text className='text-xs font-medium text-gray-800'>
+                      {s.suggestion}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Middle part - scrollable receipt items */}
         <ScrollView
           style={{ height: editingParticipantName ? '50%' : '80%' }}
