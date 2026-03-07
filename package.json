@@ -2,9 +2,7 @@
   "name": "eezy-receipt",
   "main": "index.js",
   "scripts": {
-    "prepare": "husky",
-    "format": "cd frontend && npm run format",
-    "format:fix": "cd frontend && npm run format:fix"
+    "prepare": "husky"
   },
   "license": "ISC",
   "type": "commonjs",
