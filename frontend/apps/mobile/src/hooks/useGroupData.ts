@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/services/supabase';
 import { useRealtimeRefetch } from './useRealtimeTable';
-
-type Item = Record<string, unknown>;
-type ItemClaim = Record<string, unknown>;
-type GroupMember = Record<string, unknown>;
-type Receipt = Record<string, unknown>;
+import type { Item, ItemClaim, GroupMember, Receipt } from '@eezy-receipt/shared';
 
 export function useGroupData(groupId: string) {
   const [items, setItems] = useState<Item[]>([]);
@@ -28,7 +24,7 @@ export function useGroupData(groupId: string) {
     if (!membersRes.error) setMembers(membersRes.data ?? []);
     if (!receiptsRes.error) setReceipts(receiptsRes.data ?? []);
 
-    const itemIds = (itemsRes.data ?? []).map((i: Item) => i.id);
+    const itemIds = (itemsRes.data ?? []).map((i) => i.id);
     if (itemIds.length > 0) {
       const claimsRes = await supabase
         .from('item_claims')

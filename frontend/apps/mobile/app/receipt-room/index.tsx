@@ -1,7 +1,7 @@
 import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -20,6 +20,7 @@ import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
 import { randomUUID } from 'expo-crypto';
 import { useGroupData } from '@/hooks';
+import type { GroupMember as DbGroupMember, ItemClaim as DbItemClaim, Item as DbItem } from '@eezy-receipt/shared';
 
 export const ITEMCONTAINERPADDING = 16;
 
@@ -166,26 +167,16 @@ export default function ReceiptRoomScreen() {
         participants: [] as ParticipantType[],
       };
     }
-    const members = groupData.members as { profile_id: string }[];
+    const members = groupData.members as DbGroupMember[];
     const profileIdToParticipantId = new Map<string, number>();
     members.forEach((m, i) =>
       profileIdToParticipantId.set(m.profile_id, i + 1),
     );
-    const participants: ParticipantType[] = members.map((m, i) => ({
+    const participants: ParticipantType[] = members.map((_m, i) => ({
       id: i + 1,
     }));
-    const claims = groupData.claims as {
-      item_id: string;
-      profile_id: string;
-    }[];
-    const items = (
-      groupData.items as {
-        id: string;
-        name: string;
-        unit_price?: number;
-        amount?: number;
-      }[]
-    ).map((item) => {
+    const claims = groupData.claims as DbItemClaim[];
+    const items = (groupData.items as DbItem[]).map((item) => {
       const claimProfileIds = claims
         .filter((c) => c.item_id === item.id)
         .map((c) => c.profile_id);
