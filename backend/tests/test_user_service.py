@@ -1,10 +1,13 @@
 import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.models import Profile, Group, GroupMember, Item, ItemClaim, Receipt
+from app.services.ocr_service import CleanedItem
+from app.services.receipt_parser.types import DebugReceipt
 
 
 def _make_user(
@@ -59,19 +62,39 @@ def _claim_item(db_session, user: Profile, item: Item, share: float = 1.0) -> It
     return claim
 
 
-def _mock_ocr(items: list[tuple[str, str, int]]):
-    from unittest.mock import MagicMock
+def _mock_detect_receipt(items: list[tuple[str, float]]):
+    """Return a context-manager that patches OCRService.extract_items.
 
-    ocr = MagicMock()
-    extracted = []
-    for name, price, qty in items:
-        i = MagicMock()
-        i.name = name
-        i.price = price
-        i.quantity = qty
-        extracted.append(i)
-    ocr.extract_items.return_value = extracted
-    return ocr
+    Each tuple is (name, final_price).
+    """
+    cleaned_items = [
+        CleanedItem(name=name, original_name=name, unit_price=price, taxed=False)
+        for name, price in items
+    ]
+    mock_receipt = DebugReceipt(
+        lines=[],
+        angle=0.0,
+        detected_store=None,
+        items=[],
+        total_lines=0,
+        total_items=len(cleaned_items),
+        total_untaxed_items=len(cleaned_items),
+        total_taxed_items=0,
+        untaxed_items_value=sum(p for _, p in items),
+        taxed_items_value=0.0,
+        ocr_subtotal=None,
+        ocr_tax=None,
+        ocr_total=None,
+        calculated_subtotal=sum(p for _, p in items),
+        tax_rate=None,
+        tax_rates=[],
+        tender_amount=None,
+        confidence=None,
+    )
+    return patch(
+        "app.services.ocr_service.OCRService.extract_items",
+        new=AsyncMock(return_value=(cleaned_items, mock_receipt)),
+    )
 
 
 def _setup_group_with_item(
@@ -473,48 +496,57 @@ class TestUnassignItem:
 
 
 class TestAddReceipt:
-    def test_creates_receipt_row_in_db(self, user_service, db_session, supabase):
+    @pytest.mark.asyncio
+    async def test_creates_receipt_row_in_db(self, user_service, db_session, supabase):
         user = _make_user(db_session)
         group = _make_group(db_session, user, "Group 1")
         _configure_supabase(supabase)
-        ocr = _mock_ocr([("Burger", "$9.99", 1)])
 
-        user_service.add_receipt(str(user.id), str(group.id), ocr, b"img", "jpg")
+        with _mock_detect_receipt([("Burger", 9.99)]):
+            await user_service.add_receipt(str(user.id), str(group.id), b"img", "jpg")
         db_session.expire_all()
 
         receipts = db_session.execute(select(Receipt)).scalars().all()
         assert len(receipts) == 1
         assert receipts[0].image == "https://example.com/img.jpg"
 
-    def test_creates_one_item_per_quantity(self, user_service, db_session, supabase):
+    @pytest.mark.asyncio
+    async def test_creates_one_item_per_extracted_item(
+        self, user_service, db_session, supabase
+    ):
         user = _make_user(db_session)
         group_id = user_service.create_group(str(user.id), "Group")
         _configure_supabase(supabase)
-        # quantity=3 should produce 3 separate item rows
-        ocr = _mock_ocr([("Coffee", "$3.00", 3)])
-
-        user_service.add_receipt(str(user.id), group_id, ocr, b"img", "jpg")
+        # each ReceiptItem becomes one DB row
+        with _mock_detect_receipt([
+            ("Coffee", 3.00),
+            ("Coffee", 3.00),
+            ("Coffee", 3.00),
+        ]):
+            await user_service.add_receipt(str(user.id), group_id, b"img", "jpg")
         db_session.expire_all()
 
         items = db_session.execute(select(Item)).scalars().all()
         assert len(items) == 3
         assert all(i.name == "Coffee" for i in items)
 
-    def test_creates_items_for_multiple_extracted_lines(
+    @pytest.mark.asyncio
+    async def test_creates_items_for_multiple_extracted_lines(
         self, user_service, db_session, supabase
     ):
         user = _make_user(db_session)
         group_id = user_service.create_group(str(user.id), "Group")
         _configure_supabase(supabase)
-        ocr = _mock_ocr([("Burger", "$9.99", 1), ("Fries", "$3.50", 2)])
 
-        user_service.add_receipt(str(user.id), group_id, ocr, b"img", "jpg")
+        with _mock_detect_receipt([("Burger", 9.99), ("Fries", 3.50)]):
+            await user_service.add_receipt(str(user.id), group_id, b"img", "jpg")
         db_session.expire_all()
 
         items = db_session.execute(select(Item)).scalars().all()
-        assert len(items) == 3  # 1 burger + 2 fries
+        assert len(items) == 2
 
-    def test_raises_403_when_user_not_in_group(
+    @pytest.mark.asyncio
+    async def test_raises_403_when_user_not_in_group(
         self, user_service, db_session, supabase
     ):
         host = _make_user(db_session)
@@ -523,13 +555,15 @@ class TestAddReceipt:
         _configure_supabase(supabase)
 
         with pytest.raises(HTTPException) as exc:
-            user_service.add_receipt(
-                str(outsider.id), group_id, _mock_ocr([]), b"img", "jpg"
-            )
+            with _mock_detect_receipt([]):
+                await user_service.add_receipt(
+                    str(outsider.id), group_id, b"img", "jpg"
+                )
 
         assert exc.value.status_code == 403
 
-    def test_raises_500_when_storage_upload_fails(
+    @pytest.mark.asyncio
+    async def test_raises_500_when_storage_upload_fails(
         self, user_service, db_session, supabase
     ):
         user = _make_user(db_session)
@@ -537,23 +571,22 @@ class TestAddReceipt:
         supabase.storage.from_.return_value.upload.side_effect = Exception("S3 down")
 
         with pytest.raises(HTTPException) as exc:
-            user_service.add_receipt(
-                str(user.id), group_id, _mock_ocr([]), b"img", "jpg"
-            )
+            with _mock_detect_receipt([]):
+                await user_service.add_receipt(str(user.id), group_id, b"img", "jpg")
 
         assert exc.value.status_code == 500
 
 
 class TestGetReceiptsInGroup:
-    def test_returns_receipts_for_group_member(
+    @pytest.mark.asyncio
+    async def test_returns_receipts_for_group_member(
         self, user_service, db_session, supabase
     ):
         user = _make_user(db_session)
         group_id = user_service.create_group(str(user.id), "Group")
         _configure_supabase(supabase)
-        user_service.add_receipt(
-            str(user.id), group_id, _mock_ocr([("Tea", "$2.00", 1)]), b"img", "jpg"
-        )
+        with _mock_detect_receipt([("Tea", 2.00)]):
+            await user_service.add_receipt(str(user.id), group_id, b"img", "jpg")
         db_session.expire_all()
 
         receipts = user_service.get_receipts_in_group(str(user.id), group_id)
@@ -572,13 +605,15 @@ class TestGetReceiptsInGroup:
 
 
 class TestRemoveReceipt:
-    def test_creator_can_remove_their_receipt(self, user_service, db_session, supabase):
+    @pytest.mark.asyncio
+    async def test_creator_can_remove_their_receipt(
+        self, user_service, db_session, supabase
+    ):
         user = _make_user(db_session)
         group_id = user_service.create_group(str(user.id), "Group")
         _configure_supabase(supabase)
-        user_service.add_receipt(
-            str(user.id), group_id, _mock_ocr([("Tea", "$2.00", 1)]), b"img", "jpg"
-        )
+        with _mock_detect_receipt([("Tea", 2.00)]):
+            await user_service.add_receipt(str(user.id), group_id, b"img", "jpg")
         db_session.expire_all()
 
         receipt = db_session.execute(select(Receipt)).scalars().first()
@@ -587,7 +622,8 @@ class TestRemoveReceipt:
 
         assert db_session.execute(select(Receipt)).scalars().first() is None
 
-    def test_host_can_remove_another_members_receipt(
+    @pytest.mark.asyncio
+    async def test_host_can_remove_another_members_receipt(
         self, user_service, db_session, supabase
     ):
         host = _make_user(db_session)
@@ -595,13 +631,8 @@ class TestRemoveReceipt:
         group = _make_group(db_session, host, "Group 1")
         _add_member(db_session, member, group)
         _configure_supabase(supabase)
-        user_service.add_receipt(
-            str(member.id),
-            str(group.id),
-            _mock_ocr([("Salad", "$5.00", 1)]),
-            b"img",
-            "jpg",
-        )
+        with _mock_detect_receipt([("Salad", 5.00)]):
+            await user_service.add_receipt(str(member.id), str(group.id), b"img", "jpg")
         db_session.expire_all()
 
         receipt = db_session.execute(select(Receipt)).scalars().first()
@@ -610,7 +641,8 @@ class TestRemoveReceipt:
 
         assert db_session.execute(select(Receipt)).scalars().first() is None
 
-    def test_raises_403_when_neither_owner_nor_host(
+    @pytest.mark.asyncio
+    async def test_raises_403_when_neither_owner_nor_host(
         self, user_service, db_session, supabase
     ):
         host = _make_user(db_session)
@@ -620,9 +652,8 @@ class TestRemoveReceipt:
         user_service.join_group(str(member_a.id), group_id)
         user_service.join_group(str(member_b.id), group_id)
         _configure_supabase(supabase)
-        user_service.add_receipt(
-            str(member_a.id), group_id, _mock_ocr([("Soup", "$4.00", 1)]), b"img", "jpg"
-        )
+        with _mock_detect_receipt([("Soup", 4.00)]):
+            await user_service.add_receipt(str(member_a.id), group_id, b"img", "jpg")
         db_session.expire_all()
 
         receipt = db_session.execute(select(Receipt)).scalars().first()

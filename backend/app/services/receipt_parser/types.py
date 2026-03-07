@@ -108,6 +108,7 @@ class Receipt:
 @dataclass
 class DebugReceipt(Receipt):
     times: list[dict] = field(default_factory=list)
+    detected_language: str = "en"  # ISO 639-1 code from Vision API
 
 
 @dataclass

@@ -66,6 +66,29 @@ async def _call_vision_api(image_bytes: bytes) -> dict:
     return responses[0]
 
 
+def _extract_detected_language(vision_resp: dict) -> str:
+    """Extract the dominant language code from the Vision API response.
+
+    Looks at fullTextAnnotation.pages[0].property.detectedLanguages and
+    returns the language code with the highest confidence.
+    Falls back to 'en' if not available.
+    """
+    try:
+        full_text = vision_resp.get("fullTextAnnotation", {})
+        pages = full_text.get("pages", [])
+        if not pages:
+            return "en"
+        prop = pages[0].get("property", {})
+        langs = prop.get("detectedLanguages", [])
+        if not langs:
+            return "en"
+        # Pick the language with the highest confidence
+        best = max(langs, key=lambda lang: lang.get("confidence", 0))
+        return best.get("languageCode", "en")
+    except (KeyError, IndexError, TypeError):
+        return "en"
+
+
 def _build_items(lines: list[ReceiptLine]) -> list[ReceiptItem]:
     """Build list of ReceiptItems from classified lines, applying discounts."""
     items: list[ReceiptItem] = []
@@ -116,6 +139,9 @@ async def detect_receipt(image_bytes: bytes) -> DebugReceipt:
     # OCR
     vision_resp = await _call_vision_api(resized)
     t2 = time.time()
+
+    # Detect dominant language
+    detected_language = _extract_detected_language(vision_resp)
 
     annotations = vision_resp.get("textAnnotations", [])
     if not annotations:
@@ -264,4 +290,5 @@ async def detect_receipt(image_bytes: bytes) -> DebugReceipt:
             {"type": "OCR detection", "elapsed": round((t2 - t1) * 1000)},
             {"type": "Post-processing", "elapsed": round((t3 - t2) * 1000)},
         ],
+        detected_language=detected_language,
     )

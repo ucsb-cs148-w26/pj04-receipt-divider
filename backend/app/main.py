@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from app.routers import index, health, group, receipt
+from app.routers import index, health, group
 from app.database import init_db
 
 
@@ -28,4 +28,3 @@ app.add_middleware(
 app.include_router(index.router, prefix="", tags=["Index"])
 app.include_router(health.router, prefix="/health", tags=["Health"])
 app.include_router(group.router, prefix="/group", tags=["Receipt Group"])
-app.include_router(receipt.router, prefix="/receipt", tags=["Receipt"])
