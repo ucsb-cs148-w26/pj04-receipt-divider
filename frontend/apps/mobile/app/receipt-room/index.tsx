@@ -14,6 +14,7 @@ import {
   TextInput,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SMS from 'expo-sms';
 import { IconButton } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -329,9 +330,9 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Render ---------------- */
   return (
-    <View className='bg-background flex-1 pt-[60px]'>
+    <SafeAreaView className='bg-background flex-1'>
       {/* Top bar */}
-      <View className='absolute top-0 left-0 right-0 z-20 pt-14 px-4'>
+      <View className='z-20 px-4 py-2'>
         <View className='flex-row items-center justify-between'>
           {/* Left side buttons */}
           <View className='flex-row items-center gap-2'>
@@ -503,12 +504,12 @@ export default function ReceiptRoomScreen() {
       {/* Dismiss popup overlay */}
       {showQuickActions && (
         <Pressable
-          className='absolute inset-0 z-10'
+          className='absolute inset-0 z-10 bg-black/50'
           onPress={() => setShowQuickActions(false)}
         />
       )}
 
-      <View className='flex-1 mt-8'>
+      <View className='flex-1'>
         {/* Middle part - scrollable receipt items */}
         <ScrollView
           className='p-4 flex-1'
@@ -795,6 +796,6 @@ export default function ReceiptRoomScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }

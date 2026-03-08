@@ -147,27 +147,22 @@ export default function HomeScreen() {
                       id: item.id,
                       name: item.name,
                       amount: item.amount.toString(),
+                      tab: activeTab,
                     },
                   })
                 }
               >
                 <View className='flex-1 mr-3'>
-                  <View className='flex-row items-center flex-wrap'>
-                    <Text
-                      className={`font-bold text-base ${item.status === 'completed' ? 'text-muted-foreground line-through' : 'text-foreground'}`}
-                      numberOfLines={1}
-                    >
-                      {item.name.length > 10
-                        ? item.name.slice(0, 9) + '...'
-                        : item.name}
-                    </Text>
-                    <Text className='text-muted-foreground text-sm'>
-                      {' '}
-                      · {item.status}
-                    </Text>
-                  </View>
+                  <Text
+                    className={`font-bold text-base ${item.status === 'completed' ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+                    numberOfLines={1}
+                  >
+                    {item.name}
+                  </Text>
                   <Text className='text-muted-foreground text-sm'>
-                    {item.members} {item.members === 1 ? 'member' : 'members'}
+                    {activeTab === 'groups'
+                      ? `${item.members} ${item.members === 1 ? 'member' : 'members'} · ${item.status.charAt(0).toUpperCase() + item.status.slice(1)}`
+                      : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                   </Text>
                 </View>
                 <Text
