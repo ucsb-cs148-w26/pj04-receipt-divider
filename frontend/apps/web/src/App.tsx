@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router';
 import JoinPage from './pages/JoinPage';
 import GroupPage from './pages/GroupPage';
 import ProfileSelectPage from './pages/ProfileSelectPage';
+import ErrorPage from './pages/ErrorPage';
 
 function App() {
   return (
@@ -10,6 +11,7 @@ function App() {
       <Route path='/profile' element={<ProfileSelectPage />} />
       <Route path='/join' element={<JoinPage />} />
       <Route path='/group/:roomId' element={<GroupPage />} />
+      <Route path='/error' element={<ErrorPage />} />
       <Route path='*' element={<Navigate to='/' replace />} />
     </Routes>
   );
