@@ -17,9 +17,6 @@
       "@/assets/*": [
         "src/assets/*"
       ],
-      "@shared/*": [
-        "../../shared/src/*",
-      ],
       "@styles/*": [
         "../../shared/styles/*"
       ]
@@ -37,6 +34,7 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    "src/vite-env.d.ts"
+    "src/vite-env.d.ts",
+    "src"
   ]
 }
