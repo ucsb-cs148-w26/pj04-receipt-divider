@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 
 interface ParticipantTab {
   id: number;
@@ -90,6 +91,10 @@ export default function ProfileSelectPage() {
 
   const isDark = useColorScheme();
   const t = isDark ? dark : light;
+
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const roomId = searchParams.get('roomId');
 
   useEffect(() => {
     if (showModal) setTimeout(() => inputRef.current?.focus(), 50);
@@ -186,6 +191,21 @@ export default function ProfileSelectPage() {
           </p>
         )}
       </div>
+
+      <button
+        style={{
+          ...styles.continueBtn,
+          opacity: selectedId !== null ? 1 : 0.4,
+        }}
+        disabled={selectedId === null}
+        onClick={() => {
+          if (selectedId === null) return;
+          const path = roomId ? `/room/${roomId}` : '/room/preview';
+          navigate(path);
+        }}
+      >
+        Continue →
+      </button>
 
       {/* Modal */}
       {showModal && (
@@ -379,5 +399,19 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     color: '#fff',
     cursor: 'pointer',
+  },
+  continueBtn: {
+    marginTop: 16,
+    width: '100%',
+    padding: '14px 0',
+    background: '#7C9FC9',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'system-ui, sans-serif',
+    transition: 'opacity 0.15s',
   },
 };
