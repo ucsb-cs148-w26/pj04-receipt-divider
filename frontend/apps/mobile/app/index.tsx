@@ -162,7 +162,8 @@ export default function HomeScreen() {
                   <Text className='text-muted-foreground text-sm'>
                     {activeTab === 'groups'
                       ? `${item.members} ${item.members === 1 ? 'member' : 'members'} · ${item.status.charAt(0).toUpperCase() + item.status.slice(1)}`
-                      : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                      : item.status.charAt(0).toUpperCase() +
+                        item.status.slice(1)}
                   </Text>
                 </View>
                 <Text
@@ -170,8 +171,8 @@ export default function HomeScreen() {
                     item.status === 'completed'
                       ? 'text-muted-foreground line-through'
                       : item.amount >= 0
-                      ? 'text-amount-positive'
-                      : 'text-amount-negative'
+                        ? 'text-amount-positive'
+                        : 'text-amount-negative'
                   }`}
                 >
                   {item.amount >= 0 ? '+' : ''}$
