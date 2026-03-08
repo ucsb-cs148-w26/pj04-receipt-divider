@@ -22,22 +22,74 @@ function getColor(id: number) {
   return AVATAR_COLORS[(id - 1) % AVATAR_COLORS.length];
 }
 
-const MOCK_PARTICIPANTS: ParticipantTab[] = [
+const INITIAL_PARTICIPANTS: ParticipantTab[] = [
   { id: 1, name: 'Warden Creations' },
   { id: 2, name: '6sly' },
 ];
 
-let nextId = MOCK_PARTICIPANTS.length + 1;
+function useColorScheme() {
+  const [dark, setDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setDark(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return dark;
+}
+
+const light = {
+  pageBg: 'transparent',
+  heading: '#111827',
+  cardBg: '#ffffff',
+  cardName: '#1a202c',
+  addCardBg: '#f3f4f6',
+  addCardBorder: '#d1d5db',
+  addIcon: '#9ca3af',
+  topBarGhost: '#e5e7eb',
+  contentBg: '#f9fafb',
+  placeholder: '#6b7280',
+  modalBg: '#ffffff',
+  modalTitle: '#111827',
+  inputBorder: '#d1d5db',
+  inputColor: '#111827',
+  cancelBg: '#f3f4f6',
+  cancelColor: '#6b7280',
+};
+
+const dark = {
+  pageBg: 'transparent',
+  heading: '#f9fafb',
+  cardBg: '#1f2937',
+  cardName: '#f3f4f6',
+  addCardBg: '#1f2937',
+  addCardBorder: '#374151',
+  addIcon: '#6b7280',
+  topBarGhost: '#374151',
+  contentBg: '#1f2937',
+  placeholder: '#9ca3af',
+  modalBg: '#111827',
+  modalTitle: '#f9fafb',
+  inputBorder: '#374151',
+  inputColor: '#f3f4f6',
+  cancelBg: '#1f2937',
+  cancelColor: '#9ca3af',
+};
 
 export default function ProfileSelectPage() {
   const [participants, setParticipants] =
-    useState<ParticipantTab[]>(MOCK_PARTICIPANTS);
+    useState<ParticipantTab[]>(INITIAL_PARTICIPANTS);
   const [selectedId, setSelectedId] = useState<number | null>(
-    MOCK_PARTICIPANTS[0]?.id ?? null,
+    INITIAL_PARTICIPANTS[0]?.id ?? null,
   );
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const isDark = useColorScheme();
+  const t = isDark ? dark : light;
 
   useEffect(() => {
     if (showModal) setTimeout(() => inputRef.current?.focus(), 50);
@@ -50,8 +102,9 @@ export default function ProfileSelectPage() {
 
   const handleConfirm = () => {
     if (!newName.trim()) return;
+    const newId = Math.max(...participants.map((p) => p.id)) + 1;
     const newParticipant: ParticipantTab = {
-      id: nextId++,
+      id: newId,
       name: newName.trim(),
     };
     setParticipants((prev) => [...prev, newParticipant]);
@@ -67,8 +120,8 @@ export default function ProfileSelectPage() {
   const selected = participants.find((p) => p.id === selectedId);
 
   return (
-    <div style={styles.page}>
-      <h2 style={styles.heading}>Who are you?</h2>
+    <div style={{ ...styles.page, background: t.pageBg }}>
+      <h2 style={{ ...styles.heading, color: t.heading }}>Who are you?</h2>
       <div style={styles.selectorWrapper}>
         {participants.map((p) => {
           const color = getColor(p.id);
@@ -79,10 +132,11 @@ export default function ProfileSelectPage() {
               onClick={() => setSelectedId(p.id)}
               style={{
                 ...styles.card,
+                background: t.cardBg,
                 borderColor: isSelected ? color : 'transparent',
                 boxShadow: isSelected
-                  ? '0 2px 8px rgba(0,0,0,0.10)'
-                  : '0 1px 4px rgba(0,0,0,0.06)',
+                  ? '0 2px 8px rgba(0,0,0,0.20)'
+                  : '0 1px 4px rgba(0,0,0,0.12)',
               }}
             >
               <div
@@ -96,41 +150,61 @@ export default function ProfileSelectPage() {
                 <div style={{ ...styles.avatar, background: color }}>
                   <span style={styles.avatarText}>{p.id}</span>
                 </div>
-                <span style={styles.name}>{p.name || `Name ${p.id}`}</span>
+                <span style={{ ...styles.name, color: t.cardName }}>
+                  {p.name || `Name ${p.id}`}
+                </span>
               </div>
             </button>
           );
         })}
         <button
           onClick={handleAdd}
-          style={styles.addCard}
+          style={{
+            ...styles.addCard,
+            background: t.addCardBg,
+            borderColor: t.addCardBorder,
+          }}
           aria-label='Add participant'
         >
-          <div style={{ ...styles.topBar, background: '#e5e7eb' }} />
+          <div style={{ ...styles.topBar, background: t.topBarGhost }} />
           <div style={styles.addContent}>
-            <span style={styles.addIcon}>+</span>
+            <span style={{ ...styles.addIcon, color: t.addIcon }}>+</span>
           </div>
         </button>
       </div>
-      <div style={styles.content}>
+      <div style={{ ...styles.content, background: t.contentBg }}>
         {selected ? (
-          <p style={styles.placeholder}>
+          <p style={{ ...styles.placeholder, color: t.placeholder }}>
             Viewing items for:{' '}
-            <strong>{selected.name || `Name ${selected.id}`}</strong>
+            <strong style={{ color: t.heading }}>
+              {selected.name || `Name ${selected.id}`}
+            </strong>
           </p>
         ) : (
-          <p style={styles.placeholder}>Select a participant above.</p>
+          <p style={{ ...styles.placeholder, color: t.placeholder }}>
+            Select a participant above.
+          </p>
         )}
       </div>
 
       {/* Modal */}
       {showModal && (
         <div style={styles.overlay} onClick={() => setShowModal(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <h3 style={styles.modalTitle}>Add Participant</h3>
+          <div
+            style={{ ...styles.modal, background: t.modalBg }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ ...styles.modalTitle, color: t.modalTitle }}>
+              Add Participant
+            </h3>
             <input
               ref={inputRef}
-              style={styles.input}
+              style={{
+                ...styles.input,
+                borderColor: t.inputBorder,
+                color: t.inputColor,
+                background: t.cardBg,
+              }}
               placeholder='Enter name...'
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -138,7 +212,11 @@ export default function ProfileSelectPage() {
             />
             <div style={styles.modalButtons}>
               <button
-                style={styles.cancelBtn}
+                style={{
+                  ...styles.cancelBtn,
+                  background: t.cancelBg,
+                  color: t.cancelColor,
+                }}
                 onClick={() => setShowModal(false)}
               >
                 Cancel
@@ -174,7 +252,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 20,
     fontWeight: 700,
     marginBottom: 16,
-    color: '#111827',
+    textAlign: 'center',
   },
   selectorWrapper: {
     display: 'flex',
@@ -187,7 +265,6 @@ const styles: Record<string, React.CSSProperties> = {
   card: {
     display: 'flex',
     flexDirection: 'column',
-    background: '#fff',
     border: '2px solid transparent',
     borderRadius: 12,
     width: 160,
@@ -218,7 +295,6 @@ const styles: Record<string, React.CSSProperties> = {
   name: {
     fontWeight: 600,
     fontSize: 14,
-    color: '#1a202c',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -226,8 +302,7 @@ const styles: Record<string, React.CSSProperties> = {
   addCard: {
     display: 'flex',
     flexDirection: 'column',
-    background: '#f3f4f6',
-    border: '2px dashed #d1d5db',
+    border: '2px dashed',
     borderRadius: 12,
     width: 160,
     minWidth: 160,
@@ -241,15 +316,14 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     padding: '10px 14px 12px',
   },
-  addIcon: { fontSize: 26, color: '#9ca3af', fontWeight: 300, lineHeight: 1 },
+  addIcon: { fontSize: 26, fontWeight: 300, lineHeight: 1 },
   content: {
-    background: '#f9fafb',
     borderRadius: 12,
     padding: 24,
     marginTop: 16,
     minHeight: 160,
   },
-  placeholder: { color: '#6b7280', fontSize: 16 },
+  placeholder: { fontSize: 16 },
   overlay: {
     position: 'fixed',
     inset: 0,
@@ -260,7 +334,6 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 100,
   },
   modal: {
-    background: '#fff',
     borderRadius: 16,
     padding: '24px 24px 20px',
     width: '90%',
@@ -274,16 +347,14 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
     fontSize: 18,
     fontWeight: 700,
-    color: '#111827',
   },
   input: {
-    border: '1.5px solid #d1d5db',
+    border: '1.5px solid',
     borderRadius: 8,
     padding: '10px 12px',
     fontSize: 15,
     outline: 'none',
     fontFamily: 'system-ui, sans-serif',
-    color: '#111827',
   },
   modalButtons: {
     display: 'flex',
@@ -292,13 +363,11 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'flex-end',
   },
   cancelBtn: {
-    background: '#f3f4f6',
     border: 'none',
     borderRadius: 8,
     padding: '8px 18px',
     fontSize: 14,
     fontWeight: 600,
-    color: '#6b7280',
     cursor: 'pointer',
   },
   confirmBtn: {
