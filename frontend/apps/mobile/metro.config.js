@@ -15,9 +15,18 @@ if (!Array.prototype.toReversed) {
 
 let config = getDefaultConfig(__dirname);
 
-config.resolver.sourceExts = Array.from(
-  new Set([...(config.resolver.sourceExts || []), 'cjs', 'mjs']),
-);
+// SVG transformer must be configured before withNativeWind so NativeWind
+// chains its CSS transformer on top of it (NativeWind → SVG → Babel).
+const { transformer, resolver } = config;
+config.transformer = {
+  ...transformer,
+  babelTransformerPath: require.resolve('react-native-svg-transformer/expo'),
+};
+config.resolver = {
+  ...resolver,
+  assetExts: resolver.assetExts.filter((ext) => ext !== 'svg'),
+  sourceExts: [...new Set([...resolver.sourceExts, 'svg', 'cjs', 'mjs'])],
+};
 config.watchFolders = [__dirname, path.resolve(__dirname, '../../shared')];
 /**@ts-ignore */
 config = withNativeWind(config, { input: '../../shared/styles/global.css' });
