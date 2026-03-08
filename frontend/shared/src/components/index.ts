@@ -4,3 +4,4 @@ export { UserTag } from './UserTag';
 export { DisplayItems } from './DisplayItems';
 export { Button } from './Button';
 export { IconButton, DefaultButtons } from './IconButton';
+export { ScrollableTextInput } from './ScrollableTextInput';
