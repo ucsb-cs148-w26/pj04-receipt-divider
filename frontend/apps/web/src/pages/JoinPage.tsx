@@ -1,4 +1,6 @@
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router';
+import { useAuth } from '../providers/AuthContext';
 
 const styles: Record<string, React.CSSProperties> = {
   screen: {
@@ -23,7 +25,6 @@ const styles: Record<string, React.CSSProperties> = {
   title: { margin: '0 0 0.5rem', fontSize: '1.4rem', fontWeight: 700 },
   subtitle: { margin: 0, color: 'gray', fontSize: '0.95rem' },
 };
-import { useSearchParams, useNavigate } from 'react-router';
 
 export default function JoinPage() {
   const [searchParams] = useSearchParams();
@@ -52,7 +53,7 @@ export default function JoinPage() {
           return;
         }
 
-        navigate(`/profile/${roomId}`);
+        navigate(`/profile?roomId=${roomId}`);
       } catch {
         navigate(
           `/error?message=${encodeURIComponent('Could not reach the server.')}`,
