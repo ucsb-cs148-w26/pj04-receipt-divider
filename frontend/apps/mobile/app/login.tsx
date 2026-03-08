@@ -3,6 +3,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Linking,
   Text,
   TouchableOpacity,
   View,
@@ -13,6 +14,7 @@ import {
   useScrollToInput,
 } from '@eezy-receipt/shared';
 import { useAuth } from '@/providers';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Icon from '../assets/images/icon.svg';
 import GoogleLogo from '../assets/images/google-logo.svg';
 
@@ -53,6 +55,17 @@ export default function LoginScreen() {
       Alert.alert('Authentication error', message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // TODO: change to the Vercel deployment URL once the web app is live
+  const WEB_GUEST_URL = 'http://localhost:5173/guest';
+
+  const handleGuestLogin = async () => {
+    try {
+      await Linking.openURL(WEB_GUEST_URL);
+    } catch {
+      Alert.alert('Could not open', 'Unable to open the guest web page.');
     }
   };
 
@@ -140,6 +153,23 @@ export default function LoginScreen() {
         </Animated.View>
 
         <View className='w-full max-w-[420px] gap-3'>
+          {/* Continue as Guest */}
+          <TouchableOpacity
+            className='bg-white border border-border rounded-xl py-3.5 mb-[-4px] flex-row items-center justify-center gap-2.5'
+            onPress={handleGuestLogin}
+            disabled={isSubmitting}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name='open-in-new'
+              size={18}
+              color='#6b7280'
+            />
+            <Text className='text-foreground font-semibold text-base'>
+              Continue as Guest on Web
+            </Text>
+          </TouchableOpacity>
+
           {/* Google sign-in */}
           <TouchableOpacity
             className='bg-white border border-border rounded-xl py-3.5 flex-row items-center justify-center gap-2.5'
