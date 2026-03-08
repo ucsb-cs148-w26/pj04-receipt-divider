@@ -8,6 +8,7 @@ export type ReceiptDetailParams = {
   id: string;
   name: string;
   amount: string;
+  tab?: 'groups' | 'people';
 };
 
 type PersonStatus = 'pending' | 'waiting' | 'completed';
@@ -17,19 +18,20 @@ interface Person {
   name: string;
   status: PersonStatus;
   amount: number;
+  group?: string;
 }
 
 const MOCK_PEOPLE_BY_RECEIPT: Record<string, Person[]> = {
   '1': [
-    { id: 'p1', name: 'Warden Creations', status: 'pending', amount: 27.1 },
-    { id: 'p2', name: 'Warden Creations', status: 'waiting', amount: 27.1 },
-    { id: 'p3', name: 'Warden Creations', status: 'completed', amount: 27.1 },
-    { id: 'p4', name: 'Warden Creations', status: 'waiting', amount: 27.1 },
-    { id: 'p5', name: 'Warden Creations', status: 'waiting', amount: 27.1 },
+    { id: 'p1', name: 'Alice', status: 'pending', amount: 27.1, group: 'Costco' },
+    { id: 'p2', name: 'Alice', status: 'waiting', amount: 25.12, group: 'Chipotle' },
+    { id: 'p3', name: 'Alice', status: 'completed', amount: 15.04, group: 'Target' },
+    { id: 'p4', name: 'Alice', status: 'waiting', amount: 5.99, group: 'Taco Bell' },
+    { id: 'p5', name: 'Alice', status: 'pending', amount: 7.02, group: "Trader Joe's" },
   ],
   '2': [
-    { id: 'p1', name: 'Alice', status: 'pending', amount: 12.56 },
-    { id: 'p2', name: 'Bob', status: 'completed', amount: 12.56 },
+    { id: 'p1', name: 'Bob', status: 'pending', amount: 12.56, group: 'Chipotle' },
+    { id: 'p2', name: 'Bob', status: 'completed', amount: 12.56, group: 'Target' },
   ],
   '3': [
     { id: 'p1', name: 'Carol', status: 'completed', amount: 15.04 },
@@ -58,7 +60,7 @@ const MOCK_PEOPLE_BY_RECEIPT: Record<string, Person[]> = {
 
 export default function ReceiptDetailScreen() {
   const params = useLocalSearchParams<ReceiptDetailParams>();
-  const { id, name, amount } = params;
+  const { id, name, amount, tab } = params;
   const amountNum = parseFloat(amount ?? '0');
   const basePeople = MOCK_PEOPLE_BY_RECEIPT[id ?? ''] ?? [];
   const [completedIds, setCompletedIds] = useState<Set<string>>(
@@ -94,16 +96,21 @@ export default function ReceiptDetailScreen() {
   const completedFraction = total > 0 ? completedCount / total : 0;
   const waitingFraction = total > 0 ? waitingCount / total : 0;
 
+  const remainingAmount = people
+    .filter((p) => p.status !== 'completed')
+    .reduce((sum, p) => sum + p.amount, 0);
+  const displayAmount = amountNum >= 0 ? remainingAmount : -remainingAmount;
+
   const statusParts: string[] = [];
   if (pendingCount > 0)
-    statusParts.push(`${pendingCount} pending`);
+    statusParts.push(`${pendingCount} Pending`);
   if (waitingCount > 0)
-    statusParts.push(`${waitingCount} waiting`);
+    statusParts.push(`${waitingCount} Waiting`);
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
       {/* Header */}
-      <View className='flex-row items-center px-4 pt-2 pb-3'>
+      <View className='flex-row items-center px-5 pt-2 pb-3'>
         <Pressable
           onPress={() => router.back()}
           hitSlop={8}
@@ -128,7 +135,7 @@ export default function ReceiptDetailScreen() {
       </View>
 
       <ScrollView
-        className='flex-1 px-4'
+        className='flex-1 px-5'
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
@@ -142,7 +149,7 @@ export default function ReceiptDetailScreen() {
               amountNum >= 0 ? 'text-amount-positive' : 'text-amount-negative'
             }`}
           >
-            ${Math.abs(amountNum).toFixed(2)}
+            ${Math.abs(displayAmount).toFixed(2)}
           </Text>
 
           {/* Status summary row */}
@@ -176,9 +183,9 @@ export default function ReceiptDetailScreen() {
           </View>
         </View>
 
-        {/* People section */}
+        {/* People / Receipts section */}
         <Text className='text-foreground text-lg font-semibold mb-2 px-1'>
-          People
+          {tab === 'people' ? 'Receipts' : 'People'}
         </Text>
         <View className='bg-card rounded-2xl overflow-hidden'>
           {people.map((person, index) => (
@@ -214,10 +221,10 @@ export default function ReceiptDetailScreen() {
                     }`}
                     numberOfLines={1}
                   >
-                    {person.name}
+                    {tab === 'people' ? (person.group ?? person.name) : person.name}
                   </Text>
                   <Text className='text-muted-foreground text-sm'>
-                    · {person.status}
+                    {person.status.charAt(0).toUpperCase() + person.status.slice(1)}
                   </Text>
                 </View>
 
