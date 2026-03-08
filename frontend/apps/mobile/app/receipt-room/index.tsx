@@ -1,7 +1,7 @@
 import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -145,7 +145,9 @@ export default function ReceiptRoomScreen() {
 
   const handleShowQR = () => {
     setShowAddOptions(false);
-    router.push(`/qr?roomId=${roomId}`);
+    router.push(
+      `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
+    );
   };
 
   const handleAddManually = () => {
@@ -187,7 +189,7 @@ export default function ReceiptRoomScreen() {
   };
 
   const selectAllItems = () => {
-    setSelectedItemIds(new Set(receiptItems.items.map((i) => i.id)));
+    setSelectedItemIds(new Set(displayItems.map((i) => i.id)));
   };
 
   const deselectAllItems = () => {
@@ -235,29 +237,60 @@ export default function ReceiptRoomScreen() {
     return Math.random().toString(36).substring(2, 9);
   });
 
-  /**---------------- Claim Selected Items ---------------- */
-  const claimSelectedToParticipant = (participantId: number) => {
-    receiptItems.setItems((prevItems) =>
-      prevItems.map((item) => {
-        if (!selectedItemIds.has(item.id)) return item;
-        const tags = item.userTags ?? [];
-        if (tags.includes(participantId)) return item;
-        return { ...item, userTags: [...tags, participantId] };
-      }),
+  const isGroupRoom = roomId.length >= 32 && /^[0-9a-f-]{36}$/i.test(roomId);
+  const groupData = useGroupData(isGroupRoom ? roomId : '');
+  const groupDisplay = useMemo(() => {
+    if (!isGroupRoom || !groupData.members.length) {
+      return {
+        items: [] as ReceiptItemData[],
+        participants: [] as ParticipantType[],
+      };
+    }
+    const members = groupData.members as DbGroupMember[];
+    const profileIdToParticipantId = new Map<string, number>();
+    members.forEach((m, i) =>
+      profileIdToParticipantId.set(m.profile_id, i + 1),
     );
-    setSelectedItemIds(new Set());
-  };
+    const participants: ParticipantType[] = members.map((_m, i) => ({
+      id: i + 1,
+      name: `Member ${i + 1}`,
+    }));
+    const claims = groupData.claims as DbItemClaim[];
+    const items = (groupData.items as DbItem[]).map((item) => {
+      const claimProfileIds = claims
+        .filter((c) => c.item_id === item.id)
+        .map((c) => c.profile_id);
+      const userTags = claimProfileIds
+        .map((pid) => profileIdToParticipantId.get(pid))
+        .filter((id): id is number => id != null);
+      const amount = typeof item.amount === 'number' ? item.amount : 1;
+      const unitPrice =
+        typeof item.unit_price === 'number' ? item.unit_price : 0;
+      return {
+        id: item.id,
+        name: item.name ?? '',
+        price: String(unitPrice * amount),
+        userTags,
+      } as ReceiptItemData;
+    });
+    return { items, participants };
+  }, [isGroupRoom, groupData.members, groupData.items, groupData.claims]);
+
+  const displayItems = isGroupRoom ? groupDisplay.items : receiptItems.items;
+  const displayParticipants = isGroupRoom
+    ? groupDisplay.participants
+    : participants;
 
   /**---------------- Quick Actions Functions ---------------- */
   const claimForAll = () => {
-    if (receiptItems.items.length === 0 || participants.length === 0) return;
+    if (displayItems.length === 0 || displayParticipants.length === 0) return;
     receiptItems.setItems((prevItems) =>
       prevItems.map((item) => ({
         ...item,
         userTags: [
           ...new Set([
             ...(item.userTags || []),
-            ...participants.map((p) => p.id),
+            ...displayParticipants.map((p) => p.id),
           ]),
         ],
       })),
@@ -391,7 +424,9 @@ export default function ReceiptRoomScreen() {
                         className='items-center gap-1'
                         onPress={() => {
                           setShowQuickActions(false);
-                          router.push(`/qr?roomId=${roomId}`);
+                          router.push(
+                            `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
+                          );
                         }}
                       >
                         <MaterialCommunityIcons
@@ -554,7 +589,6 @@ export default function ReceiptRoomScreen() {
                 isEditMode={isEditMode}
                 isSelected={selectedItemIds.has(item.id)}
                 onToggleSelect={() => toggleItemSelection(item.id)}
-                onClaimToParticipant={claimSelectedToParticipant}
               />
             ))}
 
@@ -601,26 +635,24 @@ export default function ReceiptRoomScreen() {
             </View>
           )}
 
-        <ScrollView
-          horizontal={true}
-          style={{ height: editingParticipantName ? '50%' : '20%' }}
-          className='p-4'
-          contentContainerClassName='justify-start -left-[10px] gap-[10px]'
-          showsHorizontalScrollIndicator={false}
-          onScrollEndDrag={(event) => {
-            setScrollOffset(event.nativeEvent.contentOffset.x);
-          }}
-          onMomentumScrollEnd={(event) => {
-            setScrollOffset(event.nativeEvent.contentOffset.x);
-            console.log(
-              'Participants scroll offset:',
-              event.nativeEvent.contentOffset.x,
-            );
-          }}
-          scrollEventThrottle={16}
-        >
-          {participants.map((participant) => {
-            return (
+          <ScrollView
+            horizontal={true}
+            className='px-4 pb-6'
+            contentContainerClassName='justify-start -left-[10px] gap-[10px]'
+            showsHorizontalScrollIndicator={false}
+            onScrollEndDrag={(event) => {
+              setScrollOffset(event.nativeEvent.contentOffset.x);
+            }}
+            onMomentumScrollEnd={(event) => {
+              setScrollOffset(event.nativeEvent.contentOffset.x);
+              console.log(
+                'Participants scroll offset:',
+                event.nativeEvent.contentOffset.x,
+              );
+            }}
+            scrollEventThrottle={16}
+          >
+            {displayParticipants.map((participant) => (
               <Participant
                 key={participant.id}
                 id={participant.id}
@@ -639,7 +671,7 @@ export default function ReceiptRoomScreen() {
                     pathname: '../items',
                     params: {
                       items: JSON.stringify(
-                        receiptItems.items.filter((item) =>
+                        displayItems.filter((item) =>
                           item.userTags?.includes(participant.id),
                         ),
                       ),
