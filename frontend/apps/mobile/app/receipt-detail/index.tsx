@@ -23,15 +23,57 @@ interface Person {
 
 const MOCK_PEOPLE_BY_RECEIPT: Record<string, Person[]> = {
   '1': [
-    { id: 'p1', name: 'Alice', status: 'pending', amount: 27.1, group: 'Costco' },
-    { id: 'p2', name: 'Alice', status: 'waiting', amount: 25.12, group: 'Chipotle' },
-    { id: 'p3', name: 'Alice', status: 'completed', amount: 15.04, group: 'Target' },
-    { id: 'p4', name: 'Alice', status: 'waiting', amount: 5.99, group: 'Taco Bell' },
-    { id: 'p5', name: 'Alice', status: 'pending', amount: 7.02, group: "Trader Joe's" },
+    {
+      id: 'p1',
+      name: 'Alice',
+      status: 'pending',
+      amount: 27.1,
+      group: 'Costco',
+    },
+    {
+      id: 'p2',
+      name: 'Alice',
+      status: 'waiting',
+      amount: 25.12,
+      group: 'Chipotle',
+    },
+    {
+      id: 'p3',
+      name: 'Alice',
+      status: 'completed',
+      amount: 15.04,
+      group: 'Target',
+    },
+    {
+      id: 'p4',
+      name: 'Alice',
+      status: 'waiting',
+      amount: 5.99,
+      group: 'Taco Bell',
+    },
+    {
+      id: 'p5',
+      name: 'Alice',
+      status: 'pending',
+      amount: 7.02,
+      group: "Trader Joe's",
+    },
   ],
   '2': [
-    { id: 'p1', name: 'Bob', status: 'pending', amount: 12.56, group: 'Chipotle' },
-    { id: 'p2', name: 'Bob', status: 'completed', amount: 12.56, group: 'Target' },
+    {
+      id: 'p1',
+      name: 'Bob',
+      status: 'pending',
+      amount: 12.56,
+      group: 'Chipotle',
+    },
+    {
+      id: 'p2',
+      name: 'Bob',
+      status: 'completed',
+      amount: 12.56,
+      group: 'Target',
+    },
   ],
   '3': [
     { id: 'p1', name: 'Carol', status: 'completed', amount: 15.04 },
@@ -64,7 +106,10 @@ export default function ReceiptDetailScreen() {
   const amountNum = parseFloat(amount ?? '0');
   const basePeople = MOCK_PEOPLE_BY_RECEIPT[id ?? ''] ?? [];
   const [completedIds, setCompletedIds] = useState<Set<string>>(
-    () => new Set(basePeople.filter((p) => p.status === 'completed').map((p) => p.id)),
+    () =>
+      new Set(
+        basePeople.filter((p) => p.status === 'completed').map((p) => p.id),
+      ),
   );
 
   const toggleCompleted = (personId: string) => {
@@ -79,12 +124,20 @@ export default function ReceiptDetailScreen() {
     });
   };
 
-  const STATUS_ORDER: Record<PersonStatus, number> = { pending: 0, waiting: 1, completed: 2 };
+  const STATUS_ORDER: Record<PersonStatus, number> = {
+    pending: 0,
+    waiting: 1,
+    completed: 2,
+  };
 
   const people = basePeople
     .map((p) => ({
       ...p,
-      status: completedIds.has(p.id) ? ('completed' as PersonStatus) : p.status === 'completed' ? ('pending' as PersonStatus) : p.status,
+      status: completedIds.has(p.id)
+        ? ('completed' as PersonStatus)
+        : p.status === 'completed'
+          ? ('pending' as PersonStatus)
+          : p.status,
     }))
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
@@ -102,10 +155,8 @@ export default function ReceiptDetailScreen() {
   const displayAmount = amountNum >= 0 ? remainingAmount : -remainingAmount;
 
   const statusParts: string[] = [];
-  if (pendingCount > 0)
-    statusParts.push(`${pendingCount} Pending`);
-  if (waitingCount > 0)
-    statusParts.push(`${waitingCount} Waiting`);
+  if (pendingCount > 0) statusParts.push(`${pendingCount} Pending`);
+  if (waitingCount > 0) statusParts.push(`${waitingCount} Waiting`);
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
@@ -221,10 +272,13 @@ export default function ReceiptDetailScreen() {
                     }`}
                     numberOfLines={1}
                   >
-                    {tab === 'people' ? (person.group ?? person.name) : person.name}
+                    {tab === 'people'
+                      ? (person.group ?? person.name)
+                      : person.name}
                   </Text>
                   <Text className='text-muted-foreground text-sm'>
-                    {person.status.charAt(0).toUpperCase() + person.status.slice(1)}
+                    {person.status.charAt(0).toUpperCase() +
+                      person.status.slice(1)}
                   </Text>
                 </View>
 

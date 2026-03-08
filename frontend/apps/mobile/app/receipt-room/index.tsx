@@ -124,7 +124,10 @@ export default function ReceiptRoomScreen() {
     try {
       const isAvailable = await SMS.isAvailableAsync();
       if (!isAvailable) {
-        Alert.alert('SMS not available', 'SMS is not available on this device.');
+        Alert.alert(
+          'SMS not available',
+          'SMS is not available on this device.',
+        );
         return;
       }
       const message = `Join my Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nOr tap this link to join: https://example.com/join?roomId=${roomId}`;
@@ -682,30 +685,48 @@ export default function ReceiptRoomScreen() {
                 className='flex-row items-center gap-4 py-3 active:opacity-70'
                 onPress={handleShareSMS}
               >
-                <MaterialCommunityIcons name='message-text' size={24} color='#4999DF' />
-                <Text className='text-foreground text-base'>Share Link via SMS</Text>
+                <MaterialCommunityIcons
+                  name='message-text'
+                  size={24}
+                  color='#4999DF'
+                />
+                <Text className='text-foreground text-base'>
+                  Share Link via SMS
+                </Text>
               </Pressable>
               <View className='h-px bg-border my-1' />
               <Pressable
                 className='flex-row items-center gap-4 py-3 active:opacity-70'
                 onPress={handleShowQR}
               >
-                <MaterialCommunityIcons name='qrcode' size={24} color='#4999DF' />
-                <Text className='text-foreground text-base'>Show Room QR Code</Text>
+                <MaterialCommunityIcons
+                  name='qrcode'
+                  size={24}
+                  color='#4999DF'
+                />
+                <Text className='text-foreground text-base'>
+                  Show Room QR Code
+                </Text>
               </Pressable>
               <View className='h-px bg-border my-1' />
               <Pressable
                 className='flex-row items-center gap-4 py-3 active:opacity-70'
                 onPress={handleAddManually}
               >
-                <MaterialCommunityIcons name='account-plus' size={24} color='#4999DF' />
+                <MaterialCommunityIcons
+                  name='account-plus'
+                  size={24}
+                  color='#4999DF'
+                />
                 <Text className='text-foreground text-base'>Add Manually</Text>
               </Pressable>
               <Pressable
                 className='mt-3 py-3 items-center active:opacity-70'
                 onPress={() => setShowAddOptions(false)}
               >
-                <Text className='text-accent-dark text-base font-medium'>Cancel</Text>
+                <Text className='text-accent-dark text-base font-medium'>
+                  Cancel
+                </Text>
               </Pressable>
             </View>
           </Pressable>
@@ -726,9 +747,15 @@ export default function ReceiptRoomScreen() {
           <Pressable onPress={() => {}}>
             <View className='bg-card rounded-2xl p-6 w-80'>
               <View className='flex-row items-center justify-between mb-4'>
-                <Text className='text-foreground text-xl font-bold'>Add Participant</Text>
+                <Text className='text-foreground text-xl font-bold'>
+                  Add Participant
+                </Text>
                 <Pressable onPress={() => setShowAddManual(false)} hitSlop={8}>
-                  <MaterialCommunityIcons name='close' size={22} color='var(--color-accent-dark)' />
+                  <MaterialCommunityIcons
+                    name='close'
+                    size={22}
+                    color='var(--color-accent-dark)'
+                  />
                 </Pressable>
               </View>
               <TextInput
@@ -736,14 +763,18 @@ export default function ReceiptRoomScreen() {
                 placeholderTextColor='var(--color-muted-foreground)'
                 value={newUserName}
                 onChangeText={setNewUserName}
-                onSubmitEditing={() => newUserName.trim() && addParticipant(newUserName.trim())}
+                onSubmitEditing={() =>
+                  newUserName.trim() && addParticipant(newUserName.trim())
+                }
                 returnKeyType='done'
                 className='border border-border rounded-xl px-4 py-3 text-foreground mb-4'
                 autoFocus
               />
               <Pressable
                 className='bg-primary rounded-xl py-3 items-center active:opacity-80'
-                onPress={() => newUserName.trim() && addParticipant(newUserName.trim())}
+                onPress={() =>
+                  newUserName.trim() && addParticipant(newUserName.trim())
+                }
               >
                 <Text className='text-primary-foreground font-bold'>Add</Text>
               </Pressable>
