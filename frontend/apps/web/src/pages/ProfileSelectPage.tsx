@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface ParticipantTab {
   id: number;
@@ -35,11 +35,33 @@ export default function ProfileSelectPage() {
   const [selectedId, setSelectedId] = useState<number | null>(
     MOCK_PARTICIPANTS[0]?.id ?? null,
   );
+  const [showModal, setShowModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showModal) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [showModal]);
 
   const handleAdd = () => {
-    const newParticipant: ParticipantTab = { id: nextId++, name: '' };
+    setNewName('');
+    setShowModal(true);
+  };
+
+  const handleConfirm = () => {
+    if (!newName.trim()) return;
+    const newParticipant: ParticipantTab = {
+      id: nextId++,
+      name: newName.trim(),
+    };
     setParticipants((prev) => [...prev, newParticipant]);
     setSelectedId(newParticipant.id);
+    setShowModal(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleConfirm();
+    if (e.key === 'Escape') setShowModal(false);
   };
 
   const selected = participants.find((p) => p.id === selectedId);
@@ -100,6 +122,41 @@ export default function ProfileSelectPage() {
           <p style={styles.placeholder}>Select a participant above.</p>
         )}
       </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div style={styles.overlay} onClick={() => setShowModal(false)}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3 style={styles.modalTitle}>Add Participant</h3>
+            <input
+              ref={inputRef}
+              style={styles.input}
+              placeholder='Enter name...'
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+            <div style={styles.modalButtons}>
+              <button
+                style={styles.cancelBtn}
+                onClick={() => setShowModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                style={{
+                  ...styles.confirmBtn,
+                  opacity: newName.trim() ? 1 : 0.4,
+                }}
+                onClick={handleConfirm}
+                disabled={!newName.trim()}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -123,6 +180,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 8,
     paddingBottom: 8,
   },
@@ -192,4 +250,65 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 160,
   },
   placeholder: { color: '#6b7280', fontSize: 16 },
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  modal: {
+    background: '#fff',
+    borderRadius: 16,
+    padding: '24px 24px 20px',
+    width: '90%',
+    maxWidth: 360,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 700,
+    color: '#111827',
+  },
+  input: {
+    border: '1.5px solid #d1d5db',
+    borderRadius: 8,
+    padding: '10px 12px',
+    fontSize: 15,
+    outline: 'none',
+    fontFamily: 'system-ui, sans-serif',
+    color: '#111827',
+  },
+  modalButtons: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
+  cancelBtn: {
+    background: '#f3f4f6',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 18px',
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#6b7280',
+    cursor: 'pointer',
+  },
+  confirmBtn: {
+    background: '#7C9FC9',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 18px',
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#fff',
+    cursor: 'pointer',
+  },
 };
