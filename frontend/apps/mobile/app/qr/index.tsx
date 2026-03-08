@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Alert } from 'react-native';
 import { Button, DefaultButtons } from '@eezy-receipt/shared';
+import { useReceiptItems } from '@/providers';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -11,6 +12,11 @@ export default function QRScreen() {
   // Receive room ID from Receipt_Room_Page
   const params = useLocalSearchParams();
   const roomId = typeof params.roomId === 'string' ? params.roomId : 'unknown';
+  const participants: { id: number; name?: string }[] =
+    typeof params.participants === 'string'
+      ? JSON.parse(decodeURIComponent(params.participants))
+      : [];
+  const { items } = useReceiptItems();
   const qrRef = useRef<QRCode>(null);
 
   // The URL encoded in the QR code
@@ -59,19 +65,48 @@ export default function QRScreen() {
   }
 
   function handleShareSubtotals() {
-    //TODO: THIS BUTTON SHOULDN'T BE HERE
-    //TODO: CANNOT SEND SUBTOTALS UNTIL EVERY ITEM IS CLAIMED && HOST CONFIRMS SPLIT IS FINALIZED
-    //TODO: GET THE ACTUAL SUBTOTALS INSTEAD OF THE PLACEHOLDER
-    //TODO: GET THE ROOM NAME TOO
+    const unassigned = items.filter(
+      (item) => !item.userTags || item.userTags.length === 0,
+    );
+    if (unassigned.length > 0) {
+      Alert.alert(
+        'Unassigned Items',
+        `The following items have not been assigned to anyone:\n\n${unassigned.map((item) => `• ${item.name || 'Unnamed item'}`).join('\n')}\n\nPlease assign all items before sharing subtotals.`,
+        [{ text: 'OK' }],
+      );
+      return;
+    }
 
-    const message = `Subtotals for Room:
-    [Costco Trip]
-    ---------------
-      Alice: $10.00
-      Bob: $15.00
-      Charlie: $5.00
-    ---------------
-    Total: $30.00`;
+    const lines = participants.map((p) => {
+      const name = p.name || `Person ${p.id}`;
+      let total = 0;
+      const itemLines = items
+        .filter((item) => item.userTags?.includes(p.id))
+        .map((item) => {
+          const price = isNaN(parseFloat(item.price.replace(/[^\d.]/g, '')))
+            ? 0
+            : parseFloat(item.price.replace(/[^\d.]/g, ''));
+          const discount = item.discount
+            ? parseFloat(item.discount.replace(/[^\d.]/g, ''))
+            : 0;
+          const share = (price - discount) / item.userTags!.length;
+          total += share;
+          return `  • ${item.name}: $${share.toFixed(2)}`;
+        });
+      return `${name}:\n${itemLines.join('\n')}\n  Subtotal: $${total.toFixed(2)}`;
+    });
+
+    const grandTotal = items.reduce((sum, item) => {
+      const price = isNaN(parseFloat(item.price.replace(/[^\d.]/g, '')))
+        ? 0
+        : parseFloat(item.price.replace(/[^\d.]/g, ''));
+      const discount = item.discount
+        ? parseFloat(item.discount.replace(/[^\d.]/g, ''))
+        : 0;
+      return sum + price - discount;
+    }, 0);
+
+    const message = `Subtotals:\n\n${lines.join('\n\n')}\n\n---------------\nTotal: $${grandTotal.toFixed(2)}`;
     handleShareSMS(message);
   }
 

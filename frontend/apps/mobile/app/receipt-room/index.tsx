@@ -446,7 +446,11 @@ export default function ReceiptRoomScreen() {
           <IconButton
             icon='account-multiple-plus'
             pressEffect='overlay'
-            onPress={() => router.push(`/qr?roomId=${roomId}`)}
+            onPress={() =>
+              router.push(
+                `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
+              )
+            }
           />
         </View>
         {/* Quick Actions Toggle Button - to the left of Settings button */}
