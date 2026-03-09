@@ -63,6 +63,14 @@ export default function HomeScreen() {
 
   const data = activeTab === 'groups' ? MOCK_GROUPS : MOCK_PEOPLE;
 
+  const allItems = [...MOCK_GROUPS, ...MOCK_PEOPLE];
+  const totalOwed = allItems
+    .filter((i) => i.amount > 0)
+    .reduce((sum, i) => sum + i.amount, 0);
+  const totalOwe = allItems
+    .filter((i) => i.amount < 0)
+    .reduce((sum, i) => sum + Math.abs(i.amount), 0);
+
   return (
     <SafeAreaView className='flex-1 bg-background'>
       {/* Header */}
@@ -79,7 +87,7 @@ export default function HomeScreen() {
           )}
         </View>
         <Text
-          className='flex-1 text-foreground text-2xl font-bold'
+          className='flex-1 text-foreground text-2xl font-bold mr-4'
           numberOfLines={1}
         >
           Hi, {firstName}!
@@ -104,7 +112,7 @@ export default function HomeScreen() {
           <View className='flex-1 bg-card rounded-2xl p-4'>
             <Text className='text-muted-foreground text-sm mb-1'>You Owe</Text>
             <Text className='text-amount-negative text-2xl font-bold'>
-              $64.91
+              -${totalOwe.toFixed(2)}
             </Text>
           </View>
           <View className='flex-1 bg-card rounded-2xl p-4'>
@@ -112,7 +120,7 @@ export default function HomeScreen() {
               You Are Owed
             </Text>
             <Text className='text-amount-positive text-2xl font-bold'>
-              $105.62
+              +${totalOwed.toFixed(2)}
             </Text>
           </View>
         </View>
@@ -194,10 +202,10 @@ export default function HomeScreen() {
                         : 'text-amount-negative'
                   }`}
                 >
-                  {item.amount >= 0 ? '+' : ''}$
+                  {item.amount >= 0 ? '+' : '-'}$
                   {Math.abs(item.amount).toFixed(2)}
                 </Text>
-                <View pointerEvents='none'>
+                <View pointerEvents='none' className='-mr-3'>
                   <IconButton
                     icon='chevron-right'
                     bgClassName='bg-transparent shadow-none'
@@ -236,7 +244,7 @@ export default function HomeScreen() {
             <Pressable onPress={() => {}}>
               <View className='bg-card rounded-2xl shadow-xl shadow-black/40 w-52 overflow-hidden'>
                 {/* Header */}
-                <View className='flex-row items-center justify-between px-4 pt-4 pb-3'>
+                <View className='flex-row items-center justify-between px-4 pt-2 pb-1'>
                   <Text className='text-foreground text-lg font-bold'>
                     New Room
                   </Text>
@@ -252,7 +260,7 @@ export default function HomeScreen() {
 
                 {/* Create Room */}
                 <Pressable
-                  className='flex-row items-center gap-3 px-4 py-4 active:opacity-70'
+                  className='flex-row items-center gap-3 px-4 py-2 active:opacity-70'
                   onPress={() => {
                     setShowNewRoom(false);
                     router.navigate('/create-room');
@@ -272,7 +280,7 @@ export default function HomeScreen() {
 
                 {/* Join Room */}
                 <Pressable
-                  className='flex-row items-center gap-3 px-4 py-4 active:opacity-70'
+                  className='flex-row items-center gap-3 px-4 py-2 active:opacity-70'
                   onPress={() => {
                     setShowNewRoom(false);
                     router.navigate('/join-room' as never);

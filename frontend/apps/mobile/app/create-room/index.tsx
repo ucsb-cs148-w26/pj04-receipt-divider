@@ -218,13 +218,6 @@ export default function CreateRoomScreen() {
         <Pressable
           className='bg-primary rounded-2xl py-4 items-center active:opacity-80'
           onPress={() => {
-            if (photoUris.length === 0) {
-              Alert.alert(
-                'No Receipt Photo',
-                'Please add at least one receipt photo before creating a room.',
-              );
-              return;
-            }
             router.navigate({
               pathname: '/receipt-room',
               params: {

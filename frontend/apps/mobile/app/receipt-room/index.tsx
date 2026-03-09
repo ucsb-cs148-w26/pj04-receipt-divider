@@ -671,22 +671,18 @@ export default function ReceiptRoomScreen() {
                   };
                 }}
                 goToYourItemsPage={() => {
-                  if (selectedItemIds.size > 0) {
-                    claimSelectedToParticipant(participant.id);
-                  } else {
-                    router.push({
-                      pathname: '../items',
-                      params: {
-                        items: JSON.stringify(
-                          displayItems.filter((item) =>
-                            item.userTags?.includes(participant.id),
-                          ),
+                  router.push({
+                    pathname: '../items',
+                    params: {
+                      items: JSON.stringify(
+                        displayItems.filter((item) =>
+                          item.userTags?.includes(participant.id),
                         ),
-                        participantId: participant.id.toString(),
-                        participantName: participant.name,
-                      } as YourItemsRoomParams,
-                    });
-                  }
+                      ),
+                      participantId: participant.id.toString(),
+                      participantName: participant.name,
+                    } as YourItemsRoomParams,
+                  });
                 }}
                 isEditMode={isEditMode}
               />
@@ -1039,8 +1035,8 @@ export default function ReceiptRoomScreen() {
 
       {isLoadingPhoto && (
         <View
-          className='absolute bottom-8 left-0 right-0 items-center'
-          style={{ zIndex: 1 }}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}
+          className='items-center justify-center'
           pointerEvents='none'
         >
           <View className='bg-card flex-row items-center gap-3 px-5 py-3 rounded-full shadow-md shadow-black/20'>

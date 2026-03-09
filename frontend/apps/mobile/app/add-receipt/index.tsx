@@ -48,43 +48,50 @@ export default function AddReceiptScreen() {
         <View className='w-9' />
       </View>
 
-      {/* Photo picker — fills all available space */}
-      <View className='flex-1 px-5 pb-4'>
-        <ReceiptPhotoPicker
-          photoUris={photoUris}
-          onPhotoAdded={(uri) => setPhotoUris((prev) => [...prev, uri])}
-          onPhotoRemoved={(uri) =>
-            setPhotoUris((prev) => prev.filter((u) => u !== uri))
-          }
-          className='flex-1'
-        />
-      </View>
-
-      {/* Scan button */}
-      <View className='px-5 pb-6'>
-        <Pressable
-          onPress={handleScan}
-          disabled={photoUris.length === 0 || isProcessing}
-          className={`rounded-2xl py-4 items-center justify-center flex-row gap-2 ${
-            photoUris.length === 0 || isProcessing
-              ? 'bg-card opacity-50'
-              : 'bg-primary active:opacity-80'
-          }`}
-        >
-          {isProcessing ? (
-            <ActivityIndicator size='small' color='#ffffff' />
-          ) : (
-            <MaterialCommunityIcons
-              name='text-recognition'
-              size={20}
-              className='text-primary-foreground'
-            />
-          )}
-          <Text className='text-primary-foreground font-semibold text-base'>
-            {isProcessing ? 'Scanning…' : 'Scan & Add Items'}
+      {isProcessing ? (
+        <View className='flex-1 items-center justify-center gap-4'>
+          <ActivityIndicator size='large' color='#4999df' />
+          <Text className='text-foreground text-lg font-semibold'>
+            Processing Receipt…
           </Text>
-        </Pressable>
-      </View>
+        </View>
+      ) : (
+        <>
+          {/* Photo picker — fills all available space */}
+          <View className='flex-1 px-5 pb-4'>
+            <ReceiptPhotoPicker
+              photoUris={photoUris}
+              onPhotoAdded={(uri) => setPhotoUris((prev) => [...prev, uri])}
+              onPhotoRemoved={(uri) =>
+                setPhotoUris((prev) => prev.filter((u) => u !== uri))
+              }
+              className='flex-1'
+            />
+          </View>
+
+          {/* Scan button */}
+          <View className='px-5 pb-6'>
+            <Pressable
+              onPress={handleScan}
+              disabled={photoUris.length === 0}
+              className={`rounded-2xl py-4 items-center justify-center flex-row gap-2 ${
+                photoUris.length === 0
+                  ? 'bg-card opacity-50'
+                  : 'bg-primary active:opacity-80'
+              }`}
+            >
+              <MaterialCommunityIcons
+                name='text-recognition'
+                size={20}
+                className='text-primary-foreground'
+              />
+              <Text className='text-primary-foreground font-semibold text-base'>
+                Scan & Add Items
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      )}
     </SafeAreaView>
   );
 }

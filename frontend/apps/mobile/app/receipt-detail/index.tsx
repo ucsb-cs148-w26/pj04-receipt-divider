@@ -265,14 +265,14 @@ export default function ReceiptDetailScreen() {
         {/* You Are Owed / You Owe card */}
         <View className='bg-card rounded-2xl p-5 mb-4'>
           <Text className='text-muted-foreground text-sm mb-1'>
-            {amountNum >= 0 ? 'You Are Owed' : 'You Owe'}
+            {displayAmount >= 0 ? 'You Are Owed' : 'You Owe'}
           </Text>
           <Text
             className={`text-3xl font-bold mb-3 ${
-              amountNum >= 0 ? 'text-amount-positive' : 'text-amount-negative'
+              displayAmount >= 0 ? 'text-amount-positive' : 'text-amount-negative'
             }`}
           >
-            ${Math.abs(displayAmount).toFixed(2)}
+            {displayAmount < 0 ? '-' : ''}${Math.abs(displayAmount).toFixed(2)}
           </Text>
 
           {/* Status summary row */}
@@ -396,19 +396,21 @@ export default function ReceiptDetailScreen() {
         </View>
 
         {/* Go to Receipt Room */}
-        <Button
-          variant='outlined'
-          size='large'
-          className='mt-12 rounded-2xl w-full'
-          onPress={() =>
-            router.push({
-              pathname: '/receipt-room',
-              params: { roomId: id, items: '[]', participants: '[]' },
-            })
-          }
-        >
-          View Receipt Room
-        </Button>
+        {tab !== 'people' && (
+          <Button
+            variant='outlined'
+            size='large'
+            className='mt-12 rounded-2xl w-full'
+            onPress={() =>
+              router.push({
+                pathname: '/receipt-room',
+                params: { roomId: id, items: '[]', participants: '[]' },
+              })
+            }
+          >
+            View Receipt Room
+          </Button>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
