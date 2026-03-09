@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 
 interface ParticipantTab {
-  id: number;
+  id: number; // local index for UI (color, avatar)
+  profileId: string; // real UUID from backend
   name: string;
 }
 
@@ -22,11 +23,6 @@ const AVATAR_COLORS = [
 function getColor(id: number) {
   return AVATAR_COLORS[(id - 1) % AVATAR_COLORS.length];
 }
-
-const INITIAL_PARTICIPANTS: ParticipantTab[] = [
-  { id: 1, name: 'Warden Creations' },
-  { id: 2, name: '6sly' },
-];
 
 function useColorScheme() {
   const [dark, setDark] = useState(
@@ -80,11 +76,8 @@ const dark = {
 };
 
 export default function ProfileSelectPage() {
-  const [participants, setParticipants] =
-    useState<ParticipantTab[]>(INITIAL_PARTICIPANTS);
-  const [selectedId, setSelectedId] = useState<number | null>(
-    INITIAL_PARTICIPANTS[0]?.id ?? null,
-  );
+  const [participants, setParticipants] = useState<ParticipantTab[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +89,23 @@ export default function ProfileSelectPage() {
   const [searchParams] = useSearchParams();
   const roomId = searchParams.get('roomId');
 
+  // Fetch real profiles on mount
+  useEffect(() => {
+    if (!roomId) return;
+    fetch(`${import.meta.env.VITE_API_URL}/group/profiles?group_id=${roomId}`)
+      .then((res) => res.json())
+      .then((data: { profilesId: string[] }) => {
+        const fetched = data.profilesId.map((profileId, i) => ({
+          id: i + 1,
+          profileId,
+          name: `Person ${i + 1}`,
+        }));
+        setParticipants(fetched);
+        if (fetched.length > 0) setSelectedId(fetched[0].id);
+      })
+      .catch(console.error);
+  }, [roomId]);
+
   useEffect(() => {
     if (showModal) setTimeout(() => inputRef.current?.focus(), 50);
   }, [showModal]);
@@ -105,20 +115,37 @@ export default function ProfileSelectPage() {
     setShowModal(true);
   };
 
-  const handleConfirm = () => {
-    if (!newName.trim()) return;
-    const newId = Math.max(...participants.map((p) => p.id)) + 1;
-    const newParticipant: ParticipantTab = {
-      id: newId,
-      name: newName.trim(),
-    };
-    setParticipants((prev) => [...prev, newParticipant]);
-    setSelectedId(newParticipant.id);
+  const handleConfirm = async () => {
+    if (!newName.trim() || !roomId) return;
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/group/create-profile`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ group_id: roomId, username: newName.trim() }),
+        },
+      );
+      if (!res.ok) return;
+      const newId = participants.length + 1;
+      const { profileId: newProfileId } = await res.json().then((d) => ({
+        profileId: d.access_token, // token returned, profileId inferred from position
+      }));
+      const newParticipant: ParticipantTab = {
+        id: newId,
+        profileId: newProfileId,
+        name: newName.trim(),
+      };
+      setParticipants((prev) => [...prev, newParticipant]);
+      setSelectedId(newParticipant.id);
+    } catch (e) {
+      console.error(e);
+    }
     setShowModal(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleConfirm();
+    if (e.key === 'Enter') void handleConfirm();
     if (e.key === 'Escape') setShowModal(false);
   };
 
