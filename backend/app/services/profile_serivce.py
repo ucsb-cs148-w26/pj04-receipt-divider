@@ -1,7 +1,7 @@
 import datetime
-import uuid
 
 from app.models.profile import Profile
+from app.schemas.group import ProfileIdWithAccentColor
 import jwt
 from sqlalchemy import select
 
@@ -35,14 +35,21 @@ class ProfileService:
             payload, self.jwt_private_key, algorithm=self.jwt_algo, headers=header
         )
 
-    def get_group_profiles_id(self, group_id: str) -> list[uuid.UUID]:
+    def get_group_profiles_id_with_accent(
+        self, group_id: str
+    ) -> list[ProfileIdWithAccentColor]:
         group = self.db.get(Group, group_id)
         if not group:
             raise ValueError(f"Group '{group_id}' not found.")
 
-        return self.db.scalars(
-            select(GroupMember.profile_id).where(GroupMember.group_id == group_id)
+        profiles = self.db.scalars(
+            select(Profile).join(GroupMember).where(GroupMember.group_id == group_id)
         ).all()
+
+        return [
+            ProfileIdWithAccentColor(profile_id=p.id, accent_color=p.accent_color or "")
+            for p in profiles
+        ]
 
     def login_as(self, group_id: str, profile_id: str) -> str:
         member = self.db.get(
