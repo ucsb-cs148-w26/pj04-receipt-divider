@@ -204,16 +204,24 @@ export default function CreateRoomScreen() {
       <View className='absolute bottom-10 left-5 right-5'>
         <Pressable
           className='bg-primary rounded-2xl py-4 items-center active:opacity-80'
-          onPress={() =>
+          onPress={() => {
+            if (photoUris.length === 0) {
+              Alert.alert(
+                'No Receipt Photo',
+                'Please add at least one receipt photo before creating a room.',
+              );
+              return;
+            }
             router.navigate({
               pathname: '/receipt-room',
               params: {
                 participants: JSON.stringify(
                   users.map((u) => ({ id: u.id, name: u.name })),
                 ),
+                photos: JSON.stringify(photoUris),
               },
-            })
-          }
+            });
+          }}
         >
           <Text className='text-primary-foreground font-bold text-base'>
             Create Room

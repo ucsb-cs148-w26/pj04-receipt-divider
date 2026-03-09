@@ -1,7 +1,7 @@
 import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -14,14 +14,12 @@ import {
   TextInput,
   Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  IconButton,
-  ReceiptPhotoPicker,
-  sendRoomInviteSMS,
-} from '@eezy-receipt/shared';
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import { IconButton, sendRoomInviteSMS } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-native-qrcode-svg';
 import { File } from 'expo-file-system';
 import { extractItems as extractReceiptItems } from '@/services/ocr';
@@ -54,9 +52,11 @@ export type ReceiptRoomParams = {
   roomId: string;
   items: string;
   participants: string; // JSON stringified ParticipantType[]
+  photos?: string; // JSON stringified string[] of URIs from create-room
 };
 
 export default function ReceiptRoomScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<ReceiptRoomParams>();
   const receiptItems = useReceiptItems();
 
@@ -100,33 +100,32 @@ export default function ReceiptRoomScreen() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
 
-  /**---------------- Add Photo ---------------- */
+  /**---------------- OCR on initial photos from create-room ---------------- */
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
-  const [photoUris, setPhotoUris] = useState<string[]>([]);
 
-  const handlePhotoAdded = async (uri: string) => {
-    setPhotoUris((prev) => [...prev, uri]);
-    setIsLoadingPhoto(true);
+  useEffect(() => {
+    if (!params.photos) return;
+    let uris: string[] = [];
     try {
-      const imageBase64 = await new File(uri).base64();
-      const newItems = await extractReceiptItems(imageBase64);
-      receiptItems.setItems((prev) => [...prev, ...newItems]);
-    } finally {
-      setIsLoadingPhoto(false);
+      uris = JSON.parse(params.photos);
+    } catch {
+      return;
     }
-  };
-
-  const addPhotoFromLibrary = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 1,
-    });
-    if (!result.canceled) {
-      await handlePhotoAdded(result.assets[0].uri);
-    }
-  };
+    if (!uris.length) return;
+    setIsLoadingPhoto(true);
+    Promise.all(
+      uris.map(async (uri) => {
+        const imageBase64 = await new File(uri).base64();
+        return extractReceiptItems(imageBase64);
+      }),
+    )
+      .then((results) => {
+        receiptItems.setItems((prev) => [...prev, ...results.flat()]);
+      })
+      .finally(() => {
+        setIsLoadingPhoto(false);
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**---------------- Participants Functions ---------------- */
   const addParticipant = (name: string) => {
@@ -307,23 +306,30 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Quick Actions Functions ---------------- */
   const claimForAll = () => {
-    if (displayItems.length === 0 || displayParticipants.length === 0) return;
+    if (selectedItemIds.size === 0 || displayParticipants.length === 0) return;
     receiptItems.setItems((prevItems) =>
-      prevItems.map((item) => ({
-        ...item,
-        userTags: [
-          ...new Set([
-            ...(item.userTags || []),
-            ...displayParticipants.map((p) => p.id),
-          ]),
-        ],
-      })),
+      prevItems.map((item) => {
+        if (!selectedItemIds.has(item.id)) return item;
+        return {
+          ...item,
+          userTags: [
+            ...new Set([
+              ...(item.userTags || []),
+              ...displayParticipants.map((p) => p.id),
+            ]),
+          ],
+        };
+      }),
     );
   };
 
   const unclaimForAll = () => {
+    if (selectedItemIds.size === 0) return;
     receiptItems.setItems((prevItems) =>
-      prevItems.map((item) => ({ ...item, userTags: [] })),
+      prevItems.map((item) => {
+        if (!selectedItemIds.has(item.id)) return item;
+        return { ...item, userTags: [] };
+      }),
     );
   };
 
@@ -391,188 +397,29 @@ export default function ReceiptRoomScreen() {
   /**---------------- Render ---------------- */
   return (
     <SafeAreaView className='bg-background flex-1'>
-      {/* Dismiss popup overlay - rendered before top bar so top bar stays interactive */}
-      {showQuickActions && (
-        <Pressable
-          className='absolute inset-0 bg-black/50'
-          style={{ zIndex: 19 }}
-          onPress={() => setShowQuickActions(false)}
-        />
-      )}
+      {/*
+       * ─── LAYERING SYSTEM ───────────────────────────────────────────
+       *  z:10  Left button │ Center button   (below overlay)
+       *  z:20  Full-screen overlay           (dims everything beneath)
+       *  z:30  Right button + dropdown       (above overlay, always interactive)
+       *
+       * All interactive top-bar elements are direct children of SafeAreaView
+       * so React Native sibling z-index rules apply correctly.
+       * An invisible spacer View reserves the top-bar height in the
+       * normal flex flow so body content sits below the buttons.
+       * ──────────────────────────────────────────────────────────────
+       */}
 
-      {/* Top bar */}
-      <View className='z-20 px-4 py-2'>
-        <View className='flex-row items-center justify-between'>
-          {/* Left side buttons */}
-          <View className='flex-row items-center gap-2'>
-            <IconButton
-              icon='chevron-left'
-              bgClassName='bg-card shadow-md shadow-black/20'
-              iconClassName='text-accent-dark'
-              pressEffect='fade'
-              onPress={() => router.back()}
-            />
-          </View>
-
-          {/* Center toggle button */}
-          <Pressable
-            className='bg-card shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70'
-            disabled={showQuickActions}
-            onPress={() => setIsEditMode(!isEditMode)}
-          >
-            <MaterialCommunityIcons
-              name={isEditMode ? 'receipt' : 'pencil-outline'}
-              size={26}
-              color='var(--color-primary)'
-            />
-          </Pressable>
-
-          {/* Right side buttons */}
-          <View className='flex-row items-center gap-2'>
-            <View style={{ zIndex: 30 }}>
-              {showQuickActions && (
-                <Pressable
-                  className='absolute top-0 right-0 z-30'
-                  style={{ width: 280 }}
-                >
-                  <View className='bg-card border border-border rounded-[25px] shadow-lg shadow-black/30 overflow-hidden'>
-                    {/* Top row of icon buttons */}
-                    <View className='flex-row items-center justify-around py-3 px-4'>
-                      <Pressable
-                        className='items-center gap-1'
-                        onPress={() => {
-                          setShowQuickActions(false);
-                          addPhotoFromLibrary();
-                        }}
-                      >
-                        <MaterialCommunityIcons
-                          name='file-image-plus-outline'
-                          size={24}
-                          color='var(--color-accent-dark)'
-                        />
-                        <Text className='text-foreground text-xs'>
-                          Add Photo
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        className='items-center gap-1 pr-2'
-                        onPress={() => {
-                          setShowQuickActions(false);
-                          router.push(
-                            `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
-                          );
-                        }}
-                      >
-                        <MaterialCommunityIcons
-                          name='account-multiple-plus-outline'
-                          size={24}
-                          color='var(--color-accent-dark)'
-                        />
-                        <Text className='text-foreground text-xs'>Share</Text>
-                      </Pressable>
-                      <Pressable
-                        className='items-center gap-1'
-                        onPress={() => {
-                          setShowQuickActions(false);
-                          router.navigate('/setting');
-                        }}
-                      >
-                        <MaterialCommunityIcons
-                          name='cog-outline'
-                          size={24}
-                          color='var(--color-accent-dark)'
-                        />
-                        <Text className='text-foreground text-xs'>
-                          Settings
-                        </Text>
-                      </Pressable>
-                    </View>
-
-                    <View className='h-px bg-border' />
-
-                    {/* Menu items */}
-                    <Pressable
-                      className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                      onPress={() => {
-                        selectAllItems();
-                        setShowQuickActions(false);
-                      }}
-                    >
-                      <MaterialCommunityIcons
-                        name='checkbox-multiple-marked-outline'
-                        size={22}
-                        color='var(--color-accent-dark)'
-                      />
-                      <Text className='text-foreground text-base font-medium'>
-                        Select All Items
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                      onPress={() => {
-                        deselectAllItems();
-                        setShowQuickActions(false);
-                      }}
-                    >
-                      <MaterialCommunityIcons
-                        name='checkbox-multiple-blank-outline'
-                        size={22}
-                        color='var(--color-accent-dark)'
-                      />
-                      <Text className='text-foreground text-base font-medium'>
-                        Deselect All Items
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                      onPress={() => {
-                        claimForAll();
-                        setShowQuickActions(false);
-                      }}
-                    >
-                      <MaterialCommunityIcons
-                        name='download'
-                        size={22}
-                        color='var(--color-accent-dark)'
-                      />
-                      <Text className='text-foreground text-base font-medium'>
-                        Claim for All Selected
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                      onPress={() => {
-                        unclaimForAll();
-                        setShowQuickActions(false);
-                      }}
-                    >
-                      <MaterialCommunityIcons
-                        name='upload'
-                        size={22}
-                        color='var(--color-accent-dark)'
-                      />
-                      <Text className='text-foreground text-base font-medium'>
-                        Unclaim for All Selected
-                      </Text>
-                    </Pressable>
-                  </View>
-                </Pressable>
-              )}
-              <IconButton
-                icon='dots-horizontal'
-                bgClassName='bg-card shadow-md shadow-black/20'
-                iconClassName='text-accent-dark'
-                pressEffect='fade'
-                onPress={() => setShowQuickActions((prev) => !prev)}
-              />
-            </View>
-          </View>
-        </View>
+      {/* ── Invisible top-bar spacer (claims layout height, passes all touches) ── */}
+      <View
+        className='px-4'
+        style={{ paddingTop: insets.top + 8 }}
+        pointerEvents='none'
+      >
+        <View className='w-[14vw] h-[14vw]' />
       </View>
 
+      {/* ── Body content ── */}
       <View className='flex-1'>
         {/* Middle part - scrollable receipt items */}
         <ScrollView
@@ -630,19 +477,6 @@ export default function ReceiptRoomScreen() {
                   Add Receipt Item
                 </Text>
               </Pressable>
-            )}
-
-            {/* Photo picker - show when no items (empty state) or photos already added */}
-            {(photoUris.length > 0 ||
-              (displayItems.length === 0 && !isEditMode)) && (
-              <ReceiptPhotoPicker
-                photoUris={photoUris}
-                onPhotoAdded={handlePhotoAdded}
-                onPhotoRemoved={(uri) =>
-                  setPhotoUris((prev) => prev.filter((u) => u !== uri))
-                }
-                isLoading={isLoadingPhoto}
-              />
             )}
           </View>
         </ScrollView>
@@ -725,6 +559,187 @@ export default function ReceiptRoomScreen() {
             </Text>
           )}
         </View>
+      </View>
+
+      {/* ── Layer 1 (z:10): Left button — below the overlay ── */}
+      <View
+        className='absolute left-4'
+        style={{ zIndex: 10, top: insets.top + 8 }}
+      >
+        <IconButton
+          icon='chevron-left'
+          bgClassName='bg-card shadow-md shadow-black/20'
+          iconClassName='text-accent-dark'
+          pressEffect='fade'
+          onPress={() => router.back()}
+        />
+      </View>
+
+      {/* ── Layer 1 (z:10): Center toggle button — below the overlay ── */}
+      <View
+        className='absolute inset-x-0 items-center'
+        style={{ zIndex: 10, top: insets.top + 8 }}
+        pointerEvents='box-none'
+      >
+        <Pressable
+          className='bg-card shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70'
+          disabled={showQuickActions}
+          onPress={() => setIsEditMode(!isEditMode)}
+        >
+          <MaterialCommunityIcons
+            name={isEditMode ? 'arrow-u-left-top' : 'pencil-outline'}
+            size={26}
+            color='var(--color-primary)'
+          />
+        </Pressable>
+      </View>
+
+      {/* ── Layer 2 (z:20): Full-screen overlay — dims left/center buttons and body ── */}
+      {showQuickActions && (
+        <Pressable
+          className='absolute inset-0 bg-black/50'
+          style={{ zIndex: 20 }}
+          onPress={() => setShowQuickActions(false)}
+        />
+      )}
+
+      {/* ── Layer 3 (z:30): Right button + dropdown — always above the overlay ── */}
+      <View
+        className='absolute right-4'
+        style={{ zIndex: 30, top: insets.top + 8 }}
+      >
+        {showQuickActions && (
+          <Pressable className='absolute top-0 right-0' style={{ width: 280 }}>
+            <View className='bg-card border border-border rounded-[25px] shadow-lg shadow-black/30 overflow-hidden'>
+              {/* Top row of icon buttons */}
+              <View className='flex-row items-center justify-around py-3 px-4'>
+                <Pressable
+                  className='items-center gap-1'
+                  onPress={() => {
+                    setShowQuickActions(false);
+                    setIsEditMode(true);
+                    addReceiptItem();
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name='receipt-text-plus-outline'
+                    size={24}
+                    color='var(--color-accent-dark)'
+                  />
+                  <Text className='text-foreground text-xs'>Add Receipt</Text>
+                </Pressable>
+                <Pressable
+                  className='items-center gap-1'
+                  onPress={() => {
+                    setShowQuickActions(false);
+                    router.push(
+                      `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
+                    );
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name='account-multiple-plus-outline'
+                    size={24}
+                    color='var(--color-accent-dark)'
+                  />
+                  <Text className='text-foreground text-xs'>Share</Text>
+                </Pressable>
+                <Pressable
+                  className='items-center gap-1'
+                  onPress={() => {
+                    setShowQuickActions(false);
+                    router.navigate('/setting');
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name='cog-outline'
+                    size={24}
+                    color='var(--color-accent-dark)'
+                  />
+                  <Text className='text-foreground text-xs'>Settings</Text>
+                </Pressable>
+              </View>
+
+              <View className='h-px bg-border' />
+
+              {/* Menu items */}
+              <Pressable
+                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                onPress={() => {
+                  selectAllItems();
+                  setShowQuickActions(false);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='checkbox-multiple-marked-outline'
+                  size={22}
+                  color='var(--color-accent-dark)'
+                />
+                <Text className='text-foreground text-base font-medium'>
+                  Select All Items
+                </Text>
+              </Pressable>
+
+              <Pressable
+                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                onPress={() => {
+                  deselectAllItems();
+                  setShowQuickActions(false);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='checkbox-multiple-blank-outline'
+                  size={22}
+                  color='var(--color-accent-dark)'
+                />
+                <Text className='text-foreground text-base font-medium'>
+                  Deselect All Items
+                </Text>
+              </Pressable>
+
+              <Pressable
+                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                onPress={() => {
+                  claimForAll();
+                  setShowQuickActions(false);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='download'
+                  size={22}
+                  color='var(--color-accent-dark)'
+                />
+                <Text className='text-foreground text-base font-medium'>
+                  Claim for All Selected
+                </Text>
+              </Pressable>
+
+              <Pressable
+                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                onPress={() => {
+                  unclaimForAll();
+                  setShowQuickActions(false);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='upload'
+                  size={22}
+                  color='var(--color-accent-dark)'
+                />
+                <Text className='text-foreground text-base font-medium'>
+                  Unclaim for All Selected
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        )}
+        <IconButton
+          icon='dots-horizontal'
+          bgClassName='bg-card shadow-md shadow-black/20'
+          iconClassName='text-accent-dark'
+          pressEffect='fade'
+          onPress={() => setShowQuickActions((prev) => !prev)}
+        />
       </View>
 
       {/* Drag overlay - "Claim N items" indicator */}
@@ -910,21 +925,20 @@ export default function ReceiptRoomScreen() {
         </SafeAreaView>
       </Modal>
 
-      <Modal
-        transparent
-        animationType='fade'
-        visible={isLoadingPhoto}
-        statusBarTranslucent
-      >
-        <View className='flex-1 justify-center items-center bg-black/50'>
-          <View className='bg-card p-6 rounded-xl items-center'>
-            <ActivityIndicator size='large' color='#4999DF' />
-            <Text className='mt-4 text-lg font-medium text-muted-foreground'>
-              Loading...
+      {isLoadingPhoto && (
+        <View
+          className='absolute bottom-8 left-0 right-0 items-center'
+          style={{ zIndex: 1 }}
+          pointerEvents='none'
+        >
+          <View className='bg-card flex-row items-center gap-3 px-5 py-3 rounded-full shadow-md shadow-black/20'>
+            <ActivityIndicator size='small' color='#4999DF' />
+            <Text className='text-muted-foreground text-sm font-medium'>
+              Processing receipt…
             </Text>
           </View>
         </View>
-      </Modal>
+      )}
     </SafeAreaView>
   );
 }
