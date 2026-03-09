@@ -312,11 +312,13 @@ export default function ReceiptRoomScreen() {
         setBannerVisibleState(false);
         bannerVisible.current = false;
         bannerIsExiting.current = false;
-        // Reset values AFTER state update so there's no frame where the still-mounted
-        // component flashes at reset values.
-        bannerLerpPan.setValue({ x: 0, y: 0 });
-        bannerScale.setValue(1);
-        bannerOpacity.setValue(1);
+        // Defer value resets to next frame so React can unmount the component
+        // first — resetting synchronously causes a one-frame flash at origin.
+        setTimeout(() => {
+          bannerLerpPan.setValue({ x: 0, y: 0 });
+          bannerScale.setValue(1);
+          bannerOpacity.setValue(1);
+        }, 0);
       });
     } else {
       // Spring back to origin and fade out

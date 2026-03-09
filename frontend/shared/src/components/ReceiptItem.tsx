@@ -457,7 +457,7 @@ export function ReceiptItem({
                       id={userId}
                       onRemove={() => confirmRemoveTag(userId)}
                       isNewlyAdded={false}
-                      isEditMode={true}
+                      isEditMode={false}
                     />
                   ))}
                 </View>
