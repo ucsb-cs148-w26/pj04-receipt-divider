@@ -8,7 +8,7 @@ import {
 } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ReceiptItemData } from '@shared/types';
-import { ReceiptItem } from '@shared/components/ReceiptItem';
+import { DisplayItems } from '@shared/components/DisplayItems';
 import { useReceiptItems } from '@/providers';
 
 export type YourItemsRoomParams = {
@@ -76,6 +76,16 @@ export default function YourItemScreen() {
   // Calculate on a copy so we don't mutate localItems state directly
   const displayItems = localItems.map((item) => ({ ...item }));
   calculatePrices(displayItems);
+
+  // Percentage each item represents for this participant
+  const percentages = Object.fromEntries(
+    localItems.map((item) => [
+      item.id,
+      item.userTags && item.userTags.length > 1
+        ? Math.round(100 / item.userTags.length)
+        : 100,
+    ]),
+  );
 
   const removeItem = (itemId: string) => {
     receiptItemsContext.setItems((prevItems) =>
@@ -159,15 +169,13 @@ export default function YourItemScreen() {
           </View>
 
           {displayItems.map((item) => (
-            <ReceiptItem
+            <DisplayItems
               key={item.id}
-              item={item}
-              onUpdate={() => {}}
-              onDelete={() => confirmRemoveItem(item)}
-              onRemoveFromUser={() => {}}
-              isEditMode={false}
-              isSelected={false}
-              onToggleSelect={() => {}}
+              name={item.name}
+              price={item.price}
+              discount={item.discount}
+              percentage={percentages[item.id]}
+              onRemove={() => confirmRemoveItem(item)}
             />
           ))}
         </Animated.ScrollView>

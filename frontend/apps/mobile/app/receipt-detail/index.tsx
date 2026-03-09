@@ -1,9 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, ScrollView, Text, View, Pressable } from 'react-native';
+import {
+  Alert,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  Pressable,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@eezy-receipt/shared';
+import { Button, IconButton } from '@eezy-receipt/shared';
 
 export type ReceiptDetailParams = {
   id: string;
@@ -202,24 +209,51 @@ export default function ReceiptDetailScreen() {
     statusParts.push(`${waitingCount} Awaiting Verification`);
   if (pendingCount > 0) statusParts.push(`${pendingCount} Requested & Unpaid`);
 
+  const [roomName, setRoomName] = useState(name ?? '');
+  const [editingName, setEditingName] = useState(false);
+
   return (
     <SafeAreaView className='flex-1 bg-background'>
       {/* Header */}
       <View className='flex-row items-center px-5 pt-2 pb-3'>
-        <Pressable
+        <IconButton
+          icon='chevron-left'
+          bgClassName='bg-card shadow-md shadow-black/20'
+          iconClassName='text-accent-dark'
+          pressEffect='fade'
           onPress={() => router.back()}
-          hitSlop={8}
-          className='w-9 h-9 items-center justify-center rounded-full bg-card mr-2'
-        >
-          <MaterialCommunityIcons
-            name='chevron-left'
-            size={24}
-            className='text-accent-dark'
-          />
-        </Pressable>
-        <Text className='flex-1 text-center text-foreground text-xl font-bold'>
-          {name}
-        </Text>
+        />
+        <View className='flex-1 flex-row items-center justify-center gap-2 mx-2'>
+          {editingName ? (
+            <TextInput
+              value={roomName}
+              onChangeText={setRoomName}
+              autoFocus
+              returnKeyType='done'
+              onSubmitEditing={() => setEditingName(false)}
+              onBlur={() => setEditingName(false)}
+              className='text-foreground text-xl font-bold text-center border-b border-border flex-1'
+            />
+          ) : (
+            <Pressable
+              onPress={() => setEditingName(true)}
+              className='flex-row items-center gap-2'
+              accessibilityLabel='Edit room name'
+            >
+              <Text
+                className='text-foreground text-xl font-bold'
+                numberOfLines={1}
+              >
+                {roomName}
+              </Text>
+              <MaterialCommunityIcons
+                name='pencil-outline'
+                size={18}
+                className='text-muted-foreground'
+              />
+            </Pressable>
+          )}
+        </View>
         <View className='w-9' />
       </View>
 

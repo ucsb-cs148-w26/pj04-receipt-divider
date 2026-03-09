@@ -1,10 +1,11 @@
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 export interface DisplayClaimedReceiptItemProps {
   name: string;
   price: string;
-  discount?: string; // Optional discount amount
-  percentage?: number; // Percentage of the item claimed by the user
+  discount?: string;
+  percentage?: number;
+  onRemove?: () => void;
 }
 
 export function DisplayItems({
@@ -12,33 +13,46 @@ export function DisplayItems({
   price,
   discount,
   percentage,
+  onRemove,
 }: DisplayClaimedReceiptItemProps) {
   const showDiscount = !!discount && parseFloat(discount) > 0;
+  const pct = Math.round(percentage ?? 100);
 
   return (
-    <View className='w-full bg-surface-elevated border border-border rounded-lg p-4 pl-6 pr-6 pb-6 mb-2'>
-      <View className='flex-row justify-between items-center gap-2'>
-        <View className='bg-card rounded-[10px] px-[10px] py-[6px] items-center justify-center min-w-[50px]'>
-          <Text className='text-xs font-bold text-foreground leading-[14px]'>
-            {Math.round(percentage || 100)}%
-          </Text>
-        </View>
+    <View className='w-full bg-card rounded-2xl p-4'>
+      <View className='flex-row items-center'>
+        {/* Remove button */}
+        <Pressable
+          onPress={onRemove}
+          className='w-10 h-10 items-center justify-center'
+          accessibilityLabel='Remove item'
+        >
+          <Text className='text-destructive text-2xl font-bold'>✕</Text>
+        </Pressable>
 
-        {/* Name Section - left justified*/}
-        <View className='flex-1 min-w-0'>
-          <Text className='text-foreground'>{name}</Text>
-        </View>
+        {/* Percentage badge */}
+        {pct < 100 && (
+          <View className='bg-surface-elevated rounded-md px-2 py-1 items-center justify-center mr-2'>
+            <Text className='text-xs font-bold text-foreground'>{pct}%</Text>
+          </View>
+        )}
 
-        {/* Price - right justified */}
-        <View className='items-end justify-end'>
-          <Text className='text-foreground font-bold'>${price}</Text>
-        </View>
+        {/* Name */}
+        <Text
+          className='text-foreground font-extrabold text-xl flex-1 mr-2'
+          numberOfLines={1}
+        >
+          {name || 'Unnamed Item'}
+        </Text>
+
+        {/* Price */}
+        <Text className='text-foreground font-extrabold text-xl'>${price}</Text>
       </View>
 
-      {/* Discount section - lower right justified */}
+      {/* Discount row */}
       {showDiscount && (
-        <View className='flex-row items-center justify-end gap-1'>
-          <Text className='text-xs text-foreground'>Discount:</Text>
+        <View className='flex-row items-center justify-end gap-1 mt-1'>
+          <Text className='text-xs text-muted-foreground'>Discount:</Text>
           <Text className='text-sm text-foreground'>${discount}</Text>
         </View>
       )}
