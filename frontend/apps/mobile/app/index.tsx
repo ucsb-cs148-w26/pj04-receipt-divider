@@ -78,7 +78,10 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-        <Text className='flex-1 text-foreground text-2xl font-bold'>
+        <Text
+          className='flex-1 text-foreground text-2xl font-bold'
+          numberOfLines={1}
+        >
           Hi, {firstName}!
         </Text>
         <IconButton

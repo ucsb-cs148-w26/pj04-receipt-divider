@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import ImageCropPopUp from './ImageCropPopUp';
+import type { ImageCropPopUpRef } from './ImageCropPopUp';
 
 export interface ReceiptPhotoPickerProps {
   /** URIs of photos already added */
@@ -45,6 +47,23 @@ export function ReceiptPhotoPicker({
   style,
 }: ReceiptPhotoPickerProps) {
   const [showOptions, setShowOptions] = useState(false);
+  const [pendingUri, setPendingUri] = useState<string | null>(null);
+  const cropRef = useRef<ImageCropPopUpRef>(null);
+
+  const openCropPopup = (uri: string) => {
+    setPendingUri(uri);
+    // Small delay to ensure state is set before opening
+    setTimeout(() => cropRef.current?.open(), 50);
+  };
+
+  const handleCropComplete = (croppedUri: string) => {
+    setPendingUri(null);
+    onPhotoAdded(croppedUri);
+  };
+
+  const handleCropCancel = () => {
+    setPendingUri(null);
+  };
 
   const pickFromLibrary = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -58,7 +77,7 @@ export function ReceiptPhotoPicker({
     });
     setShowOptions(false);
     if (!result.canceled) {
-      onPhotoAdded(result.assets[0].uri);
+      openCropPopup(result.assets[0].uri);
     }
   };
 
@@ -74,8 +93,13 @@ export function ReceiptPhotoPicker({
     });
     setShowOptions(false);
     if (!result.canceled) {
-      onPhotoAdded(result.assets[0].uri);
+      openCropPopup(result.assets[0].uri);
     }
+  };
+
+  const handleTakeNewPhoto = () => {
+    setPendingUri(null);
+    takePhoto();
   };
 
   const hasPhotos = photoUris.length > 0;
@@ -223,6 +247,14 @@ export function ReceiptPhotoPicker({
           </Pressable>
         </Pressable>
       </Modal>
+
+      <ImageCropPopUp
+        ref={cropRef}
+        imageUri={pendingUri}
+        onComplete={handleCropComplete}
+        onCancel={handleCropCancel}
+        onTakeNewPhoto={handleTakeNewPhoto}
+      />
     </>
   );
 }

@@ -4,7 +4,7 @@ import type { ScrollToInputContext } from '../hooks/useScrollToInput';
 
 interface ScrollableTextInputProps extends TextInputProps {
   /** Return value of useScrollToInput passed down from the parent ScrollView owner. */
-  scrollContext: ScrollToInputContext;
+  scrollContext?: ScrollToInputContext;
   /** Label used in debug logs. Defaults to 'input'. */
   name?: string;
 }
@@ -32,7 +32,7 @@ export function ScrollableTextInput({
     <TextInput
       ref={inputRef}
       onFocus={(e) => {
-        scrollContext.scrollToInput(inputRef, name);
+        scrollContext?.scrollToInput(inputRef, name);
         onFocus?.(e);
       }}
       {...props}

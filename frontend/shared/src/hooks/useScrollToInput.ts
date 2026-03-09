@@ -80,7 +80,7 @@ export function useScrollToInput({
         Animated.timing(bottomPadding, {
           toValue: 0,
           duration: 250,
-          useNativeDriver: false,
+          useNativeDriver: true,
         }).start();
       }
     });

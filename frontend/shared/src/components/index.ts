@@ -15,3 +15,5 @@ export type {
   AddParticipantSheetProps,
   AddParticipantManualModalProps,
 } from './AddParticipantModals';
+export { default as ImageCropPopUp } from './ImageCropPopUp';
+export type { ImageCropPopUpProps, ImageCropPopUpRef } from './ImageCropPopUp';
