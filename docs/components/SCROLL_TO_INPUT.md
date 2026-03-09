@@ -32,7 +32,7 @@ export default function MyScreen() {
       onScroll={Animated.event(
         [{ nativeEvent: { contentOffset: { y: someAnimatedValue } } }],
         {
-          useNativeDriver: false,
+          useNativeDriver: true,
           listener: (e) => ctx.trackScrollOffset(e),
         },
       )}
@@ -157,7 +157,7 @@ The hook works with both. When combining with another `Animated.event` for scrol
 onScroll={Animated.event(
   [{ nativeEvent: { contentOffset: { y: scrollY } } }],
   {
-    useNativeDriver: false,
+    useNativeDriver: true,
     listener: (e) => ctx.trackScrollOffset(e),
   },
 )}

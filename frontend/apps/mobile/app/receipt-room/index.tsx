@@ -22,6 +22,7 @@ import {
   AddParticipantSheet,
   AddParticipantManualModal,
   sendRoomInviteSMS,
+  useScrollToInput,
 } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
@@ -67,6 +68,9 @@ export default function ReceiptRoomScreen() {
   /**---------------- Mode State ---------------- */
   const [isEditMode, setIsEditMode] = useState(false);
 
+  /**---------------- Scroll-to-input context (edit mode) ---------------- */
+  const scrollCtx = useScrollToInput({ resetOnBlur: false });
+
   /**---------------- Selection State (claim mode) ---------------- */
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(
     new Set(),
@@ -102,8 +106,12 @@ export default function ReceiptRoomScreen() {
   const bannerItemCountRef = useRef(0);
   const lastDropSuccessful = useRef(false);
   const bannerIsExiting = useRef(false);
-  const bannerLerpSpringRef = useRef<Animated.CompositeAnimation | null>(null);
   const exitAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const dropToClaimAnim = useRef(new Animated.Value(40)).current;
+  const dropToClaimOpacity = useRef(new Animated.Value(0)).current;
+  const dropdownOpacity = useRef(new Animated.Value(0)).current;
+  const editModeAnim = useRef(new Animated.Value(0)).current;
+  const [isEditAnimating, setIsEditAnimating] = useState(false);
 
   /**---------------- Text Focus State ---------------- */
   const [isAnyTextFocused, setIsAnyTextFocused] = useState(false);
@@ -118,6 +126,30 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- OCR on initial photos from create-room ---------------- */
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(dropToClaimAnim, {
+        toValue: dragState.isDragging ? 0 : 40,
+        useNativeDriver: true,
+      }),
+      Animated.timing(dropToClaimOpacity, {
+        toValue: dragState.isDragging ? 1 : 0,
+        duration: dragState.isDragging ? 200 : 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [dragState.isDragging]);
+
+  useEffect(() => {
+    Animated.timing(dropdownOpacity, {
+      toValue: showQuickActions ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [showQuickActions]);
+
+  // editModeAnim is driven imperatively via toggleEditMode() — no useEffect needed.
 
   useEffect(() => {
     if (!params.photos) return;
@@ -198,6 +230,12 @@ export default function ReceiptRoomScreen() {
     }
   };
 
+  const renameParticipant = (id: number, newName: string) => {
+    setParticipants((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, name: newName } : p)),
+    );
+  };
+
   /**---------------- Selection Functions ---------------- */
   const toggleItemSelection = (itemId: string) => {
     setSelectedItemIds((prev) => {
@@ -221,10 +259,22 @@ export default function ReceiptRoomScreen() {
 
   const claimSelectedToParticipant = (participantId: number) => {
     lastDropSuccessful.current = true;
+    const selectedItems = receiptItems.items.filter((item) =>
+      selectedItemIds.has(item.id),
+    );
+    const allAlreadyClaimed = selectedItems.every((item) =>
+      (item.userTags ?? []).includes(participantId),
+    );
     receiptItems.setItems((prevItems) =>
       prevItems.map((item) => {
         if (!selectedItemIds.has(item.id)) return item;
         const userTags = item.userTags ?? [];
+        if (allAlreadyClaimed) {
+          return {
+            ...item,
+            userTags: userTags.filter((id) => id !== participantId),
+          };
+        }
         if (userTags.includes(participantId)) return item;
         return { ...item, userTags: [...userTags, participantId] };
       }),
@@ -236,8 +286,15 @@ export default function ReceiptRoomScreen() {
     itemId: string,
     initialPosition?: { x: number; y: number },
   ) => {
-    // Only allow dragging if items are selected and the dragged item is selected
-    if (!selectedItemIds.has(itemId) || selectedItemIds.size === 0) return;
+    // Build effective selection: include the dragged item even if not yet selected
+    const effectiveIds = selectedItemIds.has(itemId)
+      ? selectedItemIds
+      : new Set([...selectedItemIds, itemId]);
+
+    // If the item wasn't selected, select it now so the UI reflects it
+    if (!selectedItemIds.has(itemId)) {
+      setSelectedItemIds(effectiveIds);
+    }
 
     // Stop any in-progress exit animation and reset banner state
     exitAnimRef.current?.stop();
@@ -246,13 +303,13 @@ export default function ReceiptRoomScreen() {
     bannerOpacity.setValue(1);
     bannerScale.setValue(1);
     bannerInitialPosRef.current = initialPosition || null;
-    bannerItemCountRef.current = selectedItemIds.size;
+    bannerItemCountRef.current = effectiveIds.size;
     bannerVisible.current = true;
     setBannerVisibleState(true);
 
     setDragState({
       isDragging: true,
-      selectedItemIds: [...selectedItemIds],
+      selectedItemIds: [...effectiveIds],
       initialPosition: initialPosition || null,
       isOverParticipant: false,
     });
@@ -261,25 +318,14 @@ export default function ReceiptRoomScreen() {
 
   const handleItemDragMove = (translation: { x: number; y: number }) => {
     if (bannerIsExiting.current) return;
-    // Don't stop the previous spring — let React Native interrupt it naturally so
-    // velocity carries over and the follow stays smooth with no jitter.
-    const spring = Animated.spring(bannerLerpPan, {
-      toValue: translation,
-      useNativeDriver: false,
-      tension: 150,
-      friction: 26, // slightly over-damped: no oscillation, snappy follow
-    });
-    bannerLerpSpringRef.current = spring;
-    spring.start();
+    // setValue is instant — no competing spring animations, no per-frame jitter.
+    bannerLerpPan.setValue(translation);
   };
 
   const handleItemDragEnd = () => {
     const success = lastDropSuccessful.current;
     lastDropSuccessful.current = false;
     bannerIsExiting.current = true;
-
-    // Stop the lerp spring so banner freezes at its current position
-    if (bannerLerpSpringRef.current) bannerLerpSpringRef.current.stop();
 
     setDragState({
       isDragging: false,
@@ -289,7 +335,7 @@ export default function ReceiptRoomScreen() {
     });
     Animated.spring(dragPan, {
       toValue: { x: 0, y: 0 },
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
 
     if (success) {
@@ -297,14 +343,14 @@ export default function ReceiptRoomScreen() {
       const anim = Animated.parallel([
         Animated.spring(bannerScale, {
           toValue: 1.4,
-          useNativeDriver: false,
+          useNativeDriver: true,
           tension: 200,
           friction: 8,
         }),
         Animated.timing(bannerOpacity, {
           toValue: 0,
           duration: 280,
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
       ]);
       exitAnimRef.current = anim;
@@ -321,20 +367,13 @@ export default function ReceiptRoomScreen() {
         }, 0);
       });
     } else {
-      // Spring back to origin and fade out
-      const anim = Animated.parallel([
-        Animated.spring(bannerLerpPan, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-          tension: 150,
-          friction: 14,
-        }),
-        Animated.timing(bannerOpacity, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: false,
-        }),
-      ]);
+      // Fade out at current position (no spring-back needed since we follow finger exactly)
+      bannerLerpPan.setValue({ x: 0, y: 0 });
+      const anim = Animated.timing(bannerOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      });
       exitAnimRef.current = anim;
       anim.start(() => {
         setBannerVisibleState(false);
@@ -486,15 +525,18 @@ export default function ReceiptRoomScreen() {
   };
 
   const getParticipantTotal = (participantId: number) => {
-    return receiptItems.items
+    const total = receiptItems.items
       .filter((item) => item.userTags?.includes(participantId))
       .reduce((sum, item) => {
         const price = parseFloat(item.price || '0');
         const discount = parseFloat(item.discount || '0');
         const claimCount = item.userTags?.length || 1;
         return sum + (price - discount) / claimCount;
-      }, 0)
-      .toFixed(2);
+      }, 0);
+    if (total > 100000) {
+      return '100,000.00+';
+    }
+    return total.toFixed(2);
   };
 
   /**---------------- Render ---------------- */
@@ -519,16 +561,21 @@ export default function ReceiptRoomScreen() {
         style={{ paddingTop: insets.top + 8 }}
         pointerEvents='none'
       >
-        <View className='w-[14vw] h-[14vw]' />
+        <View className='w-[14vw] h-[2vh]' />
       </View>
 
       {/* ── Body content ── */}
       <View className='flex-1'>
         {/* Middle part - scrollable receipt items */}
-        <ScrollView
+        <Animated.ScrollView
           className='p-4 flex-1'
-          contentContainerClassName='min-w-full self-center z-[1] pb-4'
+          contentContainerClassName='min-w-full self-center z-[1]'
           scrollEnabled={!dragState.isDragging}
+          ref={scrollCtx.scrollViewRef}
+          onScroll={scrollCtx.trackScrollOffset}
+          scrollEventThrottle={16}
+          onContentSizeChange={scrollCtx.onContentSizeChange}
+          contentContainerStyle={{ paddingBottom: scrollCtx.bottomPadding }}
         >
           <View className='gap-2'>
             {displayItems.map((item) => (
@@ -561,13 +608,18 @@ export default function ReceiptRoomScreen() {
                 isAnyTextFocused={isAnyTextFocused}
                 onTextFocusChange={setIsAnyTextFocused}
                 isEditMode={isEditMode}
+                editModeAnim={editModeAnim}
                 isSelected={selectedItemIds.has(item.id)}
                 onToggleSelect={() => toggleItemSelection(item.id)}
+                scrollContext={scrollCtx}
               />
             ))}
 
-            {/* Add Receipt Item button - edit mode only */}
-            {isEditMode && (
+            {/* Add Receipt Item button - fades in/out with edit mode */}
+            <Animated.View
+              style={{ opacity: editModeAnim }}
+              pointerEvents={isEditMode ? 'auto' : 'none'}
+            >
               <Pressable
                 className='bg-card rounded-2xl border border-border w-full py-4 items-center justify-center active:opacity-70 flex-row gap-2'
                 onPress={addReceiptItem}
@@ -581,9 +633,9 @@ export default function ReceiptRoomScreen() {
                   Add Receipt Item
                 </Text>
               </Pressable>
-            )}
+            </Animated.View>
           </View>
-        </ScrollView>
+        </Animated.ScrollView>
 
         {/* Bottom section - participants and drop zone */}
         <View>
@@ -640,29 +692,44 @@ export default function ReceiptRoomScreen() {
               />
             ))}
 
-            {/* Add participant button - always visible */}
-            <Pressable
-              className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
-              style={{ width: 160 }}
-              onPress={() => setShowAddOptions(true)}
-            >
-              <View className='h-2 bg-accent-light' />
-              <View className='items-center justify-center py-5'>
-                <MaterialCommunityIcons
-                  name='plus'
-                  size={32}
-                  className='text-accent'
-                />
-              </View>
-            </Pressable>
+            {/* Add participant button - hidden when at the 10-person limit */}
+            {displayParticipants.length < 10 && (
+              <Pressable
+                className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
+                style={{ width: 160, height: 100 }}
+                onPress={() => setShowAddOptions(true)}
+              >
+                <View className='h-3 bg-accent-light' />
+                <View className='flex-1 items-center justify-center'>
+                  <MaterialCommunityIcons
+                    name='plus'
+                    size={32}
+                    className='text-accent'
+                  />
+                </View>
+              </Pressable>
+            )}
           </ScrollView>
 
-          {/* Drop to Claim - only show during drag */}
-          {dragState.isDragging && (
-            <Text className='text-accent text-center text-sm mt-1 mb-2'>
-              Drop to Claim
+          {/* Drop to Claim - absolutely positioned, slides up during drag, never affects layout or touch */}
+          <Animated.View
+            pointerEvents='none'
+            style={{
+              position: 'absolute',
+              bottom: -12,
+              left: 0,
+              right: 0,
+              alignItems: 'center',
+              opacity: dropToClaimOpacity,
+              transform: [{ translateY: dropToClaimAnim }],
+            }}
+          >
+            <Text className='text-accent text-center text-sm py-1'>
+              {displayParticipants.length === 0
+                ? 'Add participants first'
+                : 'Drop to Claim'}
             </Text>
-          )}
+          </Animated.View>
         </View>
       </View>
 
@@ -688,15 +755,40 @@ export default function ReceiptRoomScreen() {
       >
         <Pressable
           className={`shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70 ${isEditMode ? 'bg-primary' : 'bg-card'}`}
-          disabled={showQuickActions}
-          onPress={() => setIsEditMode((prev) => !prev)}
+          disabled={showQuickActions || isEditAnimating}
+          onPress={() => {
+            const newMode = !isEditMode;
+            setIsEditAnimating(true);
+            setIsEditMode(newMode);
+            Animated.timing(editModeAnim, {
+              toValue: newMode ? 1 : 0,
+              duration: 200,
+              useNativeDriver: true,
+            }).start(() => setIsEditAnimating(false));
+          }}
         >
-          <MaterialCommunityIcons
-            name={isEditMode ? 'check' : 'pencil-outline'}
-            size={26}
-            color={isEditMode ? '#ffffff' : undefined}
-            className={isEditMode ? '' : 'text-primary'}
-          />
+          <View style={{ width: 26, height: 26 }}>
+            <Animated.View
+              style={{ position: 'absolute', opacity: editModeAnim }}
+            >
+              <MaterialCommunityIcons name='check' size={26} color='#ffffff' />
+            </Animated.View>
+            <Animated.View
+              style={{
+                position: 'absolute',
+                opacity: editModeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 0],
+                }),
+              }}
+            >
+              <MaterialCommunityIcons
+                name='pencil-outline'
+                size={26}
+                color='#4999DF'
+              />
+            </Animated.View>
+          </View>
         </Pressable>
       </View>
 
@@ -714,8 +806,12 @@ export default function ReceiptRoomScreen() {
         className='absolute right-4'
         style={{ zIndex: 30, top: insets.top + 8 }}
       >
-        {showQuickActions && (
-          <Pressable className='absolute top-0 right-0' style={{ width: 280 }}>
+        <Pressable
+          className='absolute top-0 right-0'
+          style={{ width: 280, zIndex: 1 }}
+          pointerEvents={showQuickActions ? 'auto' : 'none'}
+        >
+          <Animated.View style={{ opacity: dropdownOpacity }}>
             <View className='bg-card border border-border rounded-[25px] shadow-lg shadow-black/30 overflow-hidden'>
               {/* Top row of icon buttons */}
               <View className='flex-row items-center justify-around py-3 px-4'>
@@ -836,15 +932,25 @@ export default function ReceiptRoomScreen() {
                 </Text>
               </Pressable>
             </View>
-          </Pressable>
-        )}
-        <IconButton
-          icon='dots-horizontal'
-          bgClassName='bg-card shadow-md shadow-black/20'
-          iconClassName='text-accent-dark'
-          pressEffect='fade'
-          onPress={() => setShowQuickActions((prev) => !prev)}
-        />
+          </Animated.View>
+        </Pressable>
+        <Animated.View
+          style={{
+            opacity: dropdownOpacity.interpolate({
+              inputRange: [0, 1],
+              outputRange: [1, 0],
+            }),
+          }}
+          pointerEvents='box-none'
+        >
+          <IconButton
+            icon='dots-horizontal'
+            bgClassName='bg-card shadow-md shadow-black/20'
+            iconClassName='text-accent-dark'
+            pressEffect='fade'
+            onPress={() => setShowQuickActions((prev) => !prev)}
+          />
+        </Animated.View>
       </View>
 
       {/* Drag overlay - "Claim N items" indicator */}
@@ -886,6 +992,8 @@ export default function ReceiptRoomScreen() {
         onClose={() => setShowAddManual(false)}
         onAdd={(name) => addParticipant(name)}
         addedParticipants={participants}
+        onRenameParticipant={renameParticipant}
+        onRemoveParticipant={removeParticipant}
       />
 
       {/* QR Code Modal */}

@@ -6,11 +6,11 @@
 @layer base {
   :root {
     /* Light mode specific colors */
-    --color-background: #f2f2f2;
+    --color-background: #f2f2f7;
     --color-foreground: #0f172a;
     --color-surface: #efefef;
     --color-surface-elevated: #f2f2f3;
-    --color-card: #f6f6f6;
+    --color-card: #fcfcfc;
     --color-card-foreground: #0f172a;
     --color-secondary: #6c7d8c;
     --color-secondary-background: #ffffff;
@@ -53,16 +53,16 @@
     --color-scan-frame: #4999df;
 
     /* User Avatar Colors - consistent across themes */
-    --color-avatar-1: #3b82f699; /* blue-500/60 */
-    --color-avatar-2: #ef444499; /* red-500/60 */
-    --color-avatar-3: #22c55e99; /* green-500/60 */
-    --color-avatar-4: #eab30899; /* yellow-500/60 */
-    --color-avatar-5: #a855f799; /* purple-500/60 */
-    --color-avatar-6: #ec489999; /* pink-500/60 */
-    --color-avatar-7: #6366f199; /* indigo-500/60 */
-    --color-avatar-8: #f9731699; /* orange-500/60 */
-    --color-avatar-9: #14b8a699; /* teal-500/60 */
-    --color-avatar-10: #06b6d499; /* cyan-500/60 */
+    --color-avatar-1: #3b82f6; /* blue-500/60 */
+    --color-avatar-2: #ef4444; /* red-500/60 */
+    --color-avatar-3: #22c55e; /* green-500/60 */
+    --color-avatar-4: #eab308; /* yellow-500/60 */
+    --color-avatar-5: #a855f7; /* purple-500/60 */
+    --color-avatar-6: #ec4899; /* pink-500/60 */
+    --color-avatar-7: #6366f1; /* indigo-500/60 */
+    --color-avatar-8: #f97316; /* orange-500/60 */
+    --color-avatar-9: #14b8a6; /* teal-500/60 */
+    --color-avatar-10: #06b6d4; /* cyan-500/60 */
   }
 
   @media (prefers-color-scheme: dark) {
@@ -117,16 +117,16 @@
       --color-scan-frame: #4999df;
 
       /* User Avatar Colors - consistent across themes */
-      --color-avatar-1: #3b82f699; /* blue-500/60 */
-      --color-avatar-2: #ef444499; /* red-500/60 */
-      --color-avatar-3: #22c55e99; /* green-500/60 */
-      --color-avatar-4: #eab30899; /* yellow-500/60 */
-      --color-avatar-5: #a855f799; /* purple-500/60 */
-      --color-avatar-6: #ec489999; /* pink-500/60 */
-      --color-avatar-7: #6366f199; /* indigo-500/60 */
-      --color-avatar-8: #f9731699; /* orange-500/60 */
-      --color-avatar-9: #14b8a699; /* teal-500/60 */
-      --color-avatar-10: #06b6d499; /* cyan-500/60 */
+      --color-avatar-1: #3b83f6; /* blue-500/60 */
+      --color-avatar-2: #ef4444; /* red-500/60 */
+      --color-avatar-3: #22c55e; /* green-500/60 */
+      --color-avatar-4: #eab308; /* yellow-500/60 */
+      --color-avatar-5: #a855f7; /* purple-500/60 */
+      --color-avatar-6: #ec4899; /* pink-500/60 */
+      --color-avatar-7: #6366f1; /* indigo-500/60 */
+      --color-avatar-8: #f97316; /* orange-500/60 */
+      --color-avatar-9: #14b8a6; /* teal-500/60 */
+      --color-avatar-10: #06b6d4; /* cyan-500/60 */
     }
   }
 }
