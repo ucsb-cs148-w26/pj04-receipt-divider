@@ -74,7 +74,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView className='flex-1 bg-background'>
       {/* Header */}
-      <View className='flex-row items-center px-5 pt-2 pb-3'>
+      <View className='flex-row items-center px-5 pt-2 pb-6'>
         <View className='w-10 h-10 rounded-full overflow-hidden mr-3'>
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} className='w-full h-full' />
@@ -100,22 +100,22 @@ export default function HomeScreen() {
       </View>
 
       <ScrollView
-        className='flex-1 px-5'
+        className='flex-1'
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* Finances */}
-        <Text className='text-foreground text-2xl font-bold mb-3'>
-          Finances
+        <Text className='text-foreground text-2xl font-bold mb-3 px-6'>
+          Overview
         </Text>
-        <View className='flex-row gap-3 mb-6'>
-          <View className='flex-1 bg-card rounded-2xl p-4'>
+        <View className='bg-card flex-row mb-10'>
+          <View className='flex-1 px-8 py-5 items-center'>
             <Text className='text-muted-foreground text-sm mb-1'>You Owe</Text>
             <Text className='text-amount-negative text-2xl font-bold'>
               -${totalOwe.toFixed(2)}
             </Text>
           </View>
-          <View className='flex-1 bg-card rounded-2xl p-4'>
+          <View className='flex-1 px-8 py-5 items-center'>
             <Text className='text-muted-foreground text-sm mb-1'>
               You Are Owed
             </Text>
@@ -126,17 +126,17 @@ export default function HomeScreen() {
         </View>
 
         {/* History header + toggle */}
-        <View className='flex-row items-center justify-between mb-3'>
+        <View className='flex-row items-center justify-between mb-3 px-6'>
           <Text className='text-foreground text-2xl font-bold'>History</Text>
-          <View className='flex-row border border-border rounded-full overflow-hidden'>
+          <View className='flex-row bg-surface rounded-full p-1'>
             <Pressable
               onPress={() => setActiveTab('groups')}
-              className={`px-4 py-1.5 ${activeTab === 'groups' ? 'bg-card' : ''}`}
+              className={`px-4 py-1.5 rounded-full ${activeTab === 'groups' ? 'bg-accent-dark' : ''}`}
             >
               <Text
-                className={`text-sm font-medium ${
+                className={`text-sm font-bold ${
                   activeTab === 'groups'
-                    ? 'text-foreground'
+                    ? 'text-white'
                     : 'text-muted-foreground'
                 }`}
               >
@@ -145,12 +145,12 @@ export default function HomeScreen() {
             </Pressable>
             <Pressable
               onPress={() => setActiveTab('people')}
-              className={`px-4 py-1.5 ${activeTab === 'people' ? 'bg-card' : ''}`}
+              className={`px-4 py-1.5 rounded-full ${activeTab === 'people' ? 'bg-accent-dark' : ''}`}
             >
               <Text
-                className={`text-sm font-medium ${
+                className={`text-sm font-bold ${
                   activeTab === 'people'
-                    ? 'text-foreground'
+                    ? 'text-white'
                     : 'text-muted-foreground'
                 }`}
               >
@@ -161,12 +161,12 @@ export default function HomeScreen() {
         </View>
 
         {/* History list */}
-        <View className='bg-card rounded-2xl overflow-hidden'>
+        <View className='bg-card overflow-hidden'>
           {data.map((item, index) => (
             <View key={item.id}>
-              {index > 0 && <View className='h-px bg-border mx-4' />}
+              {index > 0 && <View className='h-px bg-border mx-10' />}
               <Pressable
-                className='flex-row items-center px-4 py-3 active:opacity-70'
+                className='flex-row items-center px-10 py-3 active:opacity-70'
                 onPress={() =>
                   router.navigate({
                     pathname: '/receipt-detail',
