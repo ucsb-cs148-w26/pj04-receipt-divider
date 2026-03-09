@@ -112,9 +112,8 @@ function SkeletonCard({ isDark }: { isDark: boolean }) {
         display: 'flex',
         flexDirection: 'column',
         border: '2px solid transparent',
-        borderRadius: 12,
-        width: 160,
-        minWidth: 160,
+        borderRadius: 16,
+        width: '100%',
         padding: 0,
         overflow: 'hidden',
         background: cardBg,
@@ -123,24 +122,24 @@ function SkeletonCard({ isDark }: { isDark: boolean }) {
     >
       <div
         className={cls}
-        style={{ height: 6, width: '100%', borderRadius: 0 }}
+        style={{ height: 10, width: '100%', borderRadius: 0 }}
       />
       <div
         style={{
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 10,
-          padding: '10px 14px 12px 12px',
+          gap: 12,
+          padding: '20px 16px 22px 14px',
         }}
       >
         <div
           className={cls}
-          style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0 }}
+          style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0 }}
         />
         <div
           className={cls}
-          style={{ height: 12, width: 80, borderRadius: 6 }}
+          style={{ height: 14, width: 90, borderRadius: 6 }}
         />
       </div>
     </div>
@@ -153,6 +152,7 @@ export default function ProfileSelectPage() {
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
+  const [isAddingProfile, setIsAddingProfile] = useState(false);
   const isCreating = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -245,6 +245,7 @@ export default function ProfileSelectPage() {
   const handleConfirm = async () => {
     if (!newName.trim() || !roomId || isCreating.current) return;
     isCreating.current = true;
+    setIsAddingProfile(true);
 
     let accessTokenValue: string | null = null;
 
@@ -277,6 +278,7 @@ export default function ProfileSelectPage() {
       if (!accessTokenValue) {
         console.error('[handleConfirm] no access_token in response:', data);
         isCreating.current = false;
+        setIsAddingProfile(false);
         setShowModal(false);
         return;
       }
@@ -287,6 +289,7 @@ export default function ProfileSelectPage() {
         `/error?message=${encodeURIComponent('Could not reach the server.')}`,
       );
       isCreating.current = false;
+      setIsAddingProfile(false);
       return;
     }
 
@@ -313,6 +316,7 @@ export default function ProfileSelectPage() {
     }
 
     isCreating.current = false;
+    setIsAddingProfile(false);
     setShowModal(false);
   };
 
@@ -321,13 +325,11 @@ export default function ProfileSelectPage() {
     if (e.key === 'Escape') setShowModal(false);
   };
 
-  const selected = participants.find((p) => p.id === selectedId);
-
   if (isLoadingProfiles) {
     return (
       <div style={{ ...styles.page, background: 'transparent' }}>
         <h2 style={{ ...styles.heading, color: t.heading }}>Who are you?</h2>
-        <div style={styles.selectorWrapper}>
+        <div style={{ ...styles.selectorWrapper, overflowY: 'visible' }}>
           <SkeletonCard isDark={isDark} />
           <SkeletonCard isDark={isDark} />
           <SkeletonCard isDark={isDark} />
@@ -348,13 +350,14 @@ export default function ProfileSelectPage() {
             </div>
           </button>
         </div>
-        <div style={{ ...styles.content, background: t.contentBg }} />
-        <button
-          disabled
-          style={{ ...styles.continueBtn, opacity: 0.4, cursor: 'default' }}
-        >
-          Continue →
-        </button>
+        <div style={styles.footer}>
+          <button
+            disabled
+            style={{ ...styles.continueBtn, opacity: 0.4, cursor: 'default' }}
+          >
+            Continue →
+          </button>
+        </div>
       </div>
     );
   }
@@ -403,6 +406,7 @@ export default function ProfileSelectPage() {
             ...styles.addCard,
             background: t.addCardBg,
             borderColor: t.addCardBorder,
+            display: participants.length >= 10 ? 'none' : 'flex',
           }}
           aria-label='Add participant'
         >
@@ -413,34 +417,26 @@ export default function ProfileSelectPage() {
         </button>
       </div>
 
-      <div style={{ ...styles.content, background: t.contentBg }}>
-        {selected ? (
-          <p style={{ ...styles.placeholder, color: t.placeholder }}>
-            Viewing items for:{' '}
-            <strong style={{ color: t.heading }}>
-              {selected.name || `Name ${selected.id}`}
-            </strong>
-          </p>
-        ) : (
-          <p style={{ ...styles.placeholder, color: t.placeholder }}>
-            Select a participant above.
-          </p>
-        )}
+      <div style={styles.footer}>
+        <button
+          style={{
+            ...styles.continueBtn,
+            opacity: selectedId !== null ? 1 : 0.4,
+          }}
+          disabled={selectedId === null}
+          onClick={() => void handleContinue()}
+        >
+          Continue →
+        </button>
       </div>
 
-      <button
-        style={{
-          ...styles.continueBtn,
-          opacity: selectedId !== null ? 1 : 0.4,
-        }}
-        disabled={selectedId === null}
-        onClick={() => void handleContinue()}
-      >
-        Continue →
-      </button>
-
       {showModal && (
-        <div style={styles.overlay} onClick={() => setShowModal(false)}>
+        <div
+          style={styles.overlay}
+          onClick={() => {
+            if (!isAddingProfile) setShowModal(false);
+          }}
+        >
           <div
             style={{ ...styles.modal, background: t.modalBg }}
             onClick={(e) => e.stopPropagation()}
@@ -455,11 +451,13 @@ export default function ProfileSelectPage() {
                 borderColor: t.inputBorder,
                 color: t.inputColor,
                 background: t.cardBg,
+                opacity: isAddingProfile ? 0.5 : 1,
               }}
               placeholder='Enter name...'
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={handleKeyDown}
+              disabled={isAddingProfile}
             />
             <div style={styles.modalButtons}>
               <button
@@ -467,20 +465,23 @@ export default function ProfileSelectPage() {
                   ...styles.cancelBtn,
                   background: t.cancelBg,
                   color: t.cancelColor,
+                  opacity: isAddingProfile ? 0.5 : 1,
                 }}
                 onClick={() => setShowModal(false)}
+                disabled={isAddingProfile}
               >
                 Cancel
               </button>
               <button
                 style={{
                   ...styles.confirmBtn,
-                  opacity: newName.trim() ? 1 : 0.4,
+                  opacity: newName.trim() && !isAddingProfile ? 1 : 0.6,
+                  minWidth: 72,
                 }}
                 onClick={handleConfirm}
-                disabled={!newName.trim()}
+                disabled={!newName.trim() || isAddingProfile}
               >
-                Add
+                {isAddingProfile ? 'Adding…' : 'Add'}
               </button>
             </div>
           </div>
@@ -494,58 +495,63 @@ const styles: Record<string, React.CSSProperties> = {
   page: {
     maxWidth: 700,
     margin: '0 auto',
-    padding: '24px 16px',
+    padding: '32px 20px 0',
     fontFamily: 'system-ui, sans-serif',
     boxSizing: 'border-box',
     width: '100%',
+    height: '100dvh',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
   },
   heading: {
-    fontSize: 20,
-    fontWeight: 700,
-    marginBottom: 16,
+    fontSize: 32,
+    fontWeight: 800,
+    marginBottom: 28,
     textAlign: 'center',
   },
   selectorWrapper: {
-    display: 'flex',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    paddingBottom: 8,
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gridAutoRows: '100px',
+    gap: 14,
+    flex: 1,
+    alignContent: 'flex-start',
+    overflowY: 'auto',
+    padding: '4px 2px 16px',
   },
   card: {
     display: 'flex',
     flexDirection: 'column',
     border: '2px solid transparent',
-    borderRadius: 12,
-    width: 160,
-    minWidth: 160,
+    borderRadius: 16,
+    width: '100%',
     cursor: 'pointer',
     padding: 0,
     overflow: 'hidden',
     transition: 'box-shadow 0.15s, border-color 0.15s',
   },
-  topBar: { height: 6, width: '100%' },
+  topBar: { height: 10, width: '100%', flexShrink: 0 },
   cardContent: {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: '10px 14px 12px 12px',
+    gap: 12,
+    padding: '20px 16px 22px 14px',
   },
   avatar: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  avatarText: { color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1 },
+  avatarText: { color: '#fff', fontWeight: 700, fontSize: 18, lineHeight: 1 },
   name: {
     fontWeight: 600,
-    fontSize: 14,
+    fontSize: 17,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -554,9 +560,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     border: '2px dashed',
-    borderRadius: 12,
-    width: 160,
-    minWidth: 160,
+    borderRadius: 16,
+    width: '100%',
     cursor: 'pointer',
     padding: 0,
     overflow: 'hidden',
@@ -565,16 +570,9 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '10px 14px 12px',
+    padding: '20px 16px 22px',
   },
-  addIcon: { fontSize: 26, fontWeight: 300, lineHeight: 1 },
-  content: {
-    borderRadius: 12,
-    padding: 24,
-    marginTop: 16,
-    minHeight: 160,
-  },
-  placeholder: { fontSize: 16 },
+  addIcon: { fontSize: 34, fontWeight: 300, lineHeight: 1 },
   overlay: {
     position: 'fixed',
     inset: 0,
@@ -628,17 +626,20 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   continueBtn: {
-    marginTop: 16,
     width: '100%',
-    padding: '14px 0',
+    padding: '16px 0',
     background: '#7C9FC9',
     color: '#fff',
     border: 'none',
-    borderRadius: 12,
-    fontSize: 16,
+    borderRadius: 14,
+    fontSize: 18,
     fontWeight: 700,
     cursor: 'pointer',
     fontFamily: 'system-ui, sans-serif',
     transition: 'opacity 0.15s',
+  },
+  footer: {
+    flexShrink: 0,
+    padding: '12px 0 28px',
   },
 };
