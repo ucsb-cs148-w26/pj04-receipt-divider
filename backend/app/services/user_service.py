@@ -41,7 +41,7 @@ class UserService:
             )
         return self._is_host(host_profile_id, recepit.group_id)
 
-    def create_group(self, profile_id: str, name: str) -> str:
+    def create_group(self, profile_id: str, name: str) -> Group:
         group = Group(created_by=profile_id, name=name)
         self.db.add(group)
         self.db.flush()  # Flush to get the generated group.id before committing
@@ -50,10 +50,11 @@ class UserService:
         self.db.add(member)
         self.db.commit()
 
-        return str(group.id)
+        return group
 
     def join_group(self, profile_id: str, group_id: str) -> None:
         group = self.db.get(Group, group_id)
+        # TODO: check invite link
         if group is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"

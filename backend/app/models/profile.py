@@ -22,6 +22,8 @@ class Profile(Base):
         nullable=False, server_default=func.now()
     )
     email: Mapped[str] = mapped_column(Text, server_default="")
+    username: Mapped[str] = mapped_column(Text, nullable=True)
+    accent_color: Mapped[str] = mapped_column(Text, nullable=True)
 
     # Relationships
     profile_groups_created: Mapped[List["Group"]] = relationship(
