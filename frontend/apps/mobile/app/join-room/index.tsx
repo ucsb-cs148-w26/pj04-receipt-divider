@@ -13,20 +13,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconButton } from '@eezy-receipt/shared';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { validateInvite, createGuestProfile } from '@/services/groupApi';
 
 export default function JoinRoomScreen() {
   const [mode, setMode] = useState<'scan' | 'code'>('scan');
   const [code, setCode] = useState('');
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   const handleScanned = ({ data }: { type: string; data: string }) => {
-    if (scanned) return;
+    if (scanned || isJoining) return;
     setScanned(true);
     const roomId = extractRoomId(data);
     if (roomId) {
-      navigateToRoom(roomId);
+      promptUsernameAndJoin(roomId);
     } else {
       Alert.alert('Invalid QR Code', 'This QR code does not link to a room.', [
         { text: 'Try Again', onPress: () => setScanned(false) },
@@ -51,14 +53,57 @@ export default function JoinRoomScreen() {
     const trimmed = code.trim();
     if (!trimmed) return;
     const roomId = extractRoomId(trimmed) ?? trimmed;
-    navigateToRoom(roomId);
+    promptUsernameAndJoin(roomId);
   };
 
-  const navigateToRoom = (roomId: string) => {
-    router.replace({
-      pathname: '/receipt-room',
-      params: { roomId, items: '[]', participants: '[]' },
-    });
+  /** Ask for a display name then validate + join via the backend. */
+  const promptUsernameAndJoin = (roomId: string) => {
+    Alert.prompt(
+      'Enter Your Name',
+      'This is how other participants will see you.',
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => setScanned(false) },
+        {
+          text: 'Join',
+          onPress: (username: string | undefined) => {
+            const name = username?.trim();
+            if (!name) {
+              Alert.alert('Name required', 'Please enter a display name.', [
+                { text: 'OK', onPress: () => setScanned(false) },
+              ]);
+              return;
+            }
+            joinRoom(roomId, name);
+          },
+        },
+      ],
+      'plain-text',
+    );
+  };
+
+  const joinRoom = async (roomId: string, username: string) => {
+    setIsJoining(true);
+    try {
+      // 1. Check the invite is still valid
+      await validateInvite(roomId);
+      // 2. Create a guest profile (returns an access token scoped to this group)
+      await createGuestProfile(roomId, username);
+      // 3. Navigate into the room
+      router.replace({
+        pathname: '/receipt-room',
+        params: { roomId, items: '[]', participants: '[]' },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      const isExpired = message.includes('404');
+      Alert.alert(
+        isExpired ? 'Invite Expired' : 'Failed to Join',
+        isExpired ? 'This invite link is no longer active.' : message,
+        [{ text: 'OK', onPress: () => setScanned(false) }],
+      );
+    } finally {
+      setIsJoining(false);
+    }
   };
 
   return (
@@ -187,20 +232,24 @@ export default function JoinRoomScreen() {
 
           <Pressable
             onPress={handleJoinByCode}
-            disabled={!code.trim()}
+            disabled={!code.trim() || isJoining}
             className={`rounded-2xl py-4 items-center justify-center flex-row gap-2 ${
-              code.trim()
+              code.trim() && !isJoining
                 ? 'bg-primary active:opacity-80'
                 : 'bg-card opacity-50'
             }`}
           >
-            <MaterialCommunityIcons
-              name='login'
-              size={20}
-              className='text-primary-foreground'
-            />
+            {isJoining ? (
+              <ActivityIndicator size='small' color='#ffffff' />
+            ) : (
+              <MaterialCommunityIcons
+                name='login'
+                size={20}
+                className='text-primary-foreground'
+              />
+            )}
             <Text className='text-primary-foreground font-semibold text-base'>
-              Join Room
+              {isJoining ? 'Joining\u2026' : 'Join Room'}
             </Text>
           </Pressable>
         </View>
