@@ -19,6 +19,7 @@ export default defineConfig({
       '@shared': resolve(__dirname, '../packages/shared/src'),
       '@components': resolve(__dirname, '../packages/shared/src/components'),
       '@utils': resolve(__dirname, '../packages/shared/src/utils'),
+      '@': resolve(__dirname, 'src'),
     },
     extensions: ['.tsx', '.ts', '.jsx', '.js'],
   },

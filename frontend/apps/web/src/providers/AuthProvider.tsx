@@ -1,44 +1,73 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { jwtDecode } from 'jwt-decode';
 import { AuthContext } from './AuthContext';
 import { supabase } from '../services/supabase';
 
+const SESSION_TOKEN_KEY = 'sessionToken';
+
+function isTokenValid(token: string | null): boolean {
+  if (!token) return false;
+  try {
+    const payload = jwtDecode(token);
+    if (typeof payload.exp === 'number') {
+      return payload.exp * 1000 > Date.now();
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    let mounted = true;
-
     const initAuth = async () => {
       try {
-        let session = (await supabase.auth.getSession()).data.session;
-        if (!session) {
-          const { data } = await supabase.auth.signInAnonymously();
-          session = data.session;
+        const storedToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
+
+        if (!storedToken || !isTokenValid(storedToken)) {
+          sessionStorage.removeItem(SESSION_TOKEN_KEY);
+          setSessionToken(null);
+          setIsLoading(false);
+          return;
         }
-        if (mounted) setAccessToken(session?.access_token ?? null);
+
+        setSessionToken(storedToken);
       } finally {
-        if (mounted) setIsLoading(false);
+        setIsLoading(false);
       }
     };
 
     void initAuth();
+  }, []);
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) setAccessToken(session?.access_token ?? null);
-    });
+  const logout = useCallback(
+    async (groupId: string) => {
+      sessionStorage.removeItem(SESSION_TOKEN_KEY);
+      setSessionToken(null);
+      await supabase.auth.signOut();
+      navigate(`/profile?roomId=${groupId}`);
+    },
+    [navigate],
+  );
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+  const setSessionTokenWithStorage = useCallback((token: string) => {
+    sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+    setSessionToken(token);
   }, []);
 
   const value = useMemo(
-    () => ({ accessToken, isLoading, setAccessToken }),
-    [accessToken, isLoading],
+    () => ({
+      sessionToken,
+      isLoading,
+      setSessionToken: setSessionTokenWithStorage,
+      logout,
+    }),
+    [sessionToken, isLoading, setSessionTokenWithStorage, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

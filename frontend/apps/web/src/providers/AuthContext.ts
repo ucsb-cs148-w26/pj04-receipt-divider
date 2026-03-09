@@ -1,9 +1,10 @@
 import { createContext, useContext } from 'react';
 
 export type AuthContextType = {
-  accessToken: string | null;
+  sessionToken: string | null;
   isLoading: boolean;
-  setAccessToken: (token: string) => void;
+  setSessionToken: (token: string) => void;
+  logout: (groupId: string) => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextType | undefined>(

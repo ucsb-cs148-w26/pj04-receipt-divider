@@ -59,6 +59,8 @@ button:focus-visible {
 }
 
 @media (prefers-color-scheme: light) {
+  @import 'tailwindcss';
+
   :root {
     color: #213547;
     background-color: #ffffff;

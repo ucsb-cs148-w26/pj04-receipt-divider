@@ -8,6 +8,7 @@ import React, {
 import { useParams } from 'react-router';
 import { createClient } from '@supabase/supabase-js';
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
+import { useAuth } from '@/providers/AuthContext';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -103,23 +104,20 @@ if (!document.getElementById(STYLE_ID)) {
   document.head.appendChild(style);
 }
 
-export default function ReceiptRoomPage() {
-  const { roomId } = useParams<{ roomId: string }>();
+export default function ReceiptGroupPage() {
+  const { groupId } = useParams<{ groupId: string }>();
   const [items, setItems] = useState<Item[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [claims, setClaims] = useState<ClaimsMap>({});
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [claimingIds, setClaimingIds] = useState<Set<string>>(new Set());
+  const { sessionToken, logout } = useAuth();
 
-  // Read the profile JWT saved by ProfileSelectPage. Stored in sessionStorage so
-  // it survives tab switches (anon session refreshes won't overwrite it).
-  const profileJwt = useMemo(
-    () =>
-      roomId ? (sessionStorage.getItem(`profileJwt:${roomId}`) ?? null) : null,
-    [roomId],
+  const profileId = useMemo(
+    () => decodeProfileId(sessionToken),
+    [sessionToken],
   );
-  const profileId = useMemo(() => decodeProfileId(profileJwt), [profileJwt]);
 
   const channelsRef = useRef<RealtimeChannel[]>([]);
   // Ref mirror of claimingIds so realtime callbacks always see the current set
@@ -141,26 +139,25 @@ export default function ReceiptRoomPage() {
       import.meta.env.VITE_SUPABASE_URL as string,
       import.meta.env.VITE_SUPABASE_ANON_KEY as string,
       {
-        global: { headers: { Authorization: `Bearer ${profileJwt}` } },
+        global: { headers: { Authorization: `Bearer ${sessionToken}` } },
         auth: { persistSession: false, autoRefreshToken: false },
       },
     );
-    client.realtime.setAuth(profileJwt);
+    client.realtime.setAuth(sessionToken);
     return client;
-  }, [profileJwt]);
+  }, [sessionToken]);
 
   // ---------------------------------------------------------------------------
   // Fetch
   // ---------------------------------------------------------------------------
-
   const fetchAll = useCallback(async () => {
-    if (!roomId) return;
+    if (!groupId) return;
 
     const [itemsRes] = await Promise.all([
       authedClient
         .from('items')
         .select('id,name,amount,unit_price')
-        .eq('group_id', roomId),
+        .eq('group_id', groupId),
     ]);
 
     const fetchedItems: Item[] = itemsRes.data ?? [];
@@ -185,14 +182,14 @@ export default function ReceiptRoomPage() {
     }
 
     setIsLoading(false);
-  }, [roomId, authedClient]);
+  }, [groupId, authedClient]);
 
   // Fetch participants from backend (has usernames + colors)
   const fetchParticipants = useCallback(async () => {
-    if (!roomId) return;
+    if (!groupId) return;
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/group/profiles?group_id=${roomId}`,
+        `${import.meta.env.VITE_API_URL}/group/profiles?group_id=${groupId}`,
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -211,7 +208,7 @@ export default function ReceiptRoomPage() {
     } catch {
       // silently ignore
     }
-  }, [roomId]);
+  }, [groupId]);
 
   useEffect(() => {
     // fetchAll/fetchParticipants are async – setState only runs after promise
@@ -228,11 +225,11 @@ export default function ReceiptRoomPage() {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!roomId) return;
-    const filter = `group_id=eq.${roomId}`;
+    if (!groupId) return;
+    const filter = `group_id=eq.${groupId}`;
 
     const itemsCh = authedClient
-      .channel(`items:${roomId}`)
+      .channel(`items:${groupId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'items' },
@@ -241,7 +238,7 @@ export default function ReceiptRoomPage() {
       .subscribe();
 
     const claimsCh = authedClient
-      .channel(`item_claims:${roomId}`)
+      .channel(`item_claims:${groupId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'item_claims' },
@@ -253,7 +250,7 @@ export default function ReceiptRoomPage() {
       .subscribe();
 
     const membersCh = authedClient
-      .channel(`group_members:${roomId}`)
+      .channel(`group_members:${groupId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'group_members', filter },
@@ -268,14 +265,14 @@ export default function ReceiptRoomPage() {
     return () => {
       channelsRef.current.forEach((ch) => void authedClient.removeChannel(ch));
     };
-  }, [roomId, fetchAll, fetchParticipants, authedClient]);
+  }, [groupId, fetchAll, fetchParticipants, authedClient]);
 
   // ---------------------------------------------------------------------------
   // Claim / Unclaim
   // ---------------------------------------------------------------------------
 
   const toggleClaim = async (itemId: string) => {
-    const jwt = profileJwt;
+    const jwt = sessionToken;
     if (!jwt || !profileId) return;
 
     const isClaimed = (claims[itemId] ?? []).includes(profileId);
@@ -381,9 +378,17 @@ export default function ReceiptRoomPage() {
   return (
     <div style={{ ...styles.screen, background: t.bg }}>
       {/* Header */}
-      <div style={styles.header}>
-        <span style={{ ...styles.roomLabel, color: t.text }}>Room</span>
-        <span style={styles.roomId}>{roomId}</span>
+      <div className='flex justify-between' style={styles.header}>
+        <span style={{ ...styles.roomLabel, color: t.text }}>Group</span>
+        <div className=''>
+          <button
+            onClick={() => {
+              logout(groupId!);
+            }}
+          >
+            logout
+          </button>
+        </div>
       </div>
 
       {/* Items */}
