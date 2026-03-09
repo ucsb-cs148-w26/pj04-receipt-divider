@@ -7,7 +7,9 @@ requires-python = "==3.12.*"
 dependencies = [
     "fastapi[standard]>=0.128.0",
     "google-cloud-vision>=3.12.1",
+    "httpx>=0.28.0",
     "openai>=2.21.0",
+    "pillow>=11.0.0",
     "python-dotenv>=1.2.1",
     "pydantic-settings>=2.12.0",
     "sqlalchemy>=2.0.46",
@@ -21,12 +23,13 @@ dev = [
     "poethepoet>=0.42.1",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",
+    "pytest-asyncio>=1.0.0",
     "pytest-postgresql>=8.0.0",
     "ruff>=0.15.4",
 ]
 
 [tool.poe.tasks]
-dev   = "fastapi dev app/main.py"
+dev   = "fastapi dev app/main.py --host 0.0.0.0"
 test  = "pytest"
 lint  = "ruff check ."
 lint-fix = "ruff check . --fix"
@@ -43,3 +46,4 @@ docstring-code-format=true
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -1,5 +1,4 @@
 import uuid
-import base64
 
 from fastapi import HTTPException, status
 from supabase import Client as SupabaseClient
@@ -119,13 +118,8 @@ class UserService:
         # NOTE: db auto handels unclaiming items, have to expire everything in session
         self.db.expire_all()
 
-    def add_receipt(
-        self,
-        profile_id: str,
-        group_id: str,
-        ocr_service: OCRService,
-        image_bytes: bytes,
-        image_ext: str,
+    async def add_receipt(
+        self, profile_id: str, group_id: str, image_bytes: bytes, image_ext: str
     ) -> None:
         member = self.db.get(
             GroupMember, {"profile_id": profile_id, "group_id": group_id}
@@ -151,21 +145,20 @@ class UserService:
             settings.receipt_image_bucket
         ).get_public_url(file_path)
 
-        extracted_items = ocr_service.extract_items(
-            base64.b64encode(image_bytes).decode()
-        )
-        total_price = 0.0
+        ocr = OCRService()
+        cleaned_items, parsed = await ocr.extract_items(image_bytes)
+
+        total_price = parsed.calculated_subtotal
         receipt_id = uuid.uuid4()
-        for extracted_item in extracted_items:
-            for _ in range(extracted_item.quantity):
-                item = Item(
-                    receipt_id=receipt_id,
-                    group_id=group_id,
-                    name=extracted_item.name,
-                    unit_price=float(extracted_item.price.replace("$", "")),
-                    amount=1,
-                )
-                self.db.add(item)
+        for cleaned_item in cleaned_items:
+            item = Item(
+                receipt_id=receipt_id,
+                group_id=group_id,
+                name=cleaned_item.name,
+                unit_price=cleaned_item.unit_price,
+                amount=1,
+            )
+            self.db.add(item)
 
         receipt = Receipt(
             id=receipt_id,

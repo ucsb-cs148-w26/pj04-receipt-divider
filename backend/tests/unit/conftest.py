@@ -48,7 +48,7 @@ def db_session(postgresql: Connection) -> Iterator[Session]:
     with engine.connect() as conn:
         conn.execute(
             text(
-                "DROP TABLE IF EXISTS item_claims, items, receipts, group_members, groups, users_public_info, users CASCADE"
+                "DROP TABLE IF EXISTS item_claims, items, receipts, group_members, groups, users_public_info, profiles CASCADE"
             )
         )
         conn.commit()

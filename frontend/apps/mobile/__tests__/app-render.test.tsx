@@ -91,6 +91,21 @@ jest.mock('@/services/ocr', () => ({
   extractItems: jest.fn(() => Promise.resolve([])),
 }));
 
+jest.mock('@/services/supabase', () => ({
+  supabase: {
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        eq: jest.fn(() => Promise.resolve({ data: [], error: null })),
+        in: jest.fn(() => Promise.resolve({ data: [], error: null })),
+      })),
+    })),
+    channel: jest.fn(() => ({
+      on: jest.fn(() => ({ subscribe: jest.fn() })),
+    })),
+    removeChannel: jest.fn(() => Promise.resolve()),
+  },
+}));
+
 describe('App Dependencies Check', () => {
   beforeEach(() => {
     jest.clearAllMocks();

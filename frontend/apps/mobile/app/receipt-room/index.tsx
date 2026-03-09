@@ -1,7 +1,7 @@
 import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -19,6 +19,12 @@ import { Participant } from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
 import { randomUUID } from 'expo-crypto';
+import { useGroupData } from '@/hooks';
+import type {
+  GroupMember as DbGroupMember,
+  ItemClaim as DbItemClaim,
+  Item as DbItem,
+} from '@eezy-receipt/shared';
 
 export const ITEMCONTAINERPADDING = 16;
 
@@ -150,17 +156,58 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- QR Code State ---------------- */
   const [roomId] = useState(() => {
-    // Check if room ID was passed in URL (i.e. from QR code scan to join a receipt room)
     if (params.roomId && typeof params.roomId === 'string') {
       return params.roomId;
     }
-    // Otherwise create new room ID for this receipt session
     return Math.random().toString(36).substring(2, 9);
   });
 
+  const isGroupRoom = roomId.length >= 32 && /^[0-9a-f-]{36}$/i.test(roomId);
+  const groupData = useGroupData(isGroupRoom ? roomId : '');
+  const groupDisplay = useMemo(() => {
+    if (!isGroupRoom || !groupData.members.length) {
+      return {
+        items: [] as ReceiptItemData[],
+        participants: [] as ParticipantType[],
+      };
+    }
+    const members = groupData.members as DbGroupMember[];
+    const profileIdToParticipantId = new Map<string, number>();
+    members.forEach((m, i) =>
+      profileIdToParticipantId.set(m.profile_id, i + 1),
+    );
+    const participants: ParticipantType[] = members.map((_m, i) => ({
+      id: i + 1,
+    }));
+    const claims = groupData.claims as DbItemClaim[];
+    const items = (groupData.items as DbItem[]).map((item) => {
+      const claimProfileIds = claims
+        .filter((c) => c.item_id === item.id)
+        .map((c) => c.profile_id);
+      const userTags = claimProfileIds
+        .map((pid) => profileIdToParticipantId.get(pid))
+        .filter((id): id is number => id != null);
+      const amount = typeof item.amount === 'number' ? item.amount : 1;
+      const unitPrice =
+        typeof item.unit_price === 'number' ? item.unit_price : 0;
+      return {
+        id: item.id,
+        name: item.name ?? '',
+        price: String(unitPrice * amount),
+        userTags,
+      } as ReceiptItemData;
+    });
+    return { items, participants };
+  }, [isGroupRoom, groupData.members, groupData.items, groupData.claims]);
+
+  const displayItems = isGroupRoom ? groupDisplay.items : receiptItems.items;
+  const displayParticipants = isGroupRoom
+    ? groupDisplay.participants
+    : participants;
+
   /**---------------- Quick Actions Functions ---------------- */
   const claimFirstItemForAll = () => {
-    if (receiptItems.items.length === 0 || participants.length === 0) return;
+    if (displayItems.length === 0 || displayParticipants.length === 0) return;
     receiptItems.setItems((prevItems) =>
       prevItems.map((item, index) =>
         index === 0
@@ -169,7 +216,7 @@ export default function ReceiptRoomScreen() {
               userTags: [
                 ...new Set([
                   ...(item.userTags || []),
-                  ...participants.map((p) => p.id),
+                  ...displayParticipants.map((p) => p.id),
                 ]),
               ],
             }
@@ -179,7 +226,7 @@ export default function ReceiptRoomScreen() {
   };
 
   const unclaimFirstItemForAll = () => {
-    if (receiptItems.items.length === 0) return;
+    if (displayItems.length === 0) return;
     receiptItems.setItems((prevItems) =>
       prevItems.map((item, index) =>
         index === 0 ? { ...item, userTags: [] } : item,
@@ -240,7 +287,7 @@ export default function ReceiptRoomScreen() {
           scrollEnabled={!dragState.isDragging}
         >
           <View className='gap-2'>
-            {receiptItems.items.map((item) => (
+            {displayItems.map((item) => (
               <ReceiptItem
                 key={item.id}
                 item={item}
@@ -260,7 +307,7 @@ export default function ReceiptRoomScreen() {
                 onParticipantBoundsChange={handleParticipantBoundsChange}
                 isInParticipantBoundsProp={false}
                 getCurrentItemData={() =>
-                  receiptItems.items.find((i) => i.id === item.id)!
+                  displayItems.find((i) => i.id === item.id)!
                 }
                 isAnyTextFocused={isAnyTextFocused}
                 onTextFocusChange={setIsAnyTextFocused}
@@ -296,7 +343,7 @@ export default function ReceiptRoomScreen() {
           }}
           scrollEventThrottle={16}
         >
-          {participants.map((participant) => {
+          {displayParticipants.map((participant) => {
             return (
               <Participant
                 key={participant.id}
@@ -324,7 +371,7 @@ export default function ReceiptRoomScreen() {
                     pathname: '../items',
                     params: {
                       items: (() => {
-                        let senditems = receiptItems.items.filter((item) =>
+                        let senditems = displayItems.filter((item) =>
                           item.userTags?.includes(participant.id),
                         );
                         return senditems
@@ -347,11 +394,9 @@ export default function ReceiptRoomScreen() {
         {/* Dragged item overlay - rendered at root level */}
         {dragState.itemId &&
           dragState.initialPosition &&
-          receiptItems.items.find((item) => item.id === dragState.itemId) && (
+          displayItems.find((item) => item.id === dragState.itemId) && (
             <ReceiptItem
-              item={
-                receiptItems.items.find((item) => item.id === dragState.itemId)!
-              }
+              item={displayItems.find((item) => item.id === dragState.itemId)!}
               onUpdate={(updates) =>
                 updateReceiptItem(dragState.itemId!, updates)
               }
@@ -372,7 +417,7 @@ export default function ReceiptRoomScreen() {
               }}
               isInParticipantBoundsProp={dragState.isOverParticipant}
               getCurrentItemData={() =>
-                receiptItems.items.find((item) => item.id === dragState.itemId)!
+                displayItems.find((item) => item.id === dragState.itemId)!
               }
               isAnyTextFocused={isAnyTextFocused}
               onTextFocusChange={setIsAnyTextFocused}
@@ -401,7 +446,11 @@ export default function ReceiptRoomScreen() {
           <IconButton
             icon='account-multiple-plus'
             pressEffect='overlay'
-            onPress={() => router.push(`/qr?roomId=${roomId}`)}
+            onPress={() =>
+              router.push(
+                `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
+              )
+            }
           />
         </View>
         {/* Quick Actions Toggle Button - to the left of Settings button */}

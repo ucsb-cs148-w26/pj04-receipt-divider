@@ -14,6 +14,7 @@ const colorExtentions = {
   primary: 'var(--color-primary)',
   'primary-foreground': 'var(--color-primary-foreground)',
   secondary: 'var(--color-secondary)',
+  'secondary-background': 'var(--color-secondary-background)',
   'secondary-foreground': 'var(--color-secondary-foreground)',
 
   // UI Elements
