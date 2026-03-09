@@ -118,14 +118,14 @@ def _configure_supabase(supabase, public_url="https://example.com/img.jpg"):
 class TestIsHost:
     def test_returns_true_when_user_created_the_group(self, user_service, db_session):
         user = _make_user(db_session)
-        group_id = user_service.create_group(str(user.id), "My Group")
+        group = user_service.create_group(str(user.id), "My Group")
 
-        assert user_service._is_host(str(user.id), group_id) is True
+        assert user_service._is_host(str(user.id), str(group.id)) is True
 
     def test_returns_false_for_a_different_user(self, user_service, db_session):
         host = _make_user(db_session)
         other = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "My Group")
+        group_id = str(user_service.create_group(str(host.id), "My Group").id)
 
         assert user_service._is_host(str(other.id), group_id) is False
 
@@ -158,7 +158,7 @@ class TestCreateGroup:
     def test_creates_group_row_in_db(self, user_service, db_session):
         user = _make_user(db_session)
 
-        group_id = user_service.create_group(str(user.id), "Team Lunch")
+        group_id = str(user_service.create_group(str(user.id), "Team Lunch").id)
 
         group = db_session.get(Group, uuid.UUID(group_id))
         assert group is not None
@@ -168,7 +168,7 @@ class TestCreateGroup:
     def test_host_is_automatically_added_as_member(self, user_service, db_session):
         user = _make_user(db_session)
 
-        group_id = user_service.create_group(str(user.id), "Team Lunch")
+        group_id = str(user_service.create_group(str(user.id), "Team Lunch").id)
 
         member = db_session.get(
             GroupMember, {"profile_id": user.id, "group_id": uuid.UUID(group_id)}
@@ -178,7 +178,7 @@ class TestCreateGroup:
     def test_returns_a_valid_uuid_string(self, user_service, db_session):
         user = _make_user(db_session)
 
-        group_id = user_service.create_group(str(user.id), "Team Lunch")
+        group_id = str(user_service.create_group(str(user.id), "Team Lunch").id)
 
         # Should not raise
         uuid.UUID(group_id)
@@ -188,7 +188,7 @@ class TestJoinGroup:
     def test_user_can_join_an_existing_group(self, user_service, db_session):
         host = _make_user(db_session)
         joiner = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
 
         user_service.join_group(str(joiner.id), group_id)
 
@@ -200,7 +200,7 @@ class TestJoinGroup:
     def test_joining_twice_does_not_raise(self, user_service, db_session):
         host = _make_user(db_session)
         joiner = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
 
         user_service.join_group(str(joiner.id), group_id)
         user_service.join_group(
@@ -229,7 +229,7 @@ class TestLeaveGroup:
     def test_member_can_leave_group(self, user_service, db_session):
         host = _make_user(db_session)
         member = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
         user_service.join_group(str(member.id), group_id)
 
         user_service.leave_group(str(member.id), group_id)
@@ -241,7 +241,7 @@ class TestLeaveGroup:
 
     def test_host_cannot_leave_their_own_group(self, user_service, db_session):
         host = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
 
         with pytest.raises(HTTPException) as exc:
             user_service.leave_group(str(host.id), group_id)
@@ -253,7 +253,7 @@ class TestLeaveGroup:
     ):
         host = _make_user(db_session)
         non_member = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
 
         # Should not raise
         user_service.leave_group(str(non_member.id), group_id)
@@ -264,7 +264,7 @@ class TestGetAllGroups:
         user = _make_user(db_session)
         other = _make_user(db_session)
 
-        my_group_id = user_service.create_group(str(user.id), "My Group")
+        my_group_id = str(user_service.create_group(str(user.id), "My Group").id)
         user_service.create_group(
             str(other.id), "Other Group"
         )  # user is not in this one
@@ -278,7 +278,7 @@ class TestGetAllGroups:
         host = _make_user(db_session)
         user = _make_user(db_session)
 
-        group_id = user_service.create_group(str(host.id), "Shared Group")
+        group_id = str(user_service.create_group(str(host.id), "Shared Group").id)
         user_service.join_group(str(user.id), group_id)
 
         groups = user_service.get_all_groups(str(user.id))
@@ -297,7 +297,7 @@ class TestRemoveMember:
     def test_host_can_remove_a_member(self, user_service, db_session):
         host = _make_user(db_session)
         member = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
         user_service.join_group(str(member.id), group_id)
 
         user_service.remove_member(str(host.id), group_id, str(member.id))
@@ -309,7 +309,7 @@ class TestRemoveMember:
 
     def test_host_cannot_remove_themselves(self, user_service, db_session):
         host = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
 
         with pytest.raises(HTTPException) as exc:
             user_service.remove_member(str(host.id), group_id, str(host.id))
@@ -320,7 +320,7 @@ class TestRemoveMember:
         host = _make_user(db_session)
         member_a = _make_user(db_session)
         member_b = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
         user_service.join_group(str(member_a.id), group_id)
         user_service.join_group(str(member_b.id), group_id)
 
@@ -332,7 +332,7 @@ class TestRemoveMember:
     def test_removing_nonexistent_member_does_not_raise(self, user_service, db_session):
         host = _make_user(db_session)
         ghost = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
 
         # ghost never joined — should be a no-op, not an error
         user_service.remove_member(str(host.id), group_id, str(ghost.id))
@@ -515,7 +515,7 @@ class TestAddReceipt:
         self, user_service, db_session, supabase
     ):
         user = _make_user(db_session)
-        group_id = user_service.create_group(str(user.id), "Group")
+        group_id = str(user_service.create_group(str(user.id), "Group").id)
         _configure_supabase(supabase)
         # each ReceiptItem becomes one DB row
         with _mock_detect_receipt([
@@ -535,7 +535,7 @@ class TestAddReceipt:
         self, user_service, db_session, supabase
     ):
         user = _make_user(db_session)
-        group_id = user_service.create_group(str(user.id), "Group")
+        group_id = str(user_service.create_group(str(user.id), "Group").id)
         _configure_supabase(supabase)
 
         with _mock_detect_receipt([("Burger", 9.99), ("Fries", 3.50)]):
@@ -551,7 +551,7 @@ class TestAddReceipt:
     ):
         host = _make_user(db_session)
         outsider = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
         _configure_supabase(supabase)
 
         with pytest.raises(HTTPException) as exc:
@@ -567,7 +567,7 @@ class TestAddReceipt:
         self, user_service, db_session, supabase
     ):
         user = _make_user(db_session)
-        group_id = user_service.create_group(str(user.id), "Group")
+        group_id = str(user_service.create_group(str(user.id), "Group").id)
         supabase.storage.from_.return_value.upload.side_effect = Exception("S3 down")
 
         with pytest.raises(HTTPException) as exc:
@@ -583,7 +583,7 @@ class TestGetReceiptsInGroup:
         self, user_service, db_session, supabase
     ):
         user = _make_user(db_session)
-        group_id = user_service.create_group(str(user.id), "Group")
+        group_id = str(user_service.create_group(str(user.id), "Group").id)
         _configure_supabase(supabase)
         with _mock_detect_receipt([("Tea", 2.00)]):
             await user_service.add_receipt(str(user.id), group_id, b"img", "jpg")
@@ -596,7 +596,7 @@ class TestGetReceiptsInGroup:
     def test_raises_403_for_non_member(self, user_service, db_session):
         host = _make_user(db_session)
         outsider = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
 
         with pytest.raises(HTTPException) as exc:
             user_service.get_receipts_in_group(str(outsider.id), group_id)
@@ -610,7 +610,7 @@ class TestRemoveReceipt:
         self, user_service, db_session, supabase
     ):
         user = _make_user(db_session)
-        group_id = user_service.create_group(str(user.id), "Group")
+        group_id = str(user_service.create_group(str(user.id), "Group").id)
         _configure_supabase(supabase)
         with _mock_detect_receipt([("Tea", 2.00)]):
             await user_service.add_receipt(str(user.id), group_id, b"img", "jpg")
@@ -648,7 +648,7 @@ class TestRemoveReceipt:
         host = _make_user(db_session)
         member_a = _make_user(db_session)
         member_b = _make_user(db_session)
-        group_id = user_service.create_group(str(host.id), "Group")
+        group_id = str(user_service.create_group(str(host.id), "Group").id)
         user_service.join_group(str(member_a.id), group_id)
         user_service.join_group(str(member_b.id), group_id)
         _configure_supabase(supabase)

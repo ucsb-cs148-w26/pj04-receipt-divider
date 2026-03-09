@@ -1,9 +1,26 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.schemas.group import CreateGroupRequest, CreateGroupResponse
-from app.dependencies import get_auth_service, get_user_service
+from app.schemas.group import (
+    CreateGroupRequest,
+    CreateGroupResponse,
+    CreateGuestProfileRequest,
+    CreateGuestProfileResponse,
+    CreateInviteLinkResponse,
+    GetProfilesResponse,
+    LoginAsRequest,
+    LoginAsResponse,
+)
+from app.dependencies import (
+    get_auth_service,
+    get_profile_service,
+    get_user_service,
+    get_invite_service,
+)
 from app.services.auth_service import AuthService
+from app.services.invite_service import InviteService
 from app.services.user_service import UserService
+from app.services.profile_serivce import ProfileService
+from app.services.profile_serivce import ProfileNotFoundError
 
 router = APIRouter()
 
@@ -15,17 +32,59 @@ def create_group(
     user_service: UserService = Depends(get_user_service),
 ):
     user_id = auth_service.authenticate_registered_user()
-    group_id = user_service.create_group(user_id, payload.group_name)
-    return CreateGroupResponse(group_id=group_id)
+    group = user_service.create_group(user_id, payload.group_name)
+    return CreateGroupResponse(group_id=group.id)
 
 
-@router.get("/join")
-def join_group(
+@router.get("/create-invite", response_model=CreateInviteLinkResponse)
+def create_invite_link(
     group_id: str,
     auth_service: AuthService = Depends(get_auth_service),
-    user_service: UserService = Depends(get_user_service),
+    invite_service: InviteService = Depends(get_invite_service),
 ):
-    user_id = auth_service.authenticate_any_user()
-    user_service.join_group(user_id, group_id)
+    profile_id = auth_service.authenticate_any_user()
+    invite_url = invite_service.create_invite(group_id, profile_id)
+    return CreateInviteLinkResponse(url=invite_url)
 
+
+@router.get("/validate-invite", status_code=200)
+def validate_invite(
+    group_id: str, invite_service: InviteService = Depends(get_invite_service)
+):
+    is_valid = invite_service.validate_invite(group_id)
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return "OK"
+
+
+@router.get("/profiles", response_model=GetProfilesResponse)
+def get_profiles(
+    group_id: str, profile_service: ProfileService = Depends(get_profile_service)
+):
+    ids = profile_service.get_group_profiles_id(group_id)
+    return GetProfilesResponse(profiles_id=ids)
+
+
+@router.post("/profile-login", response_model=LoginAsResponse)
+def login_as(
+    payload: LoginAsRequest,
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    try:
+        token = profile_service.login_as(str(payload.group_id), str(payload.profile_id))
+    except ProfileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found in group"
+        )
+    return LoginAsResponse(access_token=token)
+
+
+@router.post("/create-profile", response_model=CreateGuestProfileResponse)
+def create_profile(
+    payload: CreateGuestProfileRequest,
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    token = profile_service.create_profile_and_login(
+        str(payload.group_id), payload.username
+    )
+    return CreateGuestProfileResponse(access_token=token)

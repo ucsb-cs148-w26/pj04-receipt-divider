@@ -131,8 +131,8 @@ export default function LoginScreen() {
         {/* Logo + title */}
         <Animated.View style={{ alignItems: 'center', marginBottom: 30 }}>
           <Animated.View
+            className='bg-secondary-background'
             style={{
-              backgroundColor: 'white',
               borderRadius: 9999,
               width: circleSize,
               height: circleSize,
@@ -155,7 +155,7 @@ export default function LoginScreen() {
         <View className='w-full max-w-[420px] gap-3'>
           {/* Continue as Guest */}
           <TouchableOpacity
-            className='bg-white border border-border rounded-xl py-3.5 mb-[-4px] flex-row items-center justify-center gap-2.5'
+            className='bg-secondary-background border border-border rounded-xl py-3.5 mb-[-4px] flex-row items-center justify-center gap-2.5'
             onPress={handleGuestLogin}
             disabled={isSubmitting}
             activeOpacity={0.7}
@@ -172,7 +172,7 @@ export default function LoginScreen() {
 
           {/* Google sign-in */}
           <TouchableOpacity
-            className='bg-white border border-border rounded-xl py-3.5 flex-row items-center justify-center gap-2.5'
+            className='bg-secondary-background border border-border rounded-xl py-3.5 flex-row items-center justify-center gap-2.5'
             onPress={handleGoogleLogin}
             disabled={isSubmitting}
             activeOpacity={0.7}
@@ -199,7 +199,7 @@ export default function LoginScreen() {
           <ScrollableTextInput
             scrollContext={scrollCtx}
             name='email'
-            className='bg-white text-foreground rounded-xl px-4 py-3 mb-[-4px] text-base border border-border'
+            className='bg-secondary-background text-foreground rounded-xl px-4 py-3 mb-[-4px] text-base border border-border'
             autoCapitalize='none'
             autoCorrect={false}
             keyboardType='email-address'
@@ -213,7 +213,7 @@ export default function LoginScreen() {
           <ScrollableTextInput
             scrollContext={scrollCtx}
             name='password'
-            className='bg-white text-foreground rounded-xl px-4 py-3 mb-2 text-base border border-border'
+            className='bg-secondary-background text-foreground rounded-xl px-4 py-3 mb-2 text-base border border-border'
             secureTextEntry
             placeholder='Password'
             placeholderTextColor='#9ca3af'

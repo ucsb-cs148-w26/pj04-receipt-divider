@@ -14,8 +14,10 @@ from app.services.user_service import UserService
 
 
 def get_sql_files(directory: str) -> list[Path]:
-    base_path = Path(__file__).parent.parent / directory
-    return sorted(base_path.glob("*.sql"))
+    base_path = Path.cwd() / directory
+    files = sorted(base_path.glob("*.sql"))
+    print(files)
+    return files
 
 
 @pytest.fixture

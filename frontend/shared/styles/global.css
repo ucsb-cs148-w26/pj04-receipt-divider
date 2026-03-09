@@ -13,6 +13,7 @@
     --color-card: #f6f6f6;
     --color-card-foreground: #0f172a;
     --color-secondary: #6c7d8c;
+    --color-secondary-background: #ffffff;
     --color-secondary-foreground: #ffffff;
     --color-border: #e2e5eb;
     --color-border-strong: #9ca3af;
@@ -66,6 +67,7 @@
       --color-card: #18181b;
       --color-card-foreground: #ffffff;
       --color-secondary: #747984;
+      --color-secondary-background: #1c1c1e;
       --color-secondary-foreground: #000000;
       --color-border: #131924;
       --color-border-strong: #1e2635;
