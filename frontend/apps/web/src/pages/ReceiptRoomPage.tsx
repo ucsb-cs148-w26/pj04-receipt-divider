@@ -51,6 +51,19 @@ function decodeProfileId(token: string | null): string | null {
 // Component
 // ---------------------------------------------------------------------------
 
+const STYLE_ID = 'receipt-room-styles';
+if (!document.getElementById(STYLE_ID)) {
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+    @keyframes pulse-ring {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 export default function ReceiptRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const [items, setItems] = useState<Item[]>([]);
@@ -215,9 +228,21 @@ export default function ReceiptRoomPage() {
     const jwt = profileJwt;
     if (!jwt || !profileId || claimingId) return;
     const isClaimed = (claims[itemId] ?? []).includes(profileId);
+
+    // Optimistic update
+    setClaims((prev) => {
+      const current = prev[itemId] ?? [];
+      return {
+        ...prev,
+        [itemId]: isClaimed
+          ? current.filter((id) => id !== profileId)
+          : [...current, profileId],
+      };
+    });
+
     setClaimingId(itemId);
     try {
-      await fetch(
+      const res = await fetch(
         `${import.meta.env.VITE_API_URL}/group/item/${isClaimed ? 'unclaim' : 'claim'}`,
         {
           method: 'POST',
@@ -228,7 +253,18 @@ export default function ReceiptRoomPage() {
           body: JSON.stringify({ itemId }),
         },
       );
-      await fetchAll();
+      if (!res.ok) {
+        // Revert on failure
+        setClaims((prev) => {
+          const current = prev[itemId] ?? [];
+          return {
+            ...prev,
+            [itemId]: isClaimed
+              ? [...current, profileId]
+              : current.filter((id) => id !== profileId),
+          };
+        });
+      }
     } finally {
       setClaimingId(null);
     }
@@ -322,7 +358,6 @@ export default function ReceiptRoomPage() {
                       hoveredId === item.id
                         ? '0 4px 16px rgba(0,0,0,0.14)'
                         : '0 1px 4px rgba(0,0,0,0.06)',
-                    opacity: isBusy ? 0.6 : 1,
                   }}
                   onClick={() => void toggleClaim(item.id)}
                   onMouseEnter={() => setHoveredId(item.id)}
@@ -334,7 +369,14 @@ export default function ReceiptRoomPage() {
                       ...styles.claimIcon,
                       background: isClaimed ? '#4999DF' : 'transparent',
                       color: isClaimed ? '#fff' : 'transparent',
-                      border: isClaimed ? 'none' : '2px solid rgba(0,0,0,0.15)',
+                      border: isBusy
+                        ? '2px solid #4999DF'
+                        : isClaimed
+                          ? 'none'
+                          : '2px solid rgba(0,0,0,0.15)',
+                      animation: isBusy
+                        ? 'pulse-ring 0.8s ease-in-out infinite'
+                        : 'none',
                     }}
                   >
                     {isClaimed ? '✓' : ''}
