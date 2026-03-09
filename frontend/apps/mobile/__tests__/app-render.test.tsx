@@ -41,6 +41,12 @@ jest.mock('expo-image-picker', () => ({
 
 jest.mock('react-native-qrcode-svg', () => 'QRCode');
 
+jest.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
+  SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
+  useSafeAreaInsets: jest.fn(() => ({ top: 0, bottom: 0, left: 0, right: 0 })),
+}));
+
 jest.mock('expo-file-system', () => ({
   File: jest.fn().mockImplementation(() => ({
     base64: jest.fn(() => Promise.resolve('base64-data')),
@@ -54,7 +60,7 @@ jest.mock('expo-crypto', () => ({
 jest.mock('@react-navigation/native', () => ({
   useTheme: jest.fn(() => ({
     colors: {
-      primary: '#007AFF',
+      primary: '#4999DF',
       background: '#FFFFFF',
       card: '#FFFFFF',
       text: '#000000',

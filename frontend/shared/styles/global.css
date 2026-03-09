@@ -25,8 +25,13 @@
     --color-item-selected: #dbeafe;
     --color-scan-overlay: rgba(0, 0, 0, 0.5);
 
+    /* Accent Colors */
+    --color-accent-dark: #546079;
+    --color-accent: #8fa4ce;
+    --color-accent-light: #d8dde6;
+
     /* Interactive Colors - consistent across themes */
-    --color-primary: #007aff;
+    --color-primary: #4999df;
     --color-primary-foreground: #ffffff;
 
     /* Feedback Colors - consistent across themes */
@@ -36,13 +41,16 @@
     --color-success-foreground: #ffffff;
     --color-warning: #f59e0b;
     --color-warning-foreground: #ffffff;
+    --color-status-pending: #c2760a;
+    --color-status-completed: #16a34a;
+    --color-status-waiting: #7c3aed;
 
     /* Receipt/Financial Colors - consistent across themes */
     --color-amount-positive: #22c55e;
     --color-amount-negative: #ef4444;
 
     /* Camera/Scan Colors - consistent across themes */
-    --color-scan-frame: #007aff;
+    --color-scan-frame: #4999df;
 
     /* User Avatar Colors - consistent across themes */
     --color-avatar-1: #3b82f699; /* blue-500/60 */
@@ -73,16 +81,21 @@
       --color-border-strong: #1e2635;
       --color-muted: #1f2937;
       --color-muted-background: #2e2e2e;
-      --color-muted-foreground: #9ca3af;
+      --color-muted-foreground: #6e727a;
       --color-receipt-background: #1f2937;
       --color-item-background: #374151;
       --color-item-selected: #1e3a8a;
       --color-scan-overlay: rgba(0, 0, 0, 0.7);
 
+      /* Accent Colors */
+      --color-accent-dark: #8fa4ce;
+      --color-accent: #a8bbd8;
+      --color-accent-light: #2a3040;
+
       /* Colors that remain the same in dark mode, but must redefine for some reason*/
 
       /* Interactive Colors - consistent across themes */
-      --color-primary: #007aff;
+      --color-primary: #4999df;
       --color-primary-foreground: #ffffff;
 
       /* Feedback Colors - consistent across themes */
@@ -92,13 +105,16 @@
       --color-success-foreground: #ffffff;
       --color-warning: #f59e0b;
       --color-warning-foreground: #ffffff;
+      --color-status-pending: #f4b942;
+      --color-status-completed: #4ade80;
+      --color-status-waiting: #a78bfa;
 
       /* Receipt/Financial Colors - consistent across themes */
       --color-amount-positive: #22c55e;
       --color-amount-negative: #ef4444;
 
       /* Camera/Scan Colors - consistent across themes */
-      --color-scan-frame: #007aff;
+      --color-scan-frame: #4999df;
 
       /* User Avatar Colors - consistent across themes */
       --color-avatar-1: #3b82f699; /* blue-500/60 */

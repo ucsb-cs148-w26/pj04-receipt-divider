@@ -9,10 +9,22 @@ import {
   Animated,
   Modal,
   ActivityIndicator,
+  Alert,
   Text,
+  Pressable,
 } from 'react-native';
-import { IconButton, DefaultButtons } from '@eezy-receipt/shared';
-import * as ImagePicker from 'expo-image-picker';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import {
+  IconButton,
+  AddParticipantSheet,
+  AddParticipantManualModal,
+  sendRoomInviteSMS,
+} from '@eezy-receipt/shared';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
 import { File } from 'expo-file-system';
 import { extractItems as extractReceiptItems } from '@/services/ocr';
 import { Participant } from '@shared/components/Participant';
@@ -30,35 +42,51 @@ export const ITEMCONTAINERPADDING = 16;
 
 interface DragState {
   isDragging: boolean;
-  itemId: string | null;
+  selectedItemIds: string[];
   initialPosition: { x: number; y: number } | null;
   isOverParticipant: boolean;
 }
 
 interface ParticipantType {
   id: number;
+  name: string;
 }
 
 export type ReceiptRoomParams = {
   roomId: string;
   items: string;
+  participants: string; // JSON stringified ParticipantType[]
+  photos?: string; // JSON stringified string[] of URIs from create-room
 };
 
 export default function ReceiptRoomScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<ReceiptRoomParams>();
   const receiptItems = useReceiptItems();
 
+  /**---------------- Mode State ---------------- */
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  /**---------------- Selection State (claim mode) ---------------- */
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(
+    new Set(),
+  );
+
   /**---------------- Participants State ---------------- */
-  const [participants, setParticipants] = useState<ParticipantType[]>([]);
+  const [participants, setParticipants] = useState<ParticipantType[]>(() => {
+    try {
+      return params.participants ? JSON.parse(params.participants) : [];
+    } catch {
+      return [];
+    }
+  });
   const participantLayouts = useRef<Record<number, LayoutRectangle>>({});
   const [scrollOffset, setScrollOffset] = useState(0);
-  const [editingParticipantName, setEditingParticipantName] =
-    useState<boolean>(false);
 
   /**---------------- Drag State ---------------- */
   const [dragState, setDragState] = useState<DragState>({
     isDragging: false,
-    itemId: null,
+    selectedItemIds: [],
     initialPosition: null,
     isOverParticipant: false,
   });
@@ -70,56 +98,124 @@ export default function ReceiptRoomScreen() {
   /**---------------- Quick Actions State ---------------- */
   const [showQuickActions, setShowQuickActions] = useState(false);
 
-  /**---------------- Add Photo ---------------- */
+  /**---------------- Add Participant State ---------------- */
+  const [showAddOptions, setShowAddOptions] = useState(false);
+  const [showAddManual, setShowAddManual] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+
+  /**---------------- OCR on initial photos from create-room ---------------- */
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
 
-  const addPhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 1,
-    });
-    if (!result.canceled) {
-      const imageBase64 = await new File(result.assets[0].uri).base64();
-      setIsLoadingPhoto(true);
-      const newItems = await extractReceiptItems(imageBase64);
-      receiptItems.setItems([...receiptItems.items, ...newItems]);
-      setIsLoadingPhoto(false);
-    }
-  };
-
-  /**---------------- Participants Functions ---------------- */
-  const addParticipant = () => {
-    if (participants.length >= 10) {
+  useEffect(() => {
+    if (!params.photos) return;
+    let uris: string[] = [];
+    try {
+      uris = JSON.parse(params.photos);
+    } catch {
       return;
     }
+    if (!uris.length) return;
+    setIsLoadingPhoto(true);
+    Promise.all(
+      uris.map(async (uri) => {
+        const imageBase64 = await new File(uri).base64();
+        return extractReceiptItems(imageBase64);
+      }),
+    )
+      .then((results) => {
+        receiptItems.setItems((prev) => [...prev, ...results.flat()]);
+      })
+      .finally(() => {
+        setIsLoadingPhoto(false);
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**---------------- Participants Functions ---------------- */
+  const addParticipant = (name: string) => {
+    if (participants.length >= 10) return;
     const maxID =
       participants.length > 0 ? Math.max(...participants.map((p) => p.id)) : 0;
     const newID = maxID + 1;
-    const newParticipant = { id: newID };
-    setParticipants([...participants, newParticipant]);
+    setParticipants((prev) => [...prev, { id: newID, name }]);
+  };
+
+  const handleShareSMS = async () => {
+    try {
+      const result = await sendRoomInviteSMS(roomId);
+      if (result === 'sent') {
+        setShowAddOptions(false);
+      }
+    } catch (error) {
+      console.error('SMS error:', error);
+    }
+  };
+
+  const handleShowQR = () => {
+    setShowAddOptions(false);
+    setShowQRModal(true);
+  };
+
+  const handleAddManually = () => {
+    Alert.alert(
+      'Manual Participant',
+      "Adding a participant manually means they won't be linked to a real user account.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Add Anyway',
+          onPress: () => {
+            setShowAddOptions(false);
+            setShowAddManual(true);
+          },
+        },
+      ],
+    );
   };
 
   const removeParticipant = (removeID: number) => {
     setParticipants((prev) => prev.filter((p) => p.id !== removeID));
-
     receiptItems.setItems((prevItems) =>
       prevItems.map((item) => ({
         ...item,
         userTags: item.userTags?.filter((tagId) => tagId !== removeID) || [],
       })),
     );
-
     if (participantLayouts.current[removeID]) {
       delete participantLayouts.current[removeID];
     }
   };
 
-  const changeParticipantName = (id: number, newName: string) => {
-    setParticipants((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, name: newName } : p)),
+  /**---------------- Selection Functions ---------------- */
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllItems = () => {
+    setSelectedItemIds(new Set(displayItems.map((i) => i.id)));
+  };
+
+  const deselectAllItems = () => {
+    setSelectedItemIds(new Set());
+  };
+
+  const claimSelectedToParticipant = (participantId: number) => {
+    receiptItems.setItems((prevItems) =>
+      prevItems.map((item) => {
+        if (!selectedItemIds.has(item.id)) return item;
+        const userTags = item.userTags ?? [];
+        if (userTags.includes(participantId)) return item;
+        return { ...item, userTags: [...userTags, participantId] };
+      }),
     );
+    setSelectedItemIds(new Set());
   };
 
   /**---------------- Drag Functions ---------------- */
@@ -127,20 +223,21 @@ export default function ReceiptRoomScreen() {
     itemId: string,
     initialPosition?: { x: number; y: number },
   ) => {
+    // Only allow dragging if items are selected and the dragged item is selected
+    if (!selectedItemIds.has(itemId) || selectedItemIds.size === 0) return;
     setDragState({
       isDragging: true,
-      itemId,
+      selectedItemIds: [...selectedItemIds],
       initialPosition: initialPosition || null,
       isOverParticipant: false,
     });
     dragPan.setValue({ x: 0, y: 0 });
-    console.log('Started dragging item', itemId);
   };
 
   const handleItemDragEnd = () => {
     setDragState({
       isDragging: false,
-      itemId: null,
+      selectedItemIds: [],
       initialPosition: null,
       isOverParticipant: false,
     });
@@ -155,14 +252,16 @@ export default function ReceiptRoomScreen() {
   };
 
   /**---------------- QR Code State ---------------- */
+  //FIXME: MOCK ROOMID, SHOULD BE TAKEN FROM THE BACKEND
   const [roomId] = useState(() => {
     if (params.roomId && typeof params.roomId === 'string') {
       return params.roomId;
     }
-    return Math.random().toString(36).substring(2, 9);
+    return randomUUID();
   });
 
-  const isGroupRoom = roomId.length >= 32 && /^[0-9a-f-]{36}$/i.test(roomId);
+  const isGroupRoom =
+    !!params.roomId && roomId.length >= 32 && /^[0-9a-f-]{36}$/i.test(roomId);
   const groupData = useGroupData(isGroupRoom ? roomId : '');
   const groupDisplay = useMemo(() => {
     if (!isGroupRoom || !groupData.members.length) {
@@ -178,6 +277,7 @@ export default function ReceiptRoomScreen() {
     );
     const participants: ParticipantType[] = members.map((_m, i) => ({
       id: i + 1,
+      name: `Member ${i + 1}`,
     }));
     const claims = groupData.claims as DbItemClaim[];
     const items = (groupData.items as DbItem[]).map((item) => {
@@ -206,31 +306,31 @@ export default function ReceiptRoomScreen() {
     : participants;
 
   /**---------------- Quick Actions Functions ---------------- */
-  const claimFirstItemForAll = () => {
-    if (displayItems.length === 0 || displayParticipants.length === 0) return;
+  const claimForAll = () => {
+    if (selectedItemIds.size === 0 || displayParticipants.length === 0) return;
     receiptItems.setItems((prevItems) =>
-      prevItems.map((item, index) =>
-        index === 0
-          ? {
-              ...item,
-              userTags: [
-                ...new Set([
-                  ...(item.userTags || []),
-                  ...displayParticipants.map((p) => p.id),
-                ]),
-              ],
-            }
-          : item,
-      ),
+      prevItems.map((item) => {
+        if (!selectedItemIds.has(item.id)) return item;
+        return {
+          ...item,
+          userTags: [
+            ...new Set([
+              ...(item.userTags || []),
+              ...displayParticipants.map((p) => p.id),
+            ]),
+          ],
+        };
+      }),
     );
   };
 
-  const unclaimFirstItemForAll = () => {
-    if (displayItems.length === 0) return;
+  const unclaimForAll = () => {
+    if (selectedItemIds.size === 0) return;
     receiptItems.setItems((prevItems) =>
-      prevItems.map((item, index) =>
-        index === 0 ? { ...item, userTags: [] } : item,
-      ),
+      prevItems.map((item) => {
+        if (!selectedItemIds.has(item.id)) return item;
+        return { ...item, userTags: [] };
+      }),
     );
   };
 
@@ -242,23 +342,24 @@ export default function ReceiptRoomScreen() {
       price: '',
       userTags: [],
     };
-    receiptItems.setItems([...receiptItems?.items, newItem]);
-    console.log('All receipt items:', receiptItems);
+    receiptItems.setItems([...receiptItems.items, newItem]);
   };
 
   const updateReceiptItem = (id: string, updates: Partial<ReceiptItemData>) => {
-    receiptItems.setItems((prevItems) => {
-      const updatedItems = prevItems.map((item) =>
+    receiptItems.setItems((prevItems) =>
+      prevItems.map((item) =>
         item.id === id ? { ...item, ...updates } : item,
-      );
-      console.log('Updated receipt items:', updatedItems);
-      return updatedItems;
-    });
+      ),
+    );
   };
 
   const deleteReceiptItem = (id: string) => {
     receiptItems.setItems(receiptItems.items.filter((item) => item.id !== id));
-    console.log('Deleted receipt items:', receiptItems);
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   const removeItemFromUser = (itemId: string, userId: number) => {
@@ -275,15 +376,56 @@ export default function ReceiptRoomScreen() {
     );
   };
 
+  /**---------------- Computed Values ---------------- */
+  const getParticipantItemCount = (participantId: number) => {
+    return receiptItems.items.filter((item) =>
+      item.userTags?.includes(participantId),
+    ).length;
+  };
+
+  const getParticipantTotal = (participantId: number) => {
+    return receiptItems.items
+      .filter((item) => item.userTags?.includes(participantId))
+      .reduce((sum, item) => {
+        const price = parseFloat(item.price || '0');
+        const discount = parseFloat(item.discount || '0');
+        const claimCount = item.userTags?.length || 1;
+        return sum + (price - discount) / claimCount;
+      }, 0)
+      .toFixed(2);
+  };
+
   /**---------------- Render ---------------- */
   return (
-    <View className='bg-background flex-1 pt-[60px]'>
+    <SafeAreaView className='bg-background flex-1'>
+      {/*
+       * ─── LAYERING SYSTEM ───────────────────────────────────────────
+       *  z:10  Left button │ Center button   (below overlay)
+       *  z:20  Full-screen overlay           (dims everything beneath)
+       *  z:30  Right button + dropdown       (above overlay, always interactive)
+       *
+       * All interactive top-bar elements are direct children of SafeAreaView
+       * so React Native sibling z-index rules apply correctly.
+       * An invisible spacer View reserves the top-bar height in the
+       * normal flex flow so body content sits below the buttons.
+       * ──────────────────────────────────────────────────────────────
+       */}
+
+      {/* ── Invisible top-bar spacer (claims layout height, passes all touches) ── */}
+      <View
+        className='px-4'
+        style={{ paddingTop: insets.top + 8 }}
+        pointerEvents='none'
+      >
+        <View className='w-[14vw] h-[14vw]' />
+      </View>
+
+      {/* ── Body content ── */}
       <View className='flex-1'>
         {/* Middle part - scrollable receipt items */}
         <ScrollView
-          style={{ height: editingParticipantName ? '50%' : '80%' }}
-          className='p-4'
-          contentContainerClassName='min-w-full self-center z-[1]'
+          className='p-4 flex-1'
+          contentContainerClassName='min-w-full self-center z-[1] pb-4'
           scrollEnabled={!dragState.isDragging}
         >
           <View className='gap-2'>
@@ -298,12 +440,16 @@ export default function ReceiptRoomScreen() {
                 }
                 participantLayouts={participantLayouts.current}
                 scrollOffset={scrollOffset}
-                onDragStart={(itemId, initialPosition) =>
+                onDragStart={(_itemId, initialPosition) =>
                   handleItemDragStart(item.id, initialPosition)
                 }
                 onDragEnd={handleItemDragEnd}
-                isDragging={dragState.itemId === item.id}
-                dragPan={dragState.itemId === item.id ? dragPan : undefined}
+                onDropOnParticipant={claimSelectedToParticipant}
+                isDragging={
+                  dragState.selectedItemIds.includes(item.id) &&
+                  dragState.isDragging
+                }
+                dragPan={dragPan}
                 onParticipantBoundsChange={handleParticipantBoundsChange}
                 isInParticipantBoundsProp={false}
                 getCurrentItemData={() =>
@@ -311,201 +457,385 @@ export default function ReceiptRoomScreen() {
                 }
                 isAnyTextFocused={isAnyTextFocused}
                 onTextFocusChange={setIsAnyTextFocused}
+                isEditMode={isEditMode}
+                isSelected={selectedItemIds.has(item.id)}
+                onToggleSelect={() => toggleItemSelection(item.id)}
               />
             ))}
-            <IconButton
-              icon='plus'
-              bgClassName='bg-background rounded-lg shadow-none border-2 border-border-strong border-dashed w-full h-[7vh]'
-              iconClassName='size-[7vw] text-muted-foreground'
-              text='Add Receipt Item'
-              textClassName='text-muted-foreground text-[5vw]'
-              pressEffect='fade'
-              onPress={addReceiptItem}
-            />
+
+            {/* Add Receipt Item button - edit mode only */}
+            {isEditMode && (
+              <Pressable
+                className='bg-card rounded-2xl border border-border w-full py-4 items-center justify-center active:opacity-70 flex-row gap-2'
+                onPress={addReceiptItem}
+              >
+                <MaterialCommunityIcons
+                  name='plus'
+                  size={22}
+                  className='text-muted-foreground'
+                />
+                <Text className='text-muted-foreground text-base font-medium'>
+                  Add Receipt Item
+                </Text>
+              </Pressable>
+            )}
           </View>
         </ScrollView>
 
-        <ScrollView
-          horizontal={true}
-          style={{ height: editingParticipantName ? '50%' : '20%' }}
-          className='p-4'
-          contentContainerClassName='justify-start -left-[10px] gap-[10px]'
-          showsHorizontalScrollIndicator={false}
-          onScrollEndDrag={(event) => {
-            setScrollOffset(event.nativeEvent.contentOffset.x);
-          }}
-          onMomentumScrollEnd={(event) => {
-            setScrollOffset(event.nativeEvent.contentOffset.x);
-            console.log(
-              'Participants scroll offset:',
-              event.nativeEvent.contentOffset.x,
-            );
-          }}
-          scrollEventThrottle={16}
-        >
-          {displayParticipants.map((participant) => {
-            return (
+        {/* Bottom section - participants and drop zone */}
+        <View>
+          <ScrollView
+            horizontal={true}
+            className='px-4 pt-2 pb-6'
+            contentContainerClassName='justify-center gap-[10px] flex-grow'
+            showsHorizontalScrollIndicator={false}
+            onScrollEndDrag={(event) => {
+              setScrollOffset(event.nativeEvent.contentOffset.x);
+            }}
+            onMomentumScrollEnd={(event) => {
+              setScrollOffset(event.nativeEvent.contentOffset.x);
+              console.log(
+                'Participants scroll offset:',
+                event.nativeEvent.contentOffset.x,
+              );
+            }}
+            scrollEventThrottle={16}
+          >
+            {displayParticipants.map((participant) => (
               <Participant
                 key={participant.id}
                 id={participant.id}
-                changeName={(text) =>
-                  changeParticipantName(participant.id, text)
-                }
+                name={participant.name}
+                itemCount={getParticipantItemCount(participant.id)}
+                totalAmount={getParticipantTotal(participant.id)}
                 onRemove={() => removeParticipant(participant.id)}
                 onLayout={(layout) => {
                   participantLayouts.current[participant.id] = {
                     ...layout,
                     x: layout.x + scrollOffset,
                   };
-                  console.log(
-                    'Participant',
-                    participant.id,
-                    'layout.x',
-                    layout.x,
-                    'adjusted x:',
-                    layout.x + scrollOffset,
-                  );
                 }}
-                goToYourItemsPage={() =>
-                  router.push({
-                    pathname: '../items',
-                    params: {
-                      items: (() => {
-                        let senditems = displayItems.filter((item) =>
-                          item.userTags?.includes(participant.id),
-                        );
-                        return senditems
-                          ? JSON.stringify(senditems)
-                          : JSON.stringify([]);
-                      })(),
-                      participantId: participant.id.toString(),
-                    } as YourItemsRoomParams,
-                  })
-                }
-                onClickTextIn={() => setEditingParticipantName(true)}
-                onClickTextOut={() => setEditingParticipantName(false)}
+                goToYourItemsPage={() => {
+                  if (selectedItemIds.size > 0) {
+                    claimSelectedToParticipant(participant.id);
+                  } else {
+                    router.push({
+                      pathname: '../items',
+                      params: {
+                        items: JSON.stringify(
+                          displayItems.filter((item) =>
+                            item.userTags?.includes(participant.id),
+                          ),
+                        ),
+                        participantId: participant.id.toString(),
+                      } as YourItemsRoomParams,
+                    });
+                  }
+                }}
+                isEditMode={isEditMode}
               />
-            );
-          })}
-        </ScrollView>
-      </View>
+            ))}
 
-      <View className='absolute inset-0' pointerEvents='box-none'>
-        {/* Dragged item overlay - rendered at root level */}
-        {dragState.itemId &&
-          dragState.initialPosition &&
-          displayItems.find((item) => item.id === dragState.itemId) && (
-            <ReceiptItem
-              item={displayItems.find((item) => item.id === dragState.itemId)!}
-              onUpdate={(updates) =>
-                updateReceiptItem(dragState.itemId!, updates)
-              }
-              onDelete={() => {}}
-              onRemoveFromUser={(userId) =>
-                removeItemFromUser(dragState.itemId!, userId)
-              }
-              participantLayouts={participantLayouts.current}
-              scrollOffset={scrollOffset}
-              onDragStart={() => {}}
-              onDragEnd={handleItemDragEnd}
-              isDragging={true}
-              isDraggingOverlay={true}
-              dragPan={dragPan}
-              initialPosition={{
-                x: dragState.initialPosition.x - ITEMCONTAINERPADDING,
-                y: dragState.initialPosition.y - ITEMCONTAINERPADDING,
-              }}
-              isInParticipantBoundsProp={dragState.isOverParticipant}
-              getCurrentItemData={() =>
-                displayItems.find((item) => item.id === dragState.itemId)!
-              }
-              isAnyTextFocused={isAnyTextFocused}
-              onTextFocusChange={setIsAnyTextFocused}
-            />
-          )}
-      </View>
+            {/* Add participant button - always visible */}
+            <Pressable
+              className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
+              style={{ width: 160 }}
+              onPress={() => setShowAddOptions(true)}
+            >
+              <View className='h-2 bg-accent-light' />
+              <View className='items-center justify-center py-5'>
+                <MaterialCommunityIcons
+                  name='plus'
+                  size={32}
+                  className='text-accent'
+                />
+              </View>
+            </Pressable>
+          </ScrollView>
 
-      <View className='flex-col items-center gap-2 p-3'>
-        <IconButton
-          icon='plus'
-          bgClassName='rounded-lg shadow-none border-2 border-border-strong border-dashed size-[25vw]'
-          onPress={addParticipant}
-          pressEffect='scale'
-        />
-        <IconButton
-          icon='camera-plus'
-          pressEffect='overlay'
-          onPress={addPhoto}
-        />
-        <DefaultButtons.Settings onPress={() => router.navigate('/setting')} />
-        <DefaultButtons.Close
-          onPress={() => router.push('/close-confirmation')}
-        />
-        {/* QR Code Button - to the right of Close button */}
-        <View className='absolute top-[6vh] left-[20vw] z-10'>
-          <IconButton
-            icon='account-multiple-plus'
-            pressEffect='overlay'
-            onPress={() =>
-              router.push(
-                `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
-              )
-            }
-          />
-        </View>
-        {/* Quick Actions Toggle Button - to the left of Settings button */}
-        <View className='absolute top-[6vh] right-[20vw] z-10'>
-          {showQuickActions && (
-            <View className='absolute bottom-[110%] right-0 bg-background border border-border-strong rounded-lg shadow-md p-2 gap-2 w-[48vw] z-20'>
-              <IconButton
-                icon='check-all'
-                bgClassName='rounded-lg border border-border-strong bg-background w-full py-2'
-                iconClassName='size-[4vw] text-foreground'
-                text='Claim for all'
-                textClassName='text-foreground text-[3.5vw]'
-                pressEffect='fade'
-                onPress={() => {
-                  claimFirstItemForAll();
-                  setShowQuickActions(false);
-                }}
-              />
-              <IconButton
-                icon='close-circle-outline'
-                bgClassName='rounded-lg border border-border-strong bg-background w-full py-2'
-                iconClassName='size-[4vw] text-foreground'
-                text='Unclaim for all'
-                textClassName='text-foreground text-[3.5vw]'
-                pressEffect='fade'
-                onPress={() => {
-                  unclaimFirstItemForAll();
-                  setShowQuickActions(false);
-                }}
-              />
-            </View>
+          {/* Drop to Claim - only show during drag */}
+          {dragState.isDragging && (
+            <Text className='text-accent text-center text-sm mt-1 mb-2'>
+              Drop to Claim
+            </Text>
           )}
-          <IconButton
-            icon='dots-horizontal'
-            pressEffect='overlay'
-            onPress={() => setShowQuickActions((prev) => !prev)}
-          />
         </View>
       </View>
 
-      <Modal
-        transparent
-        animationType='fade'
-        visible={isLoadingPhoto}
-        statusBarTranslucent
+      {/* ── Layer 1 (z:10): Left button — below the overlay ── */}
+      <View
+        className='absolute left-4'
+        style={{ zIndex: 10, top: insets.top + 8 }}
       >
-        <View className='flex-1 justify-center items-center bg-black/50'>
-          <View className='bg-surface-elevated p-6 rounded-xl items-center'>
-            <ActivityIndicator size='large' color='#007aff' />
-            <Text className='mt-4 text-lg font-medium text-gray-700'>
-              Loading...
+        <IconButton
+          icon='chevron-left'
+          bgClassName='bg-card shadow-md shadow-black/20'
+          iconClassName='text-accent-dark'
+          pressEffect='fade'
+          onPress={() => router.back()}
+        />
+      </View>
+
+      {/* ── Layer 1 (z:10): Center toggle button — below the overlay ── */}
+      <View
+        className='absolute inset-x-0 items-center'
+        style={{ zIndex: 10, top: insets.top + 8 }}
+        pointerEvents='box-none'
+      >
+        <Pressable
+          className='bg-card shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70'
+          disabled={showQuickActions}
+          onPress={() => setIsEditMode(!isEditMode)}
+        >
+          <MaterialCommunityIcons
+            name={isEditMode ? 'arrow-u-left-top' : 'pencil-outline'}
+            size={26}
+            className='text-primary'
+          />
+        </Pressable>
+      </View>
+
+      {/* ── Layer 2 (z:20): Full-screen overlay — dims left/center buttons and body ── */}
+      {showQuickActions && (
+        <Pressable
+          className='absolute inset-0 bg-black/50'
+          style={{ zIndex: 20 }}
+          onPress={() => setShowQuickActions(false)}
+        />
+      )}
+
+      {/* ── Layer 3 (z:30): Right button + dropdown — always above the overlay ── */}
+      <View
+        className='absolute right-4'
+        style={{ zIndex: 30, top: insets.top + 8 }}
+      >
+        {showQuickActions && (
+          <Pressable className='absolute top-0 right-0' style={{ width: 280 }}>
+            <View className='bg-card border border-border rounded-[25px] shadow-lg shadow-black/30 overflow-hidden'>
+              {/* Top row of icon buttons */}
+              <View className='flex-row items-center justify-around py-3 px-4'>
+                <Pressable
+                  className='items-center gap-1'
+                  onPress={() => {
+                    setShowQuickActions(false);
+                    router.push('/add-receipt');
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name='receipt-text-plus-outline'
+                    size={24}
+                    className='text-accent-dark'
+                  />
+                  <Text className='text-foreground text-xs'>Add Receipt</Text>
+                </Pressable>
+                <Pressable
+                  className='items-center gap-1'
+                  onPress={() => {
+                    setShowQuickActions(false);
+                    router.push(
+                      `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
+                    );
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name='account-multiple-plus-outline'
+                    size={24}
+                    className='text-accent-dark'
+                  />
+                  <Text className='text-foreground text-xs'>Share</Text>
+                </Pressable>
+                <Pressable
+                  className='items-center gap-1'
+                  onPress={() => {
+                    setShowQuickActions(false);
+                    router.navigate('/setting');
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name='cog-outline'
+                    size={24}
+                    className='text-accent-dark'
+                  />
+                  <Text className='text-foreground text-xs'>Settings</Text>
+                </Pressable>
+              </View>
+
+              <View className='h-px bg-border' />
+
+              {/* Menu items */}
+              <Pressable
+                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                onPress={() => {
+                  selectAllItems();
+                  setShowQuickActions(false);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='checkbox-multiple-marked-outline'
+                  size={22}
+                  className='text-accent-dark'
+                />
+                <Text className='text-foreground text-base font-medium'>
+                  Select All Items
+                </Text>
+              </Pressable>
+
+              <Pressable
+                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                onPress={() => {
+                  deselectAllItems();
+                  setShowQuickActions(false);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='checkbox-multiple-blank-outline'
+                  size={22}
+                  className='text-accent-dark'
+                />
+                <Text className='text-foreground text-base font-medium'>
+                  Deselect All Items
+                </Text>
+              </Pressable>
+
+              <Pressable
+                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                onPress={() => {
+                  claimForAll();
+                  setShowQuickActions(false);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='download'
+                  size={22}
+                  className='text-accent-dark'
+                />
+                <Text className='text-foreground text-base font-medium'>
+                  Claim for All Selected
+                </Text>
+              </Pressable>
+
+              <Pressable
+                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                onPress={() => {
+                  unclaimForAll();
+                  setShowQuickActions(false);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='upload'
+                  size={22}
+                  className='text-accent-dark'
+                />
+                <Text className='text-foreground text-base font-medium'>
+                  Unclaim for All Selected
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        )}
+        <IconButton
+          icon='dots-horizontal'
+          bgClassName='bg-card shadow-md shadow-black/20'
+          iconClassName='text-accent-dark'
+          pressEffect='fade'
+          onPress={() => setShowQuickActions((prev) => !prev)}
+        />
+      </View>
+
+      {/* Drag overlay - "Claim N items" indicator */}
+      {dragState.isDragging && dragState.initialPosition && (
+        <Animated.View
+          style={[
+            {
+              position: 'absolute',
+              zIndex: 9999,
+              elevation: 9999,
+              top: dragState.initialPosition.y - 40,
+              left: dragState.initialPosition.x - 20,
+              transform: dragPan.getTranslateTransform(),
+            },
+          ]}
+          pointerEvents='none'
+        >
+          <View className='bg-primary rounded-2xl px-4 py-4 h-[6vh] w-[45vw] shadow-lg shadow-black/30'>
+            <Text className='text-primary-foreground font-bold text-lg text-right'>
+              Claim {dragState.selectedItemIds.length}{' '}
+              {dragState.selectedItemIds.length === 1 ? 'item' : 'items'}
+            </Text>
+          </View>
+        </Animated.View>
+      )}
+
+      <AddParticipantSheet
+        visible={showAddOptions}
+        onClose={() => setShowAddOptions(false)}
+        onShareSMS={handleShareSMS}
+        onShowQR={handleShowQR}
+        onAddManually={handleAddManually}
+      />
+
+      <AddParticipantManualModal
+        visible={showAddManual}
+        onClose={() => setShowAddManual(false)}
+        onAdd={(name) => addParticipant(name)}
+        addedParticipants={participants}
+      />
+
+      {/* QR Code Modal */}
+      <Modal
+        transparent={false}
+        animationType='slide'
+        visible={showQRModal}
+        onRequestClose={() => {
+          setShowQRModal(false);
+          setShowAddOptions(true);
+        }}
+      >
+        <SafeAreaView className='flex-1 bg-background'>
+          <View className='flex-1 items-center justify-center gap-8 px-6'>
+            <Text className='text-foreground text-2xl font-bold'>
+              Room QR Code
+            </Text>
+            <QRCode
+              value={`http://localhost:5173/join?roomId=${roomId}`}
+              size={220}
+              backgroundColor='white'
+              color='black'
+            />
+            <Text className='text-muted-foreground text-sm'>
+              Room ID: {roomId}
+            </Text>
+          </View>
+          <View className='px-5 pb-8'>
+            <Pressable
+              className='py-3 items-center active:opacity-70'
+              onPress={() => {
+                setShowQRModal(false);
+                setShowAddOptions(true);
+              }}
+            >
+              <Text className='text-accent-dark text-base font-medium'>
+                Close
+              </Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {isLoadingPhoto && (
+        <View
+          className='absolute bottom-8 left-0 right-0 items-center'
+          style={{ zIndex: 1 }}
+          pointerEvents='none'
+        >
+          <View className='bg-card flex-row items-center gap-3 px-5 py-3 rounded-full shadow-md shadow-black/20'>
+            <ActivityIndicator size='small' color='#4999DF' />
+            <Text className='text-muted-foreground text-sm font-medium'>
+              Processing receipt…
             </Text>
           </View>
         </View>
-      </Modal>
-    </View>
+      )}
+    </SafeAreaView>
   );
 }

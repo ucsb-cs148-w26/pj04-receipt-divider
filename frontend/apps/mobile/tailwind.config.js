@@ -10,6 +10,11 @@ const colorExtentions = {
   card: 'var(--color-card)',
   'card-foreground': 'var(--color-card-foreground)',
 
+  // Accent
+  'accent-dark': 'var(--color-accent-dark)',
+  accent: 'var(--color-accent)',
+  'accent-light': 'var(--color-accent-light)',
+
   // Interactive
   primary: 'var(--color-primary)',
   'primary-foreground': 'var(--color-primary-foreground)',
@@ -31,6 +36,9 @@ const colorExtentions = {
   'success-foreground': 'var(--color-success-foreground)',
   warning: 'var(--color-warning)',
   'warning-foreground': 'var(--color-warning-foreground)',
+  'status-pending': 'var(--color-status-pending)',
+  'status-completed': 'var(--color-status-completed)',
+  'status-waiting': 'var(--color-status-waiting)',
 
   // App-specific
   'amount-positive': 'var(--color-amount-positive)',
