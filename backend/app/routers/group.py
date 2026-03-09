@@ -66,7 +66,7 @@ def validate_invite(
 def get_profiles(
     group_id: str, profile_service: ProfileService = Depends(get_profile_service)
 ):
-    profiles = profile_service.get_group_profiles_id_with_accent(group_id)
+    profiles = profile_service.get_profiles_data_by_group(group_id)
     return GetProfilesResponse(profiles=profiles)
 
 

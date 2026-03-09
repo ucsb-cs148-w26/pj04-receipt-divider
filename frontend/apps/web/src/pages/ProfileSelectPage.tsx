@@ -6,6 +6,7 @@ interface ParticipantTab {
   id: number;
   profileId: string;
   name: string;
+  color: string;
 }
 
 const AVATAR_COLORS = [
@@ -76,6 +77,77 @@ const dark = {
   cancelColor: '#9ca3af',
 };
 
+const SHIMMER_STYLE_ID = 'profile-shimmer-style';
+
+function injectShimmerStyle() {
+  if (document.getElementById(SHIMMER_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = SHIMMER_STYLE_ID;
+  style.textContent = `
+    @keyframes shimmer {
+      0% { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .shimmer {
+      background: linear-gradient(90deg, #2a3441 25%, #3a4556 50%, #2a3441 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s infinite linear;
+      border-radius: 6px;
+    }
+    .shimmer-light {
+      background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s infinite linear;
+      border-radius: 6px;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function SkeletonCard({ isDark }: { isDark: boolean }) {
+  const cls = isDark ? 'shimmer' : 'shimmer-light';
+  const cardBg = isDark ? '#1f2937' : '#ffffff';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        border: '2px solid transparent',
+        borderRadius: 12,
+        width: 160,
+        minWidth: 160,
+        padding: 0,
+        overflow: 'hidden',
+        background: cardBg,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+      }}
+    >
+      <div
+        className={cls}
+        style={{ height: 6, width: '100%', borderRadius: 0 }}
+      />
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 14px 12px 12px',
+        }}
+      >
+        <div
+          className={cls}
+          style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0 }}
+        />
+        <div
+          className={cls}
+          style={{ height: 12, width: 80, borderRadius: 6 }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ProfileSelectPage() {
   const [participants, setParticipants] = useState<ParticipantTab[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -101,11 +173,16 @@ export default function ProfileSelectPage() {
       })
       .then((data) => {
         console.log('[ProfileSelectPage] /group/profiles response:', data);
-        const ids: string[] = data.profilesId ?? [];
-        const fetched = ids.map((profileId, i) => ({
+        const profiles: {
+          profileId: string;
+          accentColor: string;
+          username: string;
+        }[] = data.profiles ?? [];
+        const fetched = profiles.map((p, i) => ({
           id: i + 1,
-          profileId,
-          name: `Person ${i + 1}`,
+          profileId: p.profileId,
+          name: p.username || `Person ${i + 1}`,
+          color: p.accentColor || getColor(i + 1),
         }));
         setParticipants(fetched);
         if (fetched.length > 0) setSelectedId(fetched[0].id);
@@ -117,6 +194,10 @@ export default function ProfileSelectPage() {
   useEffect(() => {
     if (showModal) setTimeout(() => inputRef.current?.focus(), 50);
   }, [showModal]);
+
+  useEffect(() => {
+    injectShimmerStyle();
+  }, []);
 
   const handleAdd = () => {
     setNewName('');
@@ -225,6 +306,7 @@ export default function ProfileSelectPage() {
         id: participants.length + 1,
         profileId: payload.sub,
         name: newName.trim(),
+        color: getColor(participants.length + 1),
       };
       setParticipants((prev) => [...prev, newParticipant]);
       setSelectedId(newParticipant.id);
@@ -245,24 +327,36 @@ export default function ProfileSelectPage() {
 
   if (isLoadingProfiles) {
     return (
-      <div
-        style={{
-          ...styles.page,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '60vh',
-        }}
-      >
-        <p
-          style={{
-            color: t.placeholder,
-            fontSize: 16,
-            fontFamily: 'system-ui, sans-serif',
-          }}
+      <div style={{ ...styles.page, background: 'transparent' }}>
+        <h2 style={{ ...styles.heading, color: t.heading }}>Who are you?</h2>
+        <div style={styles.selectorWrapper}>
+          <SkeletonCard isDark={isDark} />
+          <SkeletonCard isDark={isDark} />
+          <SkeletonCard isDark={isDark} />
+          <button
+            disabled
+            style={{
+              ...styles.addCard,
+              background: t.addCardBg,
+              borderColor: t.addCardBorder,
+              opacity: 0.4,
+              cursor: 'default',
+            }}
+            aria-label='Add participant'
+          >
+            <div style={{ ...styles.topBar, background: t.topBarGhost }} />
+            <div style={styles.addContent}>
+              <span style={{ ...styles.addIcon, color: t.addIcon }}>+</span>
+            </div>
+          </button>
+        </div>
+        <div style={{ ...styles.content, background: t.contentBg }} />
+        <button
+          disabled
+          style={{ ...styles.continueBtn, opacity: 0.4, cursor: 'default' }}
         >
-          Loading profiles...
-        </p>
+          Continue →
+        </button>
       </div>
     );
   }
@@ -272,7 +366,7 @@ export default function ProfileSelectPage() {
       <h2 style={{ ...styles.heading, color: t.heading }}>Who are you?</h2>
       <div style={styles.selectorWrapper}>
         {participants.map((p) => {
-          const color = getColor(p.id);
+          const color = p.color;
           const isSelected = p.id === selectedId;
           return (
             <button

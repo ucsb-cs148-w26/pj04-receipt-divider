@@ -1,5 +1,5 @@
 import uuid
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.schemas.base import BaseRequest, BaseResponse
 
@@ -20,13 +20,14 @@ class CreateInviteLinkResponse(BaseResponse):
     url: str
 
 
-class ProfileIdWithAccentColor(BaseModel):
+class PublicProfileData(BaseResponse):
     profile_id: uuid.UUID
+    username: str
     accent_color: str
 
 
 class GetProfilesResponse(BaseResponse):
-    profiles: list[ProfileIdWithAccentColor]
+    profiles: list[PublicProfileData]
 
 
 class CreateGuestProfileRequest(BaseRequest):
