@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Text,
+  TextInput,
   Pressable,
 } from 'react-native';
 import {
@@ -31,7 +32,12 @@ import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
 import { randomUUID } from 'expo-crypto';
 import { useGroupData } from '@/hooks';
-import { addReceipt, assignItem, unassignItem } from '@/services/groupApi';
+import {
+  addReceipt,
+  assignItem,
+  unassignItem,
+  createGuestProfile,
+} from '@/services/groupApi';
 import type {
   GroupMember as DbGroupMember,
   ItemClaim as DbItemClaim,
@@ -57,6 +63,7 @@ export type ReceiptRoomParams = {
   items: string;
   participants: string; // JSON stringified ParticipantType[]
   photos?: string; // JSON stringified string[] of URIs from create-room
+  needsName?: string; // 'true' when navigating from join-room
 };
 
 export default function ReceiptRoomScreen() {
@@ -95,6 +102,21 @@ export default function ReceiptRoomScreen() {
   });
   const dragPan = useRef(new Animated.ValueXY()).current;
 
+  const handleSubmitGuestName = async () => {
+    const name = guestName.trim();
+    if (!name || !roomId) return;
+    setIsSubmittingName(true);
+    try {
+      await createGuestProfile(roomId, name);
+      setShowNameModal(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to join';
+      Alert.alert('Could not join', message);
+    } finally {
+      setIsSubmittingName(false);
+    }
+  };
+
   /**---------------- Banner Animation State ---------------- */
   const bannerLerpPan = useRef(new Animated.ValueXY()).current;
   const bannerOpacity = useRef(new Animated.Value(1)).current;
@@ -123,11 +145,43 @@ export default function ReceiptRoomScreen() {
   const [showAddManual, setShowAddManual] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 
+  /**---------------- Name Entry (guest join) State ---------------- */
+  const [showNameModal, setShowNameModal] = useState(
+    params.needsName === 'true',
+  );
+  const [guestName, setGuestName] = useState('');
+  const [isSubmittingName, setIsSubmittingName] = useState(false);
+  const nameInputRef = useRef<TextInput>(null);
+
   /**---------------- OCR on initial photos from create-room ---------------- */
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
 
   useEffect(() => {
-    if (!params.photos) return;
+    Animated.parallel([
+      Animated.spring(dropToClaimAnim, {
+        toValue: dragState.isDragging ? 0 : 40,
+        useNativeDriver: true,
+      }),
+      Animated.timing(dropToClaimOpacity, {
+        toValue: dragState.isDragging ? 1 : 0,
+        duration: dragState.isDragging ? 200 : 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [dragState.isDragging, dropToClaimAnim, dropToClaimOpacity]);
+
+  useEffect(() => {
+    Animated.timing(dropdownOpacity, {
+      toValue: showQuickActions ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [showQuickActions, dropdownOpacity]);
+
+  // editModeAnim is driven imperatively via toggleEditMode() — no useEffect needed.
+
+  useEffect(() => {
+    if (!params.photos || !roomId) return;
     let uris: string[] = [];
     try {
       uris = JSON.parse(params.photos);
@@ -1064,6 +1118,53 @@ export default function ReceiptRoomScreen() {
           </View>
         </View>
       )}
+
+      {/* Guest Name Entry Modal (shown when navigating from join-room) */}
+      <Modal
+        transparent
+        animationType='fade'
+        visible={showNameModal}
+        onRequestClose={() => {}}
+      >
+        <View className='flex-1 bg-black/50 items-center justify-center px-6'>
+          <View className='bg-card rounded-3xl p-6 w-full max-w-sm'>
+            <Text className='text-foreground text-xl font-bold mb-1'>
+              What&apos;s your name?
+            </Text>
+            <Text className='text-muted-foreground text-sm mb-5'>
+              This is how other participants will see you.
+            </Text>
+            <TextInput
+              ref={nameInputRef}
+              value={guestName}
+              onChangeText={setGuestName}
+              placeholder='Your name…'
+              placeholderTextColor='#8fa4ce'
+              autoFocus
+              returnKeyType='done'
+              onSubmitEditing={handleSubmitGuestName}
+              className='bg-background rounded-xl px-4 py-3 text-foreground text-base border border-border mb-4'
+            />
+            <Pressable
+              onPress={handleSubmitGuestName}
+              disabled={!guestName.trim() || isSubmittingName}
+              className={`rounded-2xl py-3 items-center ${
+                guestName.trim() && !isSubmittingName
+                  ? 'bg-primary active:opacity-80'
+                  : 'bg-card opacity-50'
+              }`}
+            >
+              {isSubmittingName ? (
+                <ActivityIndicator size='small' color='#ffffff' />
+              ) : (
+                <Text className='text-primary-foreground font-semibold text-base'>
+                  Join Room
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

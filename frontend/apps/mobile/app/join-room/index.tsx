@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconButton } from '@eezy-receipt/shared';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { validateInvite, createGuestProfile } from '@/services/groupApi';
+import { validateInvite } from '@/services/groupApi';
 
 export default function JoinRoomScreen() {
   const [mode, setMode] = useState<'scan' | 'code'>('scan');
@@ -23,25 +23,10 @@ export default function JoinRoomScreen() {
   const [isJoining, setIsJoining] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
-  const handleScanned = ({ data }: { type: string; data: string }) => {
-    if (scanned || isJoining) return;
-    setScanned(true);
-    const roomId = extractRoomId(data);
-    if (roomId) {
-      promptUsernameAndJoin(roomId);
-    } else {
-      Alert.alert('Invalid QR Code', 'This QR code does not link to a room.', [
-        { text: 'Try Again', onPress: () => setScanned(false) },
-      ]);
-    }
-  };
-
   const extractRoomId = (url: string): string | null => {
     try {
-      // Accept full URL: http://...?roomId=xxx  or just a plain UUID
       const match = url.match(/[?&]roomId=([^&]+)/);
       if (match) return match[1];
-      // Plain UUID fallback
       if (/^[0-9a-f-]{36}$/i.test(url.trim())) return url.trim();
     } catch {
       // ignore
@@ -49,49 +34,34 @@ export default function JoinRoomScreen() {
     return null;
   };
 
+  const handleScanned = ({ data }: { type: string; data: string }) => {
+    if (scanned || isJoining) return;
+    setScanned(true);
+    const roomId = extractRoomId(data);
+    if (roomId) {
+      validateAndNavigate(roomId);
+    } else {
+      Alert.alert('Invalid QR Code', 'This QR code does not link to a room.', [
+        { text: 'Try Again', onPress: () => setScanned(false) },
+      ]);
+    }
+  };
+
   const handleJoinByCode = () => {
     const trimmed = code.trim();
     if (!trimmed) return;
     const roomId = extractRoomId(trimmed) ?? trimmed;
-    promptUsernameAndJoin(roomId);
+    validateAndNavigate(roomId);
   };
 
-  /** Ask for a display name then validate + join via the backend. */
-  const promptUsernameAndJoin = (roomId: string) => {
-    Alert.prompt(
-      'Enter Your Name',
-      'This is how other participants will see you.',
-      [
-        { text: 'Cancel', style: 'cancel', onPress: () => setScanned(false) },
-        {
-          text: 'Join',
-          onPress: (username: string | undefined) => {
-            const name = username?.trim();
-            if (!name) {
-              Alert.alert('Name required', 'Please enter a display name.', [
-                { text: 'OK', onPress: () => setScanned(false) },
-              ]);
-              return;
-            }
-            joinRoom(roomId, name);
-          },
-        },
-      ],
-      'plain-text',
-    );
-  };
-
-  const joinRoom = async (roomId: string, username: string) => {
+  /** Validate the invite then navigate to the receipt-room where the user will enter their name. */
+  const validateAndNavigate = async (roomId: string) => {
     setIsJoining(true);
     try {
-      // 1. Check the invite is still valid
       await validateInvite(roomId);
-      // 2. Create a guest profile (returns an access token scoped to this group)
-      await createGuestProfile(roomId, username);
-      // 3. Navigate into the room
       router.replace({
         pathname: '/receipt-room',
-        params: { roomId, items: '[]', participants: '[]' },
+        params: { roomId, items: '[]', participants: '[]', needsName: 'true' },
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -236,7 +206,7 @@ export default function JoinRoomScreen() {
             className={`rounded-2xl py-4 items-center justify-center flex-row gap-2 ${
               code.trim() && !isJoining
                 ? 'bg-primary active:opacity-80'
-                : 'bg-card opacity-50'
+                : 'bg-card border border-border opacity-60'
             }`}
           >
             {isJoining ? (
@@ -245,10 +215,20 @@ export default function JoinRoomScreen() {
               <MaterialCommunityIcons
                 name='login'
                 size={20}
-                className='text-primary-foreground'
+                className={
+                  code.trim()
+                    ? 'text-primary-foreground'
+                    : 'text-muted-foreground'
+                }
               />
             )}
-            <Text className='text-primary-foreground font-semibold text-base'>
+            <Text
+              className={`font-semibold text-base ${
+                code.trim()
+                  ? 'text-primary-foreground'
+                  : 'text-muted-foreground'
+              }`}
+            >
               {isJoining ? 'Joining\u2026' : 'Join Room'}
             </Text>
           </Pressable>

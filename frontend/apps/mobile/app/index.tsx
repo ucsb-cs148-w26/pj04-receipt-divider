@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -49,7 +49,7 @@ export default function HomeScreen() {
     return () => clearTimeout(timeout);
   }, [metaName]);
 
-  useEffect(() => {
+  const fetchGroups = useCallback(() => {
     setIsLoadingGroups(true);
     getUserGroups()
       .then(({ groups: fetched }) => {
@@ -66,6 +66,8 @@ export default function HomeScreen() {
       .catch(console.error)
       .finally(() => setIsLoadingGroups(false));
   }, []);
+
+  useFocusEffect(fetchGroups);
 
   const firstName = profileName.split(' ')[0] || 'there';
 
