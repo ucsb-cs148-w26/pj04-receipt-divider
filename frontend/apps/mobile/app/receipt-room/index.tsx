@@ -25,13 +25,12 @@ import {
 } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
-import { File } from 'expo-file-system';
-import { extractItems as extractReceiptItems } from '@/services/ocr';
 import { Participant } from '@shared/components/Participant';
 import { useReceiptItems } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
 import { randomUUID } from 'expo-crypto';
 import { useGroupData } from '@/hooks';
+import { addReceipt, assignItem, unassignItem } from '@/services/groupApi';
 import type {
   GroupMember as DbGroupMember,
   ItemClaim as DbItemClaim,
@@ -107,7 +106,7 @@ export default function ReceiptRoomScreen() {
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
 
   useEffect(() => {
-    if (!params.photos) return;
+    if (!params.photos || !roomId) return;
     let uris: string[] = [];
     try {
       uris = JSON.parse(params.photos);
@@ -116,18 +115,15 @@ export default function ReceiptRoomScreen() {
     }
     if (!uris.length) return;
     setIsLoadingPhoto(true);
-    Promise.all(
-      uris.map(async (uri) => {
-        const imageBase64 = await new File(uri).base64();
-        return extractReceiptItems(imageBase64);
-      }),
-    )
-      .then((results) => {
-        receiptItems.setItems((prev) => [...prev, ...results.flat()]);
+    // Upload each photo to the backend; parsed items arrive via Supabase Realtime
+    Promise.all(uris.map((uri) => addReceipt(roomId, uri)))
+      .catch((err) => {
+        Alert.alert(
+          'Upload Failed',
+          err instanceof Error ? err.message : 'Could not process receipt.',
+        );
       })
-      .finally(() => {
-        setIsLoadingPhoto(false);
-      });
+      .finally(() => setIsLoadingPhoto(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**---------------- Participants Functions ---------------- */
@@ -215,6 +211,16 @@ export default function ReceiptRoomScreen() {
         return { ...item, userTags: [...userTags, participantId] };
       }),
     );
+    // Fire backend assign calls for each selected item when in a real group
+    if (isGroupRoom) {
+      const profileId =
+        groupDisplay.participantIdToProfileId.get(participantId);
+      if (profileId) {
+        [...selectedItemIds].forEach((itemId) => {
+          assignItem(itemId, profileId).catch(console.error);
+        });
+      }
+    }
     setSelectedItemIds(new Set());
   };
 
@@ -252,12 +258,13 @@ export default function ReceiptRoomScreen() {
   };
 
   /**---------------- QR Code State ---------------- */
-  //FIXME: MOCK ROOMID, SHOULD BE TAKEN FROM THE BACKEND
+  // roomId comes from route params (set by create-room after POST /group/create)
+  // or falls back to a value passed directly for existing rooms
   const [roomId] = useState(() => {
     if (params.roomId && typeof params.roomId === 'string') {
       return params.roomId;
     }
-    return randomUUID();
+    return '';
   });
 
   const isGroupRoom =
@@ -268,13 +275,16 @@ export default function ReceiptRoomScreen() {
       return {
         items: [] as ReceiptItemData[],
         participants: [] as ParticipantType[],
+        participantIdToProfileId: new Map<number, string>(),
       };
     }
     const members = groupData.members as DbGroupMember[];
     const profileIdToParticipantId = new Map<string, number>();
-    members.forEach((m, i) =>
-      profileIdToParticipantId.set(m.profile_id, i + 1),
-    );
+    const participantIdToProfileId = new Map<number, string>();
+    members.forEach((m, i) => {
+      profileIdToParticipantId.set(m.profile_id, i + 1);
+      participantIdToProfileId.set(i + 1, m.profile_id);
+    });
     const participants: ParticipantType[] = members.map((_m, i) => ({
       id: i + 1,
       name: `Member ${i + 1}`,
@@ -297,7 +307,7 @@ export default function ReceiptRoomScreen() {
         userTags,
       } as ReceiptItemData;
     });
-    return { items, participants };
+    return { items, participants, participantIdToProfileId };
   }, [isGroupRoom, groupData.members, groupData.items, groupData.claims]);
 
   const displayItems = isGroupRoom ? groupDisplay.items : receiptItems.items;
@@ -322,6 +332,15 @@ export default function ReceiptRoomScreen() {
         };
       }),
     );
+    // Fire backend assign calls for each selected item × each participant
+    if (isGroupRoom) {
+      [...selectedItemIds].forEach((itemId) => {
+        displayParticipants.forEach((p) => {
+          const profileId = groupDisplay.participantIdToProfileId.get(p.id);
+          if (profileId) assignItem(itemId, profileId).catch(console.error);
+        });
+      });
+    }
   };
 
   const unclaimForAll = () => {
@@ -332,6 +351,16 @@ export default function ReceiptRoomScreen() {
         return { ...item, userTags: [] };
       }),
     );
+    // Fire backend unassign calls for each item × each participant that had it
+    if (isGroupRoom) {
+      [...selectedItemIds].forEach((itemId) => {
+        const item = displayItems.find((i) => i.id === itemId);
+        (item?.userTags ?? []).forEach((pId) => {
+          const profileId = groupDisplay.participantIdToProfileId.get(pId);
+          if (profileId) unassignItem(itemId, profileId).catch(console.error);
+        });
+      });
+    }
   };
 
   /**---------------- Receipt Items Functions ---------------- */
@@ -374,6 +403,10 @@ export default function ReceiptRoomScreen() {
         return item;
       }),
     );
+    if (isGroupRoom) {
+      const profileId = groupDisplay.participantIdToProfileId.get(userId);
+      if (profileId) unassignItem(itemId, profileId).catch(console.error);
+    }
   };
 
   /**---------------- Computed Values ---------------- */
@@ -618,7 +651,10 @@ export default function ReceiptRoomScreen() {
                   className='items-center gap-1'
                   onPress={() => {
                     setShowQuickActions(false);
-                    router.push('/add-receipt');
+                    router.push({
+                      pathname: '/add-receipt',
+                      params: { groupId: roomId },
+                    });
                   }}
                 >
                   <MaterialCommunityIcons
@@ -797,7 +833,7 @@ export default function ReceiptRoomScreen() {
               Room QR Code
             </Text>
             <QRCode
-              value={`http://localhost:5173/join?roomId=${roomId}`}
+              value={`${process.env.EXPO_PUBLIC_FRONTEND_URL ?? 'http://localhost:5173'}/join?roomId=${roomId}`}
               size={220}
               backgroundColor='white'
               color='black'

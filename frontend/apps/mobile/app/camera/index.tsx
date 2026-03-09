@@ -2,13 +2,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Modal, ActivityIndicator, Text, View } from 'react-native';
-import { File } from 'expo-file-system';
 import { Button } from '@eezy-receipt/shared';
 
 import { ReceiptRoomParams } from '@/app/receipt-room/index';
 import { useReceiptItems } from '@/providers';
 
-import { extractItems as extractReceiptItems } from '@/services/ocr';
 import { randomUUID } from 'expo-crypto';
 
 export default function CameraScreen() {
@@ -35,12 +33,9 @@ export default function CameraScreen() {
     });
 
     if (!result.canceled) {
-      const imageBase64 = await new File(result.assets[0].uri).base64();
       setIsLoading(true);
-      const extractedItems = await extractReceiptItems(imageBase64);
-      receiptItems.setItems(extractedItems);
-      setIsLoading(false);
       goToReceiptRoom();
+      setIsLoading(false);
     }
   };
 

@@ -93,10 +93,6 @@ jest.mock('@/providers', () => ({
 }));
 
 // Mock services
-jest.mock('@/services/ocr', () => ({
-  extractItems: jest.fn(() => Promise.resolve([])),
-}));
-
 jest.mock('@/services/supabase', () => ({
   supabase: {
     from: jest.fn(() => ({

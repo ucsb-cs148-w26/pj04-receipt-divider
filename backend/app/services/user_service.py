@@ -133,7 +133,9 @@ class UserService:
 
         try:
             _ = self.supabse.storage.from_(settings.receipt_image_bucket).upload(
-                file=image_bytes, path=file_path
+                file=image_bytes,
+                path=file_path,
+                file_options={"content-type": f"image/{image_ext}"},
             )
         except Exception as e:
             raise HTTPException(
@@ -146,7 +148,13 @@ class UserService:
         ).get_public_url(file_path)
 
         ocr = OCRService()
-        cleaned_items, parsed = await ocr.extract_items(image_bytes)
+        try:
+            cleaned_items, parsed = await ocr.extract_items(image_bytes)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"OCR failed: {str(e)}",
+            )
 
         total_price = parsed.calculated_subtotal
         receipt_id = uuid.uuid4()
@@ -169,7 +177,14 @@ class UserService:
         )
         self.db.add(receipt)
 
-        self.db.commit()
+        try:
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save receipt: {str(e)}",
+            )
 
         return receipt_id
 
