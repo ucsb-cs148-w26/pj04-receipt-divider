@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -53,6 +53,8 @@ interface DragProps {
   isInParticipantBoundsProp?: boolean;
   /** Called when drag ends on a participant; if provided, this handles the claim instead of onUpdate */
   onDropOnParticipant?: (participantId: number) => void;
+  /** Called on every drag move with the current translation from origin */
+  onDragMove?: (translation: { x: number; y: number }) => void;
 }
 
 /** Internal drag state */
@@ -117,6 +119,7 @@ export function ReceiptItem({
   onParticipantBoundsChange,
   isInParticipantBoundsProp,
   onDropOnParticipant,
+  onDragMove,
   // Fresh data getter for overlay
   getCurrentItemData,
   // Text focus state
@@ -148,8 +151,28 @@ export function ReceiptItem({
   panRef.current = pan;
   const viewRef = useRef<View>(null);
   const currentPositionRef = useRef({ x: 0, y: 0 });
+  const itemScale = useRef(new Animated.Value(1)).current;
   const isAnyTextFocusedRef = useRef(isAnyTextFocused);
   isAnyTextFocusedRef.current = isAnyTextFocused;
+
+  /** ---------------- Pop all selected items when group drag starts/ends ---------------- */
+  useEffect(() => {
+    if (isDraggingProp) {
+      Animated.spring(itemScale, {
+        toValue: 1.07,
+        useNativeDriver: false,
+        tension: 200,
+        friction: 8,
+      }).start();
+    } else {
+      Animated.spring(itemScale, {
+        toValue: 1,
+        useNativeDriver: false,
+        tension: 200,
+        friction: 10,
+      }).start();
+    }
+  }, [isDraggingProp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** ---------------- Computed Values ---------------- */
   const sortedUserTags = item.userTags
@@ -206,14 +229,21 @@ export function ReceiptItem({
     (touchX: number, touchY: number) => {
       setDragState((prev) => ({ ...prev, isDragging: true }));
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Animated.spring(itemScale, {
+        toValue: 1.07,
+        useNativeDriver: false,
+        tension: 200,
+        friction: 8,
+      }).start();
       onDragStart?.(item.id, { x: touchX, y: touchY });
     },
-    [item.id, onDragStart],
+    [item.id, onDragStart, itemScale],
   );
 
   const handleDragChange = useCallback(
     (x: number, y: number, translationX: number, translationY: number) => {
       panRef.current.setValue({ x: translationX, y: translationY });
+      onDragMove?.({ x: translationX, y: translationY });
 
       currentPositionRef.current = { x, y };
       setDragState((prev) => ({ ...prev, currentPosition: { x, y } }));
@@ -223,7 +253,7 @@ export function ReceiptItem({
       setDragState((prev) => ({ ...prev, isInParticipantBounds: inBounds }));
       onParticipantBoundsChange?.(inBounds);
     },
-    [checkParticipantCollision, onParticipantBoundsChange],
+    [checkParticipantCollision, onParticipantBoundsChange, onDragMove],
   );
 
   const handleDragEnd = useCallback(() => {
@@ -261,20 +291,30 @@ export function ReceiptItem({
     });
     onDragEnd?.();
 
+    Animated.spring(itemScale, {
+      toValue: 1,
+      useNativeDriver: false,
+      tension: 200,
+      friction: 10,
+    }).start();
+
     Animated.spring(panRef.current, {
       toValue: { x: 0, y: 0 },
       useNativeDriver: false,
     }).start();
 
     currentPositionRef.current = { x: 0, y: 0 };
-  }, [onDragEnd]);
+  }, [onDragEnd, itemScale]);
 
   /** ---------------- Pan Gesture ---------------- */
   const panGesture = useMemo(() => {
-    const base =
-      !isEditMode && isSelected
-        ? Gesture.Pan().minDistance(5)
-        : Gesture.Pan().activateAfterLongPress(250);
+    // In edit mode, disable drag entirely — return a no-op gesture
+    if (isEditMode) {
+      return Gesture.Pan().runOnJS(true);
+    }
+    const base = isSelected
+      ? Gesture.Pan().activateAfterLongPress(100)
+      : Gesture.Pan().activateAfterLongPress(250);
     return base
       .onStart((event) => {
         'worklet';
@@ -364,6 +404,7 @@ export function ReceiptItem({
                   top: initialPosition.y,
                   left: initialPosition.x,
                 },
+              { transform: [{ scale: itemScale }] },
             ]}
           >
             {/* Wrapper: constant paddingBottom reserves space for the straddling tags */}
@@ -380,16 +421,14 @@ export function ReceiptItem({
                   />
                 )}
                 <View className='flex-row items-center'>
-                  {/* Delete button */}
-                  <Pressable
-                    onPress={confirmDelete}
-                    className='w-10 h-10 items-center justify-center mr-3'
-                    accessibilityLabel='Delete item'
-                  >
-                    <Text className='text-destructive text-2xl font-bold'>
-                      ✕
-                    </Text>
-                  </Pressable>
+                  {/* Selection indicator: circle when unselected, drag dots when selected */}
+                  <View className='w-10 h-10 items-center justify-center mr-3'>
+                    <MaterialCommunityIcons
+                      name={isSelected ? 'dots-grid' : 'circle-outline'}
+                      size={26}
+                      color='#4999DF'
+                    />
+                  </View>
 
                   {/* Item name */}
                   <Text
@@ -450,7 +489,10 @@ export function ReceiptItem({
                 left: initialPosition.x,
               },
             {
-              transform: isCurrentlyDragging ? pan.getTranslateTransform() : [],
+              transform: [
+                { scale: itemScale },
+                ...(isCurrentlyDragging ? pan.getTranslateTransform() : []),
+              ],
               zIndex: isCurrentlyDragging ? 9999 : 0,
               elevation: isCurrentlyDragging ? 9999 : 0,
             },

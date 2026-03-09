@@ -39,11 +39,11 @@
     --color-destructive-foreground: #ffffff;
     --color-success: #22c55e;
     --color-success-foreground: #ffffff;
-    --color-warning: #f59e0b;
+    --color-warning: #f5af0b;
     --color-warning-foreground: #ffffff;
-    --color-status-pending: #c2760a;
+    --color-status-pending: #e6ac0b;
     --color-status-completed: #16a34a;
-    --color-status-waiting: #7c3aed;
+    --color-status-waiting: #963aed;
 
     /* Receipt/Financial Colors - consistent across themes */
     --color-amount-positive: #22c55e;

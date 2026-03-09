@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { ScrollView, Text, View, Pressable } from 'react-native';
+import { Alert, ScrollView, Text, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button } from '@eezy-receipt/shared';
 
 export type ReceiptDetailParams = {
   id: string;
@@ -112,13 +113,54 @@ export default function ReceiptDetailScreen() {
       ),
   );
 
-  const toggleCompleted = (personId: string) => {
+  const handleCheckboxPress = (person: {
+    id: string;
+    name: string;
+    status: PersonStatus;
+  }) => {
+    if (person.status === 'completed') {
+      Alert.alert(
+        'Already Verified',
+        `${person.name} has been marked as paid & verified. Do you want to undo this?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Unverify',
+            style: 'destructive',
+            onPress: () =>
+              setCompletedIds((prev) => {
+                const next = new Set(prev);
+                next.delete(person.id);
+                return next;
+              }),
+          },
+        ],
+      );
+      return;
+    }
+    if (person.status === 'pending') {
+      Alert.alert(
+        'Payment Not Yet Claimed',
+        `${person.name} hasn't submitted their claim yet. Do you want to verify them anyway?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Verify Anyway',
+            style: 'destructive',
+            onPress: () =>
+              setCompletedIds((prev) => new Set(prev).add(person.id)),
+          },
+        ],
+      );
+      return;
+    }
+    // status === 'waiting' — eligible to verify
     setCompletedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(personId)) {
-        next.delete(personId);
+      if (next.has(person.id)) {
+        next.delete(person.id);
       } else {
-        next.add(personId);
+        next.add(person.id);
       }
       return next;
     });
@@ -156,9 +198,9 @@ export default function ReceiptDetailScreen() {
   const displayAmount = amountNum >= 0 ? remainingAmount : -remainingAmount;
 
   const statusParts: string[] = [];
-  if (pendingCount > 0) statusParts.push(`${pendingCount} Requested & Unpaid`);
   if (waitingCount > 0)
     statusParts.push(`${waitingCount} Awaiting Verification`);
+  if (pendingCount > 0) statusParts.push(`${pendingCount} Requested & Unpaid`);
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
@@ -252,7 +294,7 @@ export default function ReceiptDetailScreen() {
               <Pressable className='flex-row items-center px-4 py-3 active:opacity-70'>
                 {/* Checkbox */}
                 <Pressable
-                  onPress={() => toggleCompleted(person.id)}
+                  onPress={() => handleCheckboxPress(person)}
                   hitSlop={8}
                   className={`w-7 h-7 rounded-full border-2 items-center justify-center mr-3 ${
                     person.status === 'completed'
@@ -320,19 +362,19 @@ export default function ReceiptDetailScreen() {
         </View>
 
         {/* Go to Receipt Room */}
-        <Pressable
+        <Button
+          variant='outlined'
+          size='large'
+          className='mt-12 rounded-2xl w-full'
           onPress={() =>
             router.push({
               pathname: '/receipt-room',
               params: { roomId: id, items: '[]', participants: '[]' },
             })
           }
-          className='mt-4 bg-primary rounded-2xl flex-row items-center justify-center py-3.5 gap-2 active:opacity-70'
         >
-          <Text className='text-white font-semibold text-base'>
-            View Receipt Room
-          </Text>
-        </Pressable>
+          View Receipt Room
+        </Button>
       </ScrollView>
     </SafeAreaView>
   );

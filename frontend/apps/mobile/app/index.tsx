@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/providers';
@@ -37,6 +37,25 @@ export default function HomeScreen() {
   const [showNewRoom, setShowNewRoom] = useState(false);
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const metaName =
+    (user?.user_metadata?.full_name as string | undefined) ?? user?.email;
+
+  // Mock DB profile fetch — replace with real API call when backend is ready
+  const [profileName, setProfileName] = useState<string>(metaName ?? '');
+  useEffect(() => {
+    if (metaName) {
+      setProfileName(metaName);
+      return;
+    }
+    // Simulate fetching display name from DB
+    const timeout = setTimeout(() => {
+      setProfileName('there'); // fallback until real DB call is wired up
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [metaName]);
+
+  const firstName = profileName.split(' ')[0] || 'there';
+
   const displayName =
     (user?.user_metadata?.full_name as string | undefined) ??
     user?.email ??
@@ -60,11 +79,10 @@ export default function HomeScreen() {
           )}
         </View>
         <Text className='flex-1 text-foreground text-2xl font-bold'>
-          Eezy Receipt
+          Hi, {firstName}!
         </Text>
         <IconButton
-          icon='menu'
-          bgClassName='bg-transparent shadow-none'
+          icon='cog-outline'
           iconClassName='text-accent-dark'
           onPress={() => router.navigate('/setting')}
         />
@@ -193,7 +211,8 @@ export default function HomeScreen() {
       <View className='absolute bottom-10 right-6'>
         <IconButton
           icon='plus'
-          bgClassName='bg-card shadow-lg shadow-black/30'
+          bgClassName='shadow-lg shadow-black/30'
+          iconClassName='text-accent-dark'
           pressEffect='scale'
           onPress={() => setShowNewRoom(true)}
         />
@@ -238,7 +257,7 @@ export default function HomeScreen() {
                 >
                   <View pointerEvents='none'>
                     <IconButton
-                      icon='checkbox-outline'
+                      icon='home-plus-outline'
                       bgClassName='bg-transparent shadow-none'
                       iconClassName='text-accent-dark'
                     />
@@ -253,12 +272,12 @@ export default function HomeScreen() {
                   className='flex-row items-center gap-3 px-4 py-4 active:opacity-70'
                   onPress={() => {
                     setShowNewRoom(false);
-                    router.navigate('/qr');
+                    router.navigate('/join-room' as never);
                   }}
                 >
                   <View pointerEvents='none'>
                     <IconButton
-                      icon='export-variant'
+                      icon='login'
                       bgClassName='bg-transparent shadow-none'
                       iconClassName='text-accent-dark'
                     />

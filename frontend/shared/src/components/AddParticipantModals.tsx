@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { USER_COLORS } from '../constants';
 
@@ -121,56 +129,58 @@ export function AddParticipantManualModal({
       visible={visible}
       onRequestClose={onClose}
     >
-      <Pressable
-        className='flex-1 bg-black/50 justify-center items-center px-6'
-        onPress={onClose}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
       >
-        <Pressable onPress={() => {}}>
-          <View className='bg-card rounded-2xl p-6 w-80'>
-            <Text className='text-foreground text-xl font-bold mb-4'>
-              Add Participant
-            </Text>
+        <Pressable className='flex-1 bg-black/50 justify-center items-center px-6'>
+          <Pressable onPress={() => {}}>
+            <View className='bg-card rounded-2xl p-6 w-80'>
+              <Text className='text-foreground text-xl font-bold mb-4'>
+                Add Participant
+              </Text>
 
-            <TextInput
-              placeholder='Name'
-              placeholderTextColor='var(--color-muted-foreground)'
-              value={value}
-              onChangeText={setValue}
-              onSubmitEditing={handleAdd}
-              returnKeyType='done'
-              className='border border-border rounded-xl px-4 py-3 text-foreground mb-4'
-              autoFocus
-            />
+              <TextInput
+                placeholder='Name'
+                placeholderTextColor='var(--color-muted-foreground)'
+                value={value}
+                onChangeText={setValue}
+                onSubmitEditing={handleAdd}
+                returnKeyType='done'
+                className='border border-border rounded-xl px-4 py-3 text-foreground mb-4'
+                autoFocus
+              />
 
-            {addedParticipants && addedParticipants.length > 0 && (
-              <View className='flex-row flex-wrap gap-2 mb-4'>
-                {addedParticipants.map((p) => (
-                  <View
-                    key={p.id}
-                    className={`px-3 py-1 rounded-full border-2 border-${USER_COLORS[(p.id - 1) % USER_COLORS.length]}`}
-                  >
-                    <Text className='text-foreground text-sm'>{p.name}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+              {addedParticipants && addedParticipants.length > 0 && (
+                <View className='flex-row flex-wrap gap-2 mb-4'>
+                  {addedParticipants.map((p) => (
+                    <View
+                      key={p.id}
+                      className={`px-3 py-1 rounded-full border-2 border-${USER_COLORS[(p.id - 1) % USER_COLORS.length]}`}
+                    >
+                      <Text className='text-foreground text-sm'>{p.name}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
 
-            <Pressable
-              className='bg-primary rounded-xl py-3 items-center active:opacity-80 mb-2'
-              onPress={handleAdd}
-            >
-              <Text className='text-primary-foreground font-bold'>Add</Text>
-            </Pressable>
+              <Pressable
+                className='bg-primary rounded-xl py-3 items-center active:opacity-80 mb-2'
+                onPress={handleAdd}
+              >
+                <Text className='text-primary-foreground font-bold'>Add</Text>
+              </Pressable>
 
-            <Pressable
-              className='bg-card border border-border rounded-xl py-3 items-center active:opacity-70'
-              onPress={onClose}
-            >
-              <Text className='text-foreground font-medium'>Complete</Text>
-            </Pressable>
-          </View>
+              <Pressable
+                className='bg-card border border-border rounded-xl py-3 items-center active:opacity-70'
+                onPress={onClose}
+              >
+                <Text className='text-foreground font-medium'>Complete</Text>
+              </Pressable>
+            </View>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

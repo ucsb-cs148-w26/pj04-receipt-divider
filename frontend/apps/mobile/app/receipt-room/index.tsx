@@ -92,6 +92,19 @@ export default function ReceiptRoomScreen() {
   });
   const dragPan = useRef(new Animated.ValueXY()).current;
 
+  /**---------------- Banner Animation State ---------------- */
+  const bannerLerpPan = useRef(new Animated.ValueXY()).current;
+  const bannerOpacity = useRef(new Animated.Value(1)).current;
+  const bannerScale = useRef(new Animated.Value(1)).current;
+  const bannerVisible = useRef(false);
+  const [bannerVisibleState, setBannerVisibleState] = useState(false);
+  const bannerInitialPosRef = useRef<{ x: number; y: number } | null>(null);
+  const bannerItemCountRef = useRef(0);
+  const lastDropSuccessful = useRef(false);
+  const bannerIsExiting = useRef(false);
+  const bannerLerpSpringRef = useRef<Animated.CompositeAnimation | null>(null);
+  const exitAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+
   /**---------------- Text Focus State ---------------- */
   const [isAnyTextFocused, setIsAnyTextFocused] = useState(false);
 
@@ -207,6 +220,7 @@ export default function ReceiptRoomScreen() {
   };
 
   const claimSelectedToParticipant = (participantId: number) => {
+    lastDropSuccessful.current = true;
     receiptItems.setItems((prevItems) =>
       prevItems.map((item) => {
         if (!selectedItemIds.has(item.id)) return item;
@@ -215,7 +229,6 @@ export default function ReceiptRoomScreen() {
         return { ...item, userTags: [...userTags, participantId] };
       }),
     );
-    setSelectedItemIds(new Set());
   };
 
   /**---------------- Drag Functions ---------------- */
@@ -225,6 +238,18 @@ export default function ReceiptRoomScreen() {
   ) => {
     // Only allow dragging if items are selected and the dragged item is selected
     if (!selectedItemIds.has(itemId) || selectedItemIds.size === 0) return;
+
+    // Stop any in-progress exit animation and reset banner state
+    exitAnimRef.current?.stop();
+    bannerIsExiting.current = false;
+    bannerLerpPan.setValue({ x: 0, y: 0 });
+    bannerOpacity.setValue(1);
+    bannerScale.setValue(1);
+    bannerInitialPosRef.current = initialPosition || null;
+    bannerItemCountRef.current = selectedItemIds.size;
+    bannerVisible.current = true;
+    setBannerVisibleState(true);
+
     setDragState({
       isDragging: true,
       selectedItemIds: [...selectedItemIds],
@@ -234,7 +259,28 @@ export default function ReceiptRoomScreen() {
     dragPan.setValue({ x: 0, y: 0 });
   };
 
+  const handleItemDragMove = (translation: { x: number; y: number }) => {
+    if (bannerIsExiting.current) return;
+    // Don't stop the previous spring — let React Native interrupt it naturally so
+    // velocity carries over and the follow stays smooth with no jitter.
+    const spring = Animated.spring(bannerLerpPan, {
+      toValue: translation,
+      useNativeDriver: false,
+      tension: 150,
+      friction: 26, // slightly over-damped: no oscillation, snappy follow
+    });
+    bannerLerpSpringRef.current = spring;
+    spring.start();
+  };
+
   const handleItemDragEnd = () => {
+    const success = lastDropSuccessful.current;
+    lastDropSuccessful.current = false;
+    bannerIsExiting.current = true;
+
+    // Stop the lerp spring so banner freezes at its current position
+    if (bannerLerpSpringRef.current) bannerLerpSpringRef.current.stop();
+
     setDragState({
       isDragging: false,
       selectedItemIds: [],
@@ -245,6 +291,60 @@ export default function ReceiptRoomScreen() {
       toValue: { x: 0, y: 0 },
       useNativeDriver: false,
     }).start();
+
+    if (success) {
+      // Scale up and fade out at the drop position
+      const anim = Animated.parallel([
+        Animated.spring(bannerScale, {
+          toValue: 1.4,
+          useNativeDriver: false,
+          tension: 200,
+          friction: 8,
+        }),
+        Animated.timing(bannerOpacity, {
+          toValue: 0,
+          duration: 280,
+          useNativeDriver: false,
+        }),
+      ]);
+      exitAnimRef.current = anim;
+      anim.start(() => {
+        setBannerVisibleState(false);
+        bannerVisible.current = false;
+        bannerIsExiting.current = false;
+        // Reset values AFTER state update so there's no frame where the still-mounted
+        // component flashes at reset values.
+        bannerLerpPan.setValue({ x: 0, y: 0 });
+        bannerScale.setValue(1);
+        bannerOpacity.setValue(1);
+      });
+    } else {
+      // Spring back to origin and fade out
+      const anim = Animated.parallel([
+        Animated.spring(bannerLerpPan, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false,
+          tension: 150,
+          friction: 14,
+        }),
+        Animated.timing(bannerOpacity, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: false,
+        }),
+      ]);
+      exitAnimRef.current = anim;
+      anim.start(() => {
+        setBannerVisibleState(false);
+        bannerVisible.current = false;
+        bannerIsExiting.current = false;
+        bannerLerpPan.setValue({ x: 0, y: 0 });
+        // Do NOT reset bannerOpacity here — it was already animated to 0 and the
+        // component is now unmounted. Resetting it synchronously before the unmount
+        // re-render causes a one-frame flash back to full opacity.
+        // It gets reset to 1 at the top of handleItemDragStart for next use.
+      });
+    }
   };
 
   const handleParticipantBoundsChange = (isOverParticipant: boolean) => {
@@ -444,6 +544,7 @@ export default function ReceiptRoomScreen() {
                   handleItemDragStart(item.id, initialPosition)
                 }
                 onDragEnd={handleItemDragEnd}
+                onDragMove={handleItemDragMove}
                 onDropOnParticipant={claimSelectedToParticipant}
                 isDragging={
                   dragState.selectedItemIds.includes(item.id) &&
@@ -528,6 +629,7 @@ export default function ReceiptRoomScreen() {
                           ),
                         ),
                         participantId: participant.id.toString(),
+                        participantName: participant.name,
                       } as YourItemsRoomParams,
                     });
                   }
@@ -583,14 +685,15 @@ export default function ReceiptRoomScreen() {
         pointerEvents='box-none'
       >
         <Pressable
-          className='bg-card shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70'
+          className={`shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70 ${isEditMode ? 'bg-primary' : 'bg-card'}`}
           disabled={showQuickActions}
-          onPress={() => setIsEditMode(!isEditMode)}
+          onPress={() => setIsEditMode((prev) => !prev)}
         >
           <MaterialCommunityIcons
-            name={isEditMode ? 'arrow-u-left-top' : 'pencil-outline'}
+            name={isEditMode ? 'check' : 'pencil-outline'}
             size={26}
-            className='text-primary'
+            color={isEditMode ? '#ffffff' : undefined}
+            className={isEditMode ? '' : 'text-primary'}
           />
         </Pressable>
       </View>
@@ -743,24 +846,26 @@ export default function ReceiptRoomScreen() {
       </View>
 
       {/* Drag overlay - "Claim N items" indicator */}
-      {dragState.isDragging && dragState.initialPosition && (
+      {bannerVisibleState && bannerInitialPosRef.current && (
         <Animated.View
-          style={[
-            {
-              position: 'absolute',
-              zIndex: 9999,
-              elevation: 9999,
-              top: dragState.initialPosition.y - 40,
-              left: dragState.initialPosition.x - 20,
-              transform: dragPan.getTranslateTransform(),
-            },
-          ]}
+          style={{
+            position: 'absolute',
+            zIndex: 9999,
+            elevation: 9999,
+            top: bannerInitialPosRef.current.y - 40,
+            left: bannerInitialPosRef.current.x - 20,
+            opacity: bannerOpacity,
+            transform: [
+              ...bannerLerpPan.getTranslateTransform(),
+              { scale: bannerScale },
+            ],
+          }}
           pointerEvents='none'
         >
           <View className='bg-primary rounded-2xl px-4 py-4 h-[6vh] w-[45vw] shadow-lg shadow-black/30'>
             <Text className='text-primary-foreground font-bold text-lg text-right'>
-              Claim {dragState.selectedItemIds.length}{' '}
-              {dragState.selectedItemIds.length === 1 ? 'item' : 'items'}
+              Claim {bannerItemCountRef.current}{' '}
+              {bannerItemCountRef.current === 1 ? 'item' : 'items'}
             </Text>
           </View>
         </Animated.View>
