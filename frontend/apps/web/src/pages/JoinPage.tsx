@@ -43,17 +43,14 @@ export default function JoinPage() {
     const joinGroup = async () => {
       try {
         const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/group/join?group_id=${roomId}`,
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          },
+          `${import.meta.env.VITE_API_URL}/group/validate-invite?group_id=${roomId}`,
         );
 
         if (!res.ok) {
           const message =
             res.status === 404
               ? 'No group found.'
-              : `Error joining group: ${res.statusText}`;
+              : `Error validating invite: ${res.statusText}`;
           navigate(`/error?message=${encodeURIComponent(message)}`);
           return;
         }
