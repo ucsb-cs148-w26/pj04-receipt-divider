@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { useAuth } from '../providers/AuthContext';
 
 interface ParticipantTab {
   id: number;
@@ -162,7 +161,6 @@ export default function ProfileSelectPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const roomId = searchParams.get('roomId');
-  const { setAccessToken } = useAuth();
 
   useEffect(() => {
     if (!roomId) return;
@@ -235,7 +233,7 @@ export default function ProfileSelectPage() {
       console.log('[handleContinue] profile-login response:', data);
       const token: string | null =
         data.access_token ?? data.accessToken ?? null;
-      if (token) setAccessToken(token);
+      if (token) sessionStorage.setItem(`profileJwt:${roomId}`, token);
       navigate(`/room/${roomId}`);
     } catch {
       navigate(
@@ -282,7 +280,7 @@ export default function ProfileSelectPage() {
         setShowModal(false);
         return;
       }
-      setAccessToken(accessTokenValue);
+      sessionStorage.setItem(`profileJwt:${roomId}`, accessTokenValue);
     } catch (e) {
       console.error('[handleConfirm] network error:', e);
       navigate(

@@ -6,7 +6,6 @@ import React, {
   useState,
 } from 'react';
 import { useParams } from 'react-router';
-import { useAuth } from '../providers/AuthContext';
 import { supabase } from '../services/supabase';
 import { createClient } from '@supabase/supabase-js';
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
@@ -55,7 +54,6 @@ function decodeProfileId(token: string | null): string | null {
 
 export default function ReceiptRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { accessToken } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [claims, setClaims] = useState<ClaimsMap>({});
@@ -63,7 +61,15 @@ export default function ReceiptRoomPage() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
 
-  const profileId = useMemo(() => decodeProfileId(accessToken), [accessToken]);
+  // Read the profile JWT saved by ProfileSelectPage. Stored in sessionStorage so
+  // it survives tab switches (anon session refreshes won't overwrite it).
+  const profileJwt = useMemo(
+    () =>
+      roomId ? (sessionStorage.getItem(`profileJwt:${roomId}`) ?? null) : null,
+    [roomId],
+  );
+  const profileId = useMemo(() => decodeProfileId(profileJwt), [profileJwt]);
+
   const channelsRef = useRef<RealtimeChannel[]>([]);
 
   const t = {
@@ -74,18 +80,19 @@ export default function ReceiptRoomPage() {
     sub: '#6b7280',
   };
 
-  // Create an authed Supabase client using the profile JWT so RLS policies allow reads
+  // Authed Supabase client using the profile JWT from sessionStorage.
+  // Not tied to accessToken so anon session refreshes don't invalidate it.
   const authedClient = useMemo<SupabaseClient>(() => {
-    if (!accessToken) return supabase;
+    if (!profileJwt) return supabase;
     return createClient(
       import.meta.env.VITE_SUPABASE_URL as string,
       import.meta.env.VITE_SUPABASE_ANON_KEY as string,
       {
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        global: { headers: { Authorization: `Bearer ${profileJwt}` } },
         auth: { persistSession: false, autoRefreshToken: false },
       },
     );
-  }, [accessToken]);
+  }, [profileJwt]);
 
   // ---------------------------------------------------------------------------
   // Fetch
@@ -94,19 +101,12 @@ export default function ReceiptRoomPage() {
   const fetchAll = useCallback(async () => {
     if (!roomId) return;
 
-    const [itemsRes, membersRes] = await Promise.all([
+    const [itemsRes] = await Promise.all([
       authedClient
         .from('items')
         .select('id,name,amount,unit_price')
         .eq('group_id', roomId),
-      authedClient
-        .from('group_members')
-        .select('profile_id')
-        .eq('group_id', roomId),
     ]);
-
-    console.log('[ReceiptRoom] items:', itemsRes.data, itemsRes.error);
-    console.log('[ReceiptRoom] members:', membersRes.data, membersRes.error);
 
     const fetchedItems: Item[] = itemsRes.data ?? [];
     setItems(fetchedItems);
@@ -210,7 +210,8 @@ export default function ReceiptRoomPage() {
   // ---------------------------------------------------------------------------
 
   const toggleClaim = async (itemId: string) => {
-    if (!accessToken || !profileId || claimingId) return;
+    const jwt = profileJwt;
+    if (!jwt || !profileId || claimingId) return;
     const isClaimed = (claims[itemId] ?? []).includes(profileId);
     setClaimingId(itemId);
     try {
@@ -220,7 +221,7 @@ export default function ReceiptRoomPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${jwt}`,
           },
           body: JSON.stringify({ item_id: itemId }),
         },
