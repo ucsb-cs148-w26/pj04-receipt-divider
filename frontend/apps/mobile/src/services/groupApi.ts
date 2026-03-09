@@ -167,3 +167,24 @@ export async function unassignItem(
     body: JSON.stringify({ itemId, guestProfileId }),
   });
 }
+
+// ─── Home screen / summary endpoints ─────────────────────────────────────────
+
+export type PaidStatus = 'verified' | 'pending' | 'requested' | 'unrequested';
+
+export interface GroupSummary {
+  groupId: string;
+  name: string | null;
+  memberCount: number;
+  totalClaimed: number;
+  paidStatus: PaidStatus;
+}
+
+export interface GetMyGroupsResponse {
+  groups: GroupSummary[];
+}
+
+/** GET /group/my-groups — get all groups for the authenticated user with balances and paid_status */
+export async function getUserGroups(): Promise<GetMyGroupsResponse> {
+  return apiFetch<GetMyGroupsResponse>('/group/my-groups');
+}

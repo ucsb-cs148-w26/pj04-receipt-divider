@@ -12,7 +12,9 @@ from app.schemas.group import (
     CreateGuestProfileResponse,
     CreateInviteLinkResponse,
     DeleteReceiptRequest,
+    GetMyGroupsResponse,
     GetProfilesResponse,
+    GroupSummary,
     LoginAsRequest,
     LoginAsResponse,
 )
@@ -40,6 +42,26 @@ def create_group(
     user_id = auth_service.authenticate_registered_user()
     group = user_service.create_group(user_id, payload.group_name)
     return CreateGroupResponse(group_id=group.id)
+
+
+@router.get("/my-groups", response_model=GetMyGroupsResponse)
+def get_my_groups(
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_registered_user()
+    rows = user_service.get_groups_summary(profile_id)
+    summaries = [
+        GroupSummary(
+            group_id=row.id,
+            name=row.name,
+            member_count=row.member_count,
+            total_claimed=float(row.total_claimed),
+            paid_status=row.paid_status,
+        )
+        for row in rows
+    ]
+    return GetMyGroupsResponse(groups=summaries)
 
 
 @router.get("/create-invite", response_model=CreateInviteLinkResponse)

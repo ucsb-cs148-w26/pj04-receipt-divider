@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import HTTPException, status
 from supabase import Client as SupabaseClient
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy.dialects.postgresql import insert
 
@@ -92,6 +92,53 @@ class UserService:
         )
 
         return self.db.execute(stmt).scalars().all()
+
+    def get_groups_summary(self, profile_id: str):
+        """Return one row per group the user belongs to:
+        group id, name, member count, total claimed amount, and the user's paid_status.
+        """
+        # Subquery: member count per group
+        member_count_sq = (
+            select(
+                GroupMember.group_id,
+                func.count(GroupMember.profile_id).label("member_count"),
+            )
+            .group_by(GroupMember.group_id)
+            .subquery()
+        )
+
+        # Subquery: sum of items claimed by this user per group
+        claimed_sum_sq = (
+            select(
+                Item.group_id,
+                func.coalesce(func.sum(Item.unit_price * ItemClaim.share), 0.0).label(
+                    "total_claimed"
+                ),
+            )
+            .join(ItemClaim, ItemClaim.item_id == Item.id)
+            .where(ItemClaim.profile_id == profile_id)
+            .group_by(Item.group_id)
+            .subquery()
+        )
+
+        stmt = (
+            select(
+                Group.id,
+                Group.name,
+                member_count_sq.c.member_count,
+                func.coalesce(claimed_sum_sq.c.total_claimed, 0.0).label(
+                    "total_claimed"
+                ),
+                GroupMember.paid_status,
+            )
+            .join(GroupMember, GroupMember.group_id == Group.id)
+            .join(member_count_sq, member_count_sq.c.group_id == Group.id)
+            .outerjoin(claimed_sum_sq, claimed_sum_sq.c.group_id == Group.id)
+            .where(GroupMember.profile_id == profile_id)
+            .order_by(Group.id)
+        )
+
+        return self.db.execute(stmt).all()
 
     def remove_member(
         self, host_profile_id: str, group_id: str, member_profile_id: str

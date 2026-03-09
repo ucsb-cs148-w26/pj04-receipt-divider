@@ -1,4 +1,6 @@
 import uuid
+from typing import List, Optional
+from pydantic import BaseModel, Field
 from pydantic import Field
 
 from app.schemas.base import BaseRequest, BaseResponse
@@ -63,3 +65,15 @@ class ClaimItemRequest(BaseRequest):
 class AssignItemRequest(BaseRequest):
     item_id: uuid.UUID
     guest_profile_id: uuid.UUID
+
+
+class GroupSummary(BaseResponse):
+    group_id: uuid.UUID
+    name: Optional[str]
+    member_count: int
+    total_claimed: float
+    paid_status: str
+
+
+class GetMyGroupsResponse(BaseResponse):
+    groups: List[GroupSummary]
