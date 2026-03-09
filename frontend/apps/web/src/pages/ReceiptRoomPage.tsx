@@ -6,7 +6,6 @@ import React, {
   useState,
 } from 'react';
 import { useParams } from 'react-router';
-import { supabase } from '../services/supabase';
 import { createClient } from '@supabase/supabase-js';
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
@@ -82,9 +81,10 @@ export default function ReceiptRoomPage() {
 
   // Authed Supabase client using the profile JWT from sessionStorage.
   // Not tied to accessToken so anon session refreshes don't invalidate it.
+  // realtime.setAuth is required so the WebSocket connection also uses the
+  // profile JWT (global.headers only applies to HTTP requests).
   const authedClient = useMemo<SupabaseClient>(() => {
-    if (!profileJwt) return supabase;
-    return createClient(
+    const client = createClient(
       import.meta.env.VITE_SUPABASE_URL as string,
       import.meta.env.VITE_SUPABASE_ANON_KEY as string,
       {
@@ -92,6 +92,8 @@ export default function ReceiptRoomPage() {
         auth: { persistSession: false, autoRefreshToken: false },
       },
     );
+    client.realtime.setAuth(profileJwt);
+    return client;
   }, [profileJwt]);
 
   // ---------------------------------------------------------------------------
@@ -169,16 +171,16 @@ export default function ReceiptRoomPage() {
     if (!roomId) return;
     const filter = `group_id=eq.${roomId}`;
 
-    const itemsCh = supabase
+    const itemsCh = authedClient
       .channel(`items:${roomId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'items', filter },
+        { event: '*', schema: 'public', table: 'items' },
         () => void fetchAll(),
       )
       .subscribe();
 
-    const claimsCh = supabase
+    const claimsCh = authedClient
       .channel(`item_claims:${roomId}`)
       .on(
         'postgres_changes',
@@ -187,7 +189,7 @@ export default function ReceiptRoomPage() {
       )
       .subscribe();
 
-    const membersCh = supabase
+    const membersCh = authedClient
       .channel(`group_members:${roomId}`)
       .on(
         'postgres_changes',
@@ -201,9 +203,9 @@ export default function ReceiptRoomPage() {
 
     channelsRef.current = [itemsCh, claimsCh, membersCh];
     return () => {
-      channelsRef.current.forEach((ch) => void supabase.removeChannel(ch));
+      channelsRef.current.forEach((ch) => void authedClient.removeChannel(ch));
     };
-  }, [roomId, fetchAll, fetchParticipants]);
+  }, [roomId, fetchAll, fetchParticipants, authedClient]);
 
   // ---------------------------------------------------------------------------
   // Claim / Unclaim
@@ -223,7 +225,7 @@ export default function ReceiptRoomPage() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${jwt}`,
           },
-          body: JSON.stringify({ item_id: itemId }),
+          body: JSON.stringify({ itemId }),
         },
       );
       await fetchAll();
