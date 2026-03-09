@@ -1,8 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { ScrollView, Text, View, Pressable } from 'react-native';
+import {
+  Alert,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  Pressable,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button, IconButton } from '@eezy-receipt/shared';
 
 export type ReceiptDetailParams = {
   id: string;
@@ -112,13 +120,54 @@ export default function ReceiptDetailScreen() {
       ),
   );
 
-  const toggleCompleted = (personId: string) => {
+  const handleCheckboxPress = (person: {
+    id: string;
+    name: string;
+    status: PersonStatus;
+  }) => {
+    if (person.status === 'completed') {
+      Alert.alert(
+        'Already Verified',
+        `${person.name} has been marked as paid & verified. Do you want to undo this?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Unverify',
+            style: 'destructive',
+            onPress: () =>
+              setCompletedIds((prev) => {
+                const next = new Set(prev);
+                next.delete(person.id);
+                return next;
+              }),
+          },
+        ],
+      );
+      return;
+    }
+    if (person.status === 'pending') {
+      Alert.alert(
+        'Payment Not Yet Claimed',
+        `${person.name} hasn't submitted their claim yet. Do you want to verify them anyway?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Verify Anyway',
+            style: 'destructive',
+            onPress: () =>
+              setCompletedIds((prev) => new Set(prev).add(person.id)),
+          },
+        ],
+      );
+      return;
+    }
+    // status === 'waiting' — eligible to verify
     setCompletedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(personId)) {
-        next.delete(personId);
+      if (next.has(person.id)) {
+        next.delete(person.id);
       } else {
-        next.add(personId);
+        next.add(person.id);
       }
       return next;
     });
@@ -156,28 +205,55 @@ export default function ReceiptDetailScreen() {
   const displayAmount = amountNum >= 0 ? remainingAmount : -remainingAmount;
 
   const statusParts: string[] = [];
-  if (pendingCount > 0) statusParts.push(`${pendingCount} Requested & Unpaid`);
   if (waitingCount > 0)
     statusParts.push(`${waitingCount} Awaiting Verification`);
+  if (pendingCount > 0) statusParts.push(`${pendingCount} Requested & Unpaid`);
+
+  const [roomName, setRoomName] = useState(name ?? '');
+  const [editingName, setEditingName] = useState(false);
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
       {/* Header */}
       <View className='flex-row items-center px-5 pt-2 pb-3'>
-        <Pressable
+        <IconButton
+          icon='chevron-left'
+          bgClassName='bg-card shadow-md shadow-black/20'
+          iconClassName='text-accent-dark'
+          pressEffect='fade'
           onPress={() => router.back()}
-          hitSlop={8}
-          className='w-9 h-9 items-center justify-center rounded-full bg-card mr-2'
-        >
-          <MaterialCommunityIcons
-            name='chevron-left'
-            size={24}
-            className='text-accent-dark'
-          />
-        </Pressable>
-        <Text className='flex-1 text-center text-foreground text-xl font-bold'>
-          {name}
-        </Text>
+        />
+        <View className='flex-1 flex-row items-center justify-center gap-2 mx-2'>
+          {editingName ? (
+            <TextInput
+              value={roomName}
+              onChangeText={setRoomName}
+              autoFocus
+              returnKeyType='done'
+              onSubmitEditing={() => setEditingName(false)}
+              onBlur={() => setEditingName(false)}
+              className='text-foreground text-xl font-bold text-center border-b border-border flex-1'
+            />
+          ) : (
+            <Pressable
+              onPress={() => setEditingName(true)}
+              className='flex-row items-center gap-2'
+              accessibilityLabel='Edit room name'
+            >
+              <Text
+                className='text-foreground text-xl font-bold'
+                numberOfLines={1}
+              >
+                {roomName}
+              </Text>
+              <MaterialCommunityIcons
+                name='pencil-outline'
+                size={18}
+                className='text-muted-foreground'
+              />
+            </Pressable>
+          )}
+        </View>
         <View className='w-9' />
       </View>
 
@@ -189,14 +265,14 @@ export default function ReceiptDetailScreen() {
         {/* You Are Owed / You Owe card */}
         <View className='bg-card rounded-2xl p-5 mb-4'>
           <Text className='text-muted-foreground text-sm mb-1'>
-            {amountNum >= 0 ? 'You Are Owed' : 'You Owe'}
+            {displayAmount >= 0 ? 'You Are Owed' : 'You Owe'}
           </Text>
           <Text
             className={`text-3xl font-bold mb-3 ${
-              amountNum >= 0 ? 'text-amount-positive' : 'text-amount-negative'
+              displayAmount >= 0 ? 'text-amount-positive' : 'text-amount-negative'
             }`}
           >
-            ${Math.abs(displayAmount).toFixed(2)}
+            {displayAmount < 0 ? '-' : ''}${Math.abs(displayAmount).toFixed(2)}
           </Text>
 
           {/* Status summary row */}
@@ -252,7 +328,7 @@ export default function ReceiptDetailScreen() {
               <Pressable className='flex-row items-center px-4 py-3 active:opacity-70'>
                 {/* Checkbox */}
                 <Pressable
-                  onPress={() => toggleCompleted(person.id)}
+                  onPress={() => handleCheckboxPress(person)}
                   hitSlop={8}
                   className={`w-7 h-7 rounded-full border-2 items-center justify-center mr-3 ${
                     person.status === 'completed'
@@ -320,19 +396,21 @@ export default function ReceiptDetailScreen() {
         </View>
 
         {/* Go to Receipt Room */}
-        <Pressable
-          onPress={() =>
-            router.push({
-              pathname: '/receipt-room',
-              params: { roomId: id, items: '[]', participants: '[]' },
-            })
-          }
-          className='mt-4 bg-primary rounded-2xl flex-row items-center justify-center py-3.5 gap-2 active:opacity-70'
-        >
-          <Text className='text-white font-semibold text-base'>
+        {tab !== 'people' && (
+          <Button
+            variant='outlined'
+            size='large'
+            className='mt-12 rounded-2xl w-full'
+            onPress={() =>
+              router.push({
+                pathname: '/receipt-room',
+                params: { roomId: id, items: '[]', participants: '[]' },
+              })
+            }
+          >
             View Receipt Room
-          </Text>
-        </Pressable>
+          </Button>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

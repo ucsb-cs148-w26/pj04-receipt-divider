@@ -21,6 +21,7 @@ import {
 import { USER_COLORS } from '@shared/constants';
 import QRCode from 'react-native-qrcode-svg';
 import { randomUUID } from 'expo-crypto';
+import { useAuth } from '@/providers';
 
 interface User {
   id: number;
@@ -29,7 +30,16 @@ interface User {
 }
 
 export default function CreateRoomScreen() {
-  const [users, setUsers] = useState<User[]>([]);
+  const { user } = useAuth();
+  const hostName =
+    user?.user_metadata?.full_name ??
+    user?.user_metadata?.name ??
+    user?.email ??
+    'You (Host)';
+
+  const [users, setUsers] = useState<User[]>(() => [
+    { id: 1, name: hostName, source: 'link' },
+  ]);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
@@ -138,7 +148,12 @@ export default function CreateRoomScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 10, paddingVertical: 4 }}
+          contentContainerStyle={{
+            gap: 10,
+            paddingVertical: 4,
+            flexGrow: 1,
+            justifyContent: 'center',
+          }}
           style={{ height: 84 }}
         >
           {users.map((user) => (
@@ -203,13 +218,6 @@ export default function CreateRoomScreen() {
         <Pressable
           className='bg-primary rounded-2xl py-4 items-center active:opacity-80'
           onPress={() => {
-            if (photoUris.length === 0) {
-              Alert.alert(
-                'No Receipt Photo',
-                'Please add at least one receipt photo before creating a room.',
-              );
-              return;
-            }
             router.navigate({
               pathname: '/receipt-room',
               params: {

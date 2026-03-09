@@ -1,24 +1,37 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   Animated,
   Alert,
   LayoutRectangle,
   StyleSheet,
 } from 'react-native';
+
+// React Native provides setTimeout/clearTimeout globally; these casts satisfy TypeScript
+// when the project's lib config does not include DOM types.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const _setTimeout = (globalThis as any).setTimeout as (
+  ..._args: any[]
+) => number;
+const _clearTimeout = (globalThis as any).clearTimeout as (
+  ..._args: any[]
+) => void;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   Gesture,
   GestureDetector,
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { ReceiptItemData } from '@shared/types';
 import { UserTag } from '@shared/components/UserTag';
+import { ScrollableTextInput } from '@shared/components/ScrollableTextInput';
+import type { ScrollToInputContext } from '@shared/hooks/useScrollToInput';
 
 // Stable styles for TextInputs — prevents formatters from stripping inline objects
 // and ensures consistent cross-platform vertical alignment.
@@ -53,6 +66,8 @@ interface DragProps {
   isInParticipantBoundsProp?: boolean;
   /** Called when drag ends on a participant; if provided, this handles the claim instead of onUpdate */
   onDropOnParticipant?: (participantId: number) => void;
+  /** Called on every drag move with the current translation from origin */
+  onDragMove?: (translation: { x: number; y: number }) => void;
 }
 
 /** Internal drag state */
@@ -96,6 +111,14 @@ interface ReceiptItemProps extends DragProps {
   isSelected?: boolean;
   /** Called when item is tapped to toggle selection (non-edit mode) */
   onToggleSelect?: () => void;
+
+  /** Animated value driven by the parent (0 = claim mode, 1 = edit mode). When provided,
+   *  the parent starts the animation imperatively before the state update, eliminating
+   *  the 1-frame flash that occurs when using a local useEffect. */
+  editModeAnim?: Animated.Value;
+
+  /** Scroll context from useScrollToInput — enables scroll-to-focus on edit-mode inputs. */
+  scrollContext?: ScrollToInputContext;
 }
 
 export function ReceiptItem({
@@ -117,6 +140,7 @@ export function ReceiptItem({
   onParticipantBoundsChange,
   isInParticipantBoundsProp,
   onDropOnParticipant,
+  onDragMove,
   // Fresh data getter for overlay
   getCurrentItemData,
   // Text focus state
@@ -124,15 +148,67 @@ export function ReceiptItem({
   onTextFocusChange,
   // Mode
   isEditMode = true,
+  editModeAnim: editModeAnimProp,
   // Selection
   isSelected = false,
   onToggleSelect,
+  // Scroll-to-focus
+  scrollContext,
 }: ReceiptItemProps) {
   /** ---------------- UI State ---------------- */
   const [uiState, setUIState] = useState<UIState>({
     isHovering: false,
     newlyAddedTags: new Set(),
   });
+
+  /** ---------------- Tag enter/exit animation tracking ---------------- */
+  // Use derived-state-from-props pattern so entering/exiting are set on the
+  // *same* render that item.userTags changes, preventing the 1-frame flash
+  // where new tags appear at full scale or removed tags vanish instantly.
+  const [prevUserTags, setPrevUserTags] = useState(item.userTags);
+  const [enteringTagIds, setEnteringTagIds] = useState<Set<number>>(new Set());
+  const [exitingTagIds, setExitingTagIds] = useState<Set<number>>(new Set());
+
+  if (prevUserTags !== item.userTags) {
+    const prevSet = new Set(prevUserTags ?? []);
+    const currSet = new Set(item.userTags ?? []);
+    const added = [...currSet].filter((id) => !prevSet.has(id));
+    const removed = [...prevSet].filter((id) => !currSet.has(id));
+    // Calling setters during render triggers an immediate re-render before paint.
+    setPrevUserTags(item.userTags);
+    if (added.length > 0)
+      setEnteringTagIds((prev) => new Set([...prev, ...added]));
+    if (removed.length > 0)
+      setExitingTagIds((prev) => new Set([...prev, ...removed]));
+  }
+
+  // Clear entering tags after their pop-in animation completes.
+  useEffect(() => {
+    if (enteringTagIds.size === 0) return;
+    const ids = [...enteringTagIds];
+    const t = _setTimeout(() => {
+      setEnteringTagIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+    }, 500);
+    return () => _clearTimeout(t);
+  }, [enteringTagIds]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear exiting tags after their pop-out animation completes.
+  useEffect(() => {
+    if (exitingTagIds.size === 0) return;
+    const ids = [...exitingTagIds];
+    const t = _setTimeout(() => {
+      setExitingTagIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+    }, 350);
+    return () => _clearTimeout(t);
+  }, [exitingTagIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** ---------------- Drag State ---------------- */
   const [dragState, setDragState] = useState<DragState>({
@@ -148,18 +224,66 @@ export function ReceiptItem({
   panRef.current = pan;
   const viewRef = useRef<View>(null);
   const currentPositionRef = useRef({ x: 0, y: 0 });
+  const itemScale = useRef(new Animated.Value(1)).current;
+  // Use parent-provided animated value when available so the animation starts
+  // before the React render (eliminating the 1-frame blank flash on mode switch).
+  const localEditAnim = useRef(new Animated.Value(isEditMode ? 1 : 0)).current;
+  const editAnim = editModeAnimProp ?? localEditAnim;
+  const claimAnim = editAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
   const isAnyTextFocusedRef = useRef(isAnyTextFocused);
   isAnyTextFocusedRef.current = isAnyTextFocused;
 
+  /** ---------------- Selection animation ---------------- */
+  const selectAnim = useRef(new Animated.Value(isSelected ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(selectAnim, {
+      toValue: isSelected ? 1 : 0,
+      duration: 50,
+      useNativeDriver: true,
+    }).start();
+  }, [isSelected]); // eslint-disable-line react-hooks/exhaustive-deps
+  const deSelectAnim = selectAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+
+  /** ---------------- Pop all selected items when group drag starts/ends ---------------- */
+  useEffect(() => {
+    if (isDraggingProp) {
+      Animated.spring(itemScale, {
+        toValue: 1.07,
+        useNativeDriver: true,
+        tension: 200,
+        friction: 8,
+      }).start();
+    } else {
+      Animated.spring(itemScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 200,
+        friction: 10,
+      }).start();
+    }
+  }, [isDraggingProp]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /** ---------------- Computed Values ---------------- */
-  const sortedUserTags = item.userTags
-    ? [...item.userTags].sort((a, b) => a - b)
-    : [];
+  const sortedUserTags = useMemo(
+    () => (item.userTags ? [...item.userTags].sort((a, b) => a - b) : []),
+    [item.userTags],
+  );
+
+  const allDisplayTagIds = useMemo(() => {
+    const combined = new Set([...sortedUserTags, ...exitingTagIds]);
+    return [...combined].sort((a, b) => a - b);
+  }, [sortedUserTags, exitingTagIds]);
+
   const inParticipantBounds =
     isInParticipantBoundsProp !== undefined
       ? isInParticipantBoundsProp
       : dragState.isInParticipantBounds;
-  const isCurrentlyDragging = dragState.isDragging || isDraggingProp;
 
   /** ---------------- Collision Detection ---------------- */
   const checkParticipantCollision = useCallback(
@@ -206,14 +330,21 @@ export function ReceiptItem({
     (touchX: number, touchY: number) => {
       setDragState((prev) => ({ ...prev, isDragging: true }));
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Animated.spring(itemScale, {
+        toValue: 1.07,
+        useNativeDriver: true,
+        tension: 200,
+        friction: 8,
+      }).start();
       onDragStart?.(item.id, { x: touchX, y: touchY });
     },
-    [item.id, onDragStart],
+    [item.id, onDragStart, itemScale],
   );
 
   const handleDragChange = useCallback(
     (x: number, y: number, translationX: number, translationY: number) => {
       panRef.current.setValue({ x: translationX, y: translationY });
+      onDragMove?.({ x: translationX, y: translationY });
 
       currentPositionRef.current = { x, y };
       setDragState((prev) => ({ ...prev, currentPosition: { x, y } }));
@@ -223,7 +354,7 @@ export function ReceiptItem({
       setDragState((prev) => ({ ...prev, isInParticipantBounds: inBounds }));
       onParticipantBoundsChange?.(inBounds);
     },
-    [checkParticipantCollision, onParticipantBoundsChange],
+    [checkParticipantCollision, onParticipantBoundsChange, onDragMove],
   );
 
   const handleDragEnd = useCallback(() => {
@@ -261,30 +392,41 @@ export function ReceiptItem({
     });
     onDragEnd?.();
 
+    Animated.spring(itemScale, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 200,
+      friction: 10,
+    }).start();
+
     Animated.spring(panRef.current, {
       toValue: { x: 0, y: 0 },
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
 
     currentPositionRef.current = { x: 0, y: 0 };
-  }, [onDragEnd]);
+  }, [onDragEnd, itemScale]);
 
   /** ---------------- Pan Gesture ---------------- */
   const panGesture = useMemo(() => {
-    const base =
-      !isEditMode && isSelected
-        ? Gesture.Pan().minDistance(5)
-        : Gesture.Pan().activateAfterLongPress(250);
+    // In edit mode, disable drag entirely — enabled(false) lets scroll events
+    // pass through to the parent ScrollView instead of being consumed.
+    if (isEditMode) {
+      return Gesture.Pan().enabled(false);
+    }
+    const base = isSelected
+      ? Gesture.Pan().activateAfterLongPress(100)
+      : Gesture.Pan().activateAfterLongPress(250);
     return base
       .onStart((event) => {
         'worklet';
         if (isAnyTextFocusedRef.current) return;
-        handleDragStart(event.absoluteX, event.absoluteY);
+        runOnJS(handleDragStart)(event.absoluteX, event.absoluteY);
       })
       .onChange((event) => {
         'worklet';
         if (isAnyTextFocusedRef.current) return;
-        handleDragChange(
+        runOnJS(handleDragChange)(
           event.absoluteX,
           event.absoluteY,
           event.translationX,
@@ -293,13 +435,12 @@ export function ReceiptItem({
       })
       .onEnd(() => {
         'worklet';
-        handleDragEnd();
+        runOnJS(handleDragEnd)();
       })
       .onFinalize(() => {
         'worklet';
-        handleDragFinalize();
-      })
-      .runOnJS(true);
+        runOnJS(handleDragFinalize)();
+      });
   }, [
     isEditMode,
     isSelected,
@@ -312,7 +453,12 @@ export function ReceiptItem({
   /** ---------------- Input Handlers ---------------- */
   const handlePriceChange = (value: string) => {
     const numericValue = value.replace(/[^\d.]/g, '');
-    onUpdate?.({ price: numericValue });
+    const parsed = parseFloat(numericValue);
+    if (!isNaN(parsed) && parsed > 99999.99) {
+      onUpdate?.({ price: '99999.99' });
+    } else {
+      onUpdate?.({ price: numericValue });
+    }
   };
 
   /** ---------------- Delete with Warning ---------------- */
@@ -344,93 +490,10 @@ export function ReceiptItem({
 
   /** ---------------- Render ---------------- */
 
-  // Non-edit mode (claim mode) rendering
-  if (!isEditMode) {
-    return (
-      <GestureHandlerRootView>
-        <GestureDetector gesture={panGesture}>
-          <Animated.View
-            ref={viewRef}
-            style={[
-              isDraggingOverlay && {
-                minWidth: '100%',
-                position: 'absolute' as const,
-                zIndex: 9999,
-                elevation: 9999,
-                padding: 16,
-              },
-              isDraggingOverlay &&
-                initialPosition && {
-                  top: initialPosition.y,
-                  left: initialPosition.x,
-                },
-            ]}
-          >
-            {/* Wrapper: constant paddingBottom reserves space for the straddling tags */}
-            <View style={{ paddingBottom: 11 }}>
-              <Pressable
-                onPress={onToggleSelect}
-                className='w-full bg-card rounded-2xl p-4'
-              >
-                {/* Inset selection border */}
-                {isSelected && (
-                  <View
-                    className='absolute inset-0 rounded-2xl border-2 border-primary'
-                    pointerEvents='none'
-                  />
-                )}
-                <View className='flex-row items-center'>
-                  {/* Delete button */}
-                  <Pressable
-                    onPress={confirmDelete}
-                    className='w-10 h-10 items-center justify-center mr-3'
-                    accessibilityLabel='Delete item'
-                  >
-                    <Text className='text-destructive text-2xl font-bold'>
-                      ✕
-                    </Text>
-                  </Pressable>
-
-                  {/* Item name */}
-                  <Text
-                    className='text-foreground font-extrabold text-xl flex-1 mr-2'
-                    numberOfLines={1}
-                  >
-                    {item.name || 'Unnamed Item'}
-                  </Text>
-
-                  {/* Price */}
-                  <Text className='text-foreground font-extrabold text-xl'>
-                    ${item.price || '0.00'}
-                  </Text>
-                </View>
-              </Pressable>
-
-              {/* User tags: straddle the card bottom edge, with remove buttons */}
-              {sortedUserTags.length > 0 && (
-                <View
-                  style={{ position: 'absolute', bottom: 0, left: 52 }}
-                  className='flex-row flex-wrap gap-1'
-                >
-                  {sortedUserTags.map((userId) => (
-                    <UserTag
-                      key={userId}
-                      id={userId}
-                      onRemove={() => confirmRemoveTag(userId)}
-                      isNewlyAdded={false}
-                      isEditMode={true}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
-          </Animated.View>
-        </GestureDetector>
-      </GestureHandlerRootView>
-    );
-  }
-
-  // Edit mode rendering
+  // Single merged render: edit view is the always-visible base layer;
+  // claim view sits on top as an absolute overlay that fades in/out.
+  // This lets the incoming view already be visible beneath the outgoing
+  // one instead of both fading simultaneously.
   return (
     <GestureHandlerRootView>
       <GestureDetector gesture={panGesture}>
@@ -449,71 +512,135 @@ export function ReceiptItem({
                 top: initialPosition.y,
                 left: initialPosition.x,
               },
-            {
-              transform: isCurrentlyDragging ? pan.getTranslateTransform() : [],
-              zIndex: isCurrentlyDragging ? 9999 : 0,
-              elevation: isCurrentlyDragging ? 9999 : 0,
-            },
+            { transform: [{ scale: itemScale }] },
           ]}
         >
           {/* Wrapper: constant paddingBottom reserves space for the straddling tags */}
           <View style={{ paddingBottom: 11 }}>
-            <View className='w-full bg-card rounded-2xl p-4'>
-              <View className='flex-row items-center'>
-                {/* Delete button */}
-                <Pressable
-                  onPress={confirmDelete}
-                  className='w-10 h-10 items-center justify-center mr-3'
-                  accessibilityLabel='Delete item'
-                >
-                  <Text className='text-destructive text-2xl font-bold'>✕</Text>
-                </Pressable>
-
-                {/* Editable item name */}
-                <TextInput
-                  value={item.name}
-                  onChangeText={(text) => onUpdate({ name: text })}
-                  placeholder='Item name'
-                  className='text-muted-foreground font-extrabold text-xl flex-1 mr-2 placeholder:text-muted-foreground'
-                  style={inputStyles.name}
-                  numberOfLines={1}
-                  onFocus={() => onTextFocusChange?.(true)}
-                  onBlur={() => onTextFocusChange?.(false)}
-                />
-
-                {/* Editable price */}
+            {/* ── Base layer: Edit mode card (opacity 1, always underneath) ── */}
+            <View pointerEvents={isEditMode ? 'auto' : 'none'}>
+              <View className='w-full bg-card rounded-2xl p-4'>
                 <View className='flex-row items-center'>
-                  <Text className='text-foreground font-extrabold text-xl'>
-                    $
-                  </Text>
-                  <TextInput
-                    value={item.price}
-                    onChangeText={handlePriceChange}
-                    placeholder='0.00'
-                    className='text-foreground font-extrabold text-xl placeholder:text-muted-foreground'
-                    style={inputStyles.price}
-                    keyboardType='numeric'
+                  {/* Delete button */}
+                  <Pressable
+                    onPress={confirmDelete}
+                    className='w-10 h-10 items-center justify-center mr-3'
+                    accessibilityLabel='Delete item'
+                  >
+                    <Text className='text-destructive text-2xl font-bold'>
+                      ✕
+                    </Text>
+                  </Pressable>
+
+                  {/* Editable item name */}
+                  <ScrollableTextInput
+                    scrollContext={scrollContext}
+                    name='item-name'
+                    value={item.name}
+                    onChangeText={(text) => onUpdate({ name: text })}
+                    placeholder='Item name'
+                    className='text-muted-foreground font-extrabold text-xl flex-1 mr-2 placeholder:text-muted-foreground'
+                    style={inputStyles.name}
                     numberOfLines={1}
                     onFocus={() => onTextFocusChange?.(true)}
                     onBlur={() => onTextFocusChange?.(false)}
                   />
+
+                  {/* Editable price */}
+                  <View className='flex-row items-center'>
+                    <Text className='text-foreground font-extrabold text-xl'>
+                      $
+                    </Text>
+                    <ScrollableTextInput
+                      scrollContext={scrollContext}
+                      name='item-price'
+                      value={item.price}
+                      onChangeText={handlePriceChange}
+                      placeholder='0.00'
+                      className='text-foreground font-extrabold text-xl placeholder:text-muted-foreground'
+                      style={inputStyles.price}
+                      keyboardType='numeric'
+                      numberOfLines={1}
+                      onFocus={() => onTextFocusChange?.(true)}
+                      onBlur={() => onTextFocusChange?.(false)}
+                    />
+                  </View>
                 </View>
               </View>
             </View>
 
-            {/* User tags: straddle the card bottom edge (half in, half out) */}
-            {sortedUserTags.length > 0 && (
+            {/* ── Top layer: Claim mode card (fades out when entering edit, in when leaving) ── */}
+            <Animated.View
+              pointerEvents={isEditMode ? 'none' : 'auto'}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                opacity: claimAnim,
+              }}
+            >
+              <Pressable
+                onPress={onToggleSelect}
+                className='w-full bg-card rounded-2xl p-4'
+              >
+                {/* Inset selection border — fades in/out */}
+                <Animated.View
+                  className='absolute inset-0 rounded-2xl border-2 border-primary'
+                  style={{ opacity: selectAnim }}
+                  pointerEvents='none'
+                />
+                <View className='flex-row items-center'>
+                  {/* Selection indicator — crossfade between icons */}
+                  <View className='w-10 h-10 items-center justify-center mr-3'>
+                    <Animated.View
+                      style={{ position: 'absolute', opacity: selectAnim }}
+                    >
+                      <MaterialCommunityIcons
+                        name='dots-grid'
+                        size={26}
+                        color='#4999DF'
+                      />
+                    </Animated.View>
+                    <Animated.View style={{ opacity: deSelectAnim }}>
+                      <MaterialCommunityIcons
+                        name='circle-outline'
+                        size={26}
+                        color='#4999DF'
+                      />
+                    </Animated.View>
+                  </View>
+
+                  {/* Item name */}
+                  <Text
+                    className='text-foreground font-extrabold text-xl flex-1 mr-2'
+                    numberOfLines={1}
+                  >
+                    {item.name || 'Unnamed Item'}
+                  </Text>
+
+                  {/* Price */}
+                  <Text className='text-foreground font-extrabold text-xl'>
+                    ${item.price || '0.00'}
+                  </Text>
+                </View>
+              </Pressable>
+            </Animated.View>
+
+            {/* ── Shared user tags (animate their own edit/claim appearance) ── */}
+            {allDisplayTagIds.length > 0 && (
               <View
                 style={{ position: 'absolute', bottom: 0, left: 52 }}
                 className='flex-row flex-wrap gap-1'
               >
-                {sortedUserTags.map((userId) => (
+                {allDisplayTagIds.map((userId) => (
                   <UserTag
                     key={userId}
                     id={userId}
                     onRemove={() => confirmRemoveTag(userId)}
-                    isNewlyAdded={false}
-                    isEditMode={true}
+                    isEntering={enteringTagIds.has(userId)}
+                    isExiting={exitingTagIds.has(userId)}
+                    isEditMode={isEditMode}
                   />
                 ))}
               </View>

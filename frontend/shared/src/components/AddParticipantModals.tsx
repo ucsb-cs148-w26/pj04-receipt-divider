@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { USER_COLORS } from '../constants';
 
@@ -93,6 +93,12 @@ export type AddParticipantManualModalProps = {
   onAdd: (_name: string) => void;
   /** Optional list of already-added participants to display as tags. */
   addedParticipants?: { id: number; name: string }[];
+  /** Called when a participant tag is renamed. */
+  // eslint-disable-next-line no-unused-vars
+  onRenameParticipant?: (_id: number, _newName: string) => void;
+  /** Called when a participant tag is deleted. */
+  // eslint-disable-next-line no-unused-vars
+  onRemoveParticipant?: (_id: number) => void;
 };
 
 export function AddParticipantManualModal({
@@ -100,8 +106,16 @@ export function AddParticipantManualModal({
   onClose,
   onAdd,
   addedParticipants,
+  onRenameParticipant,
+  onRemoveParticipant,
 }: AddParticipantManualModalProps) {
   const [value, setValue] = useState('');
+  const valueRef = useRef(value);
+
+  const handleValueChange = (text: string) => {
+    valueRef.current = text;
+    setValue(text);
+  };
 
   // Clear input each time the modal opens
   useEffect(() => {
@@ -109,9 +123,44 @@ export function AddParticipantManualModal({
   }, [visible]);
 
   const handleAdd = () => {
-    if (!value.trim()) return;
-    onAdd(value.trim());
-    setValue(''); // clear input, keep modal open
+    const name = valueRef.current.trim();
+    if (!name) return;
+    if ((addedParticipants?.length ?? 0) >= 10) {
+      Alert.alert('Maximum Reached', 'You can only add up to 10 participants.');
+      return;
+    }
+    onAdd(name);
+    valueRef.current = '';
+    setValue('');
+  };
+
+  const handleSubmitEditing = () => {
+    handleAdd();
+  };
+
+  const handleParticipantPress = (p: { id: number; name: string }) => {
+    Alert.alert(p.name, undefined, [
+      {
+        text: 'Rename',
+        onPress: () => {
+          Alert.prompt(
+            'Rename Participant',
+            undefined,
+            (newName) => {
+              if (newName?.trim()) onRenameParticipant?.(p.id, newName.trim());
+            },
+            'plain-text',
+            p.name,
+          );
+        },
+      },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => onRemoveParticipant?.(p.id),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   return (
@@ -122,8 +171,8 @@ export function AddParticipantManualModal({
       onRequestClose={onClose}
     >
       <Pressable
-        className='flex-1 bg-black/50 justify-center items-center px-6'
-        onPress={onClose}
+        className='flex-1 bg-black/50 justify-end items-center px-6'
+        style={{ paddingBottom: 340 }}
       >
         <Pressable onPress={() => {}}>
           <View className='bg-card rounded-2xl p-6 w-80'>
@@ -135,38 +184,47 @@ export function AddParticipantManualModal({
               placeholder='Name'
               placeholderTextColor='var(--color-muted-foreground)'
               value={value}
-              onChangeText={setValue}
-              onSubmitEditing={handleAdd}
+              onChangeText={handleValueChange}
+              onSubmitEditing={handleSubmitEditing}
               returnKeyType='done'
+              autoCorrect={false}
               className='border border-border rounded-xl px-4 py-3 text-foreground mb-4'
               autoFocus
             />
 
             {addedParticipants && addedParticipants.length > 0 && (
-              <View className='flex-row flex-wrap gap-2 mb-4'>
+              <View className='flex-row flex-wrap items-center justify-center gap-2 mb-4'>
                 {addedParticipants.map((p) => (
-                  <View
+                  <Pressable
                     key={p.id}
-                    className={`px-3 py-1 rounded-full border-2 border-${USER_COLORS[(p.id - 1) % USER_COLORS.length]}`}
+                    onPress={() => handleParticipantPress(p)}
+                    className={`px-3 py-1 rounded-full border-2 border-${USER_COLORS[(p.id - 1) % USER_COLORS.length]} active:opacity-60`}
                   >
                     <Text className='text-foreground text-sm'>{p.name}</Text>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             )}
 
             <Pressable
-              className='bg-primary rounded-xl py-3 items-center active:opacity-80 mb-2'
-              onPress={handleAdd}
+              className={`rounded-xl py-3 items-center mb-2 ${
+                value.trim()
+                  ? 'bg-card border border-border active:opacity-80'
+                  : 'bg-card border border-border opacity-40'
+              }`}
+              onPress={handleSubmitEditing}
+              disabled={!value.trim()}
             >
-              <Text className='text-primary-foreground font-bold'>Add</Text>
+              <Text className='text-foreground font-bold'>Add</Text>
             </Pressable>
 
             <Pressable
-              className='bg-card border border-border rounded-xl py-3 items-center active:opacity-70'
+              className='bg-primary rounded-xl py-3 items-center active:opacity-70'
               onPress={onClose}
             >
-              <Text className='text-foreground font-medium'>Complete</Text>
+              <Text className='text-primary-foreground font-medium'>
+                Complete
+              </Text>
             </Pressable>
           </View>
         </Pressable>

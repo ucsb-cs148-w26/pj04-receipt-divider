@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/providers';
@@ -37,6 +37,25 @@ export default function HomeScreen() {
   const [showNewRoom, setShowNewRoom] = useState(false);
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const metaName =
+    (user?.user_metadata?.full_name as string | undefined) ?? user?.email;
+
+  // Mock DB profile fetch — replace with real API call when backend is ready
+  const [profileName, setProfileName] = useState<string>(metaName ?? '');
+  useEffect(() => {
+    if (metaName) {
+      setProfileName(metaName);
+      return;
+    }
+    // Simulate fetching display name from DB
+    const timeout = setTimeout(() => {
+      setProfileName('there'); // fallback until real DB call is wired up
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [metaName]);
+
+  const firstName = profileName.split(' ')[0] || 'there';
+
   const displayName =
     (user?.user_metadata?.full_name as string | undefined) ??
     user?.email ??
@@ -44,10 +63,18 @@ export default function HomeScreen() {
 
   const data = activeTab === 'groups' ? MOCK_GROUPS : MOCK_PEOPLE;
 
+  const allItems = [...MOCK_GROUPS, ...MOCK_PEOPLE];
+  const totalOwed = allItems
+    .filter((i) => i.amount > 0)
+    .reduce((sum, i) => sum + i.amount, 0);
+  const totalOwe = allItems
+    .filter((i) => i.amount < 0)
+    .reduce((sum, i) => sum + Math.abs(i.amount), 0);
+
   return (
     <SafeAreaView className='flex-1 bg-background'>
       {/* Header */}
-      <View className='flex-row items-center px-5 pt-2 pb-3'>
+      <View className='flex-row items-center px-5 pt-2 pb-6'>
         <View className='w-10 h-10 rounded-full overflow-hidden mr-3'>
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} className='w-full h-full' />
@@ -59,55 +86,57 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-        <Text className='flex-1 text-foreground text-2xl font-bold'>
-          Eezy Receipt
+        <Text
+          className='flex-1 text-foreground text-2xl font-bold mr-4'
+          numberOfLines={1}
+        >
+          Hi, {firstName}!
         </Text>
         <IconButton
-          icon='menu'
-          bgClassName='bg-transparent shadow-none'
+          icon='cog-outline'
           iconClassName='text-accent-dark'
           onPress={() => router.navigate('/setting')}
         />
       </View>
 
       <ScrollView
-        className='flex-1 px-5'
+        className='flex-1'
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* Finances */}
-        <Text className='text-foreground text-2xl font-bold mb-3'>
-          Finances
+        <Text className='text-foreground text-2xl font-bold mb-3 px-6'>
+          Overview
         </Text>
-        <View className='flex-row gap-3 mb-6'>
-          <View className='flex-1 bg-card rounded-2xl p-4'>
+        <View className='bg-card flex-row mb-10'>
+          <View className='flex-1 px-8 py-5 items-center'>
             <Text className='text-muted-foreground text-sm mb-1'>You Owe</Text>
             <Text className='text-amount-negative text-2xl font-bold'>
-              $64.91
+              -${totalOwe.toFixed(2)}
             </Text>
           </View>
-          <View className='flex-1 bg-card rounded-2xl p-4'>
+          <View className='flex-1 px-8 py-5 items-center'>
             <Text className='text-muted-foreground text-sm mb-1'>
               You Are Owed
             </Text>
             <Text className='text-amount-positive text-2xl font-bold'>
-              $105.62
+              +${totalOwed.toFixed(2)}
             </Text>
           </View>
         </View>
 
         {/* History header + toggle */}
-        <View className='flex-row items-center justify-between mb-3'>
+        <View className='flex-row items-center justify-between mb-3 px-6'>
           <Text className='text-foreground text-2xl font-bold'>History</Text>
-          <View className='flex-row border border-border rounded-full overflow-hidden'>
+          <View className='flex-row bg-surface rounded-full p-1'>
             <Pressable
               onPress={() => setActiveTab('groups')}
-              className={`px-4 py-1.5 ${activeTab === 'groups' ? 'bg-card' : ''}`}
+              className={`px-4 py-1.5 rounded-full ${activeTab === 'groups' ? 'bg-accent-dark' : ''}`}
             >
               <Text
-                className={`text-sm font-medium ${
+                className={`text-sm font-bold ${
                   activeTab === 'groups'
-                    ? 'text-foreground'
+                    ? 'text-white'
                     : 'text-muted-foreground'
                 }`}
               >
@@ -116,12 +145,12 @@ export default function HomeScreen() {
             </Pressable>
             <Pressable
               onPress={() => setActiveTab('people')}
-              className={`px-4 py-1.5 ${activeTab === 'people' ? 'bg-card' : ''}`}
+              className={`px-4 py-1.5 rounded-full ${activeTab === 'people' ? 'bg-accent-dark' : ''}`}
             >
               <Text
-                className={`text-sm font-medium ${
+                className={`text-sm font-bold ${
                   activeTab === 'people'
-                    ? 'text-foreground'
+                    ? 'text-white'
                     : 'text-muted-foreground'
                 }`}
               >
@@ -132,12 +161,12 @@ export default function HomeScreen() {
         </View>
 
         {/* History list */}
-        <View className='bg-card rounded-2xl overflow-hidden'>
+        <View className='bg-card overflow-hidden'>
           {data.map((item, index) => (
             <View key={item.id}>
-              {index > 0 && <View className='h-px bg-border mx-4' />}
+              {index > 0 && <View className='h-px bg-border mx-10' />}
               <Pressable
-                className='flex-row items-center px-4 py-3 active:opacity-70'
+                className='flex-row items-center px-10 py-3 active:opacity-70'
                 onPress={() =>
                   router.navigate({
                     pathname: '/receipt-detail',
@@ -173,10 +202,10 @@ export default function HomeScreen() {
                         : 'text-amount-negative'
                   }`}
                 >
-                  {item.amount >= 0 ? '+' : ''}$
+                  {item.amount >= 0 ? '+' : '-'}$
                   {Math.abs(item.amount).toFixed(2)}
                 </Text>
-                <View pointerEvents='none'>
+                <View pointerEvents='none' className='-mr-3'>
                   <IconButton
                     icon='chevron-right'
                     bgClassName='bg-transparent shadow-none'
@@ -193,7 +222,8 @@ export default function HomeScreen() {
       <View className='absolute bottom-10 right-6'>
         <IconButton
           icon='plus'
-          bgClassName='bg-card shadow-lg shadow-black/30'
+          bgClassName='shadow-lg shadow-black/30'
+          iconClassName='text-accent-dark'
           pressEffect='scale'
           onPress={() => setShowNewRoom(true)}
         />
@@ -214,7 +244,7 @@ export default function HomeScreen() {
             <Pressable onPress={() => {}}>
               <View className='bg-card rounded-2xl shadow-xl shadow-black/40 w-52 overflow-hidden'>
                 {/* Header */}
-                <View className='flex-row items-center justify-between px-4 pt-4 pb-3'>
+                <View className='flex-row items-center justify-between px-4 pt-2 pb-1'>
                   <Text className='text-foreground text-lg font-bold'>
                     New Room
                   </Text>
@@ -230,7 +260,7 @@ export default function HomeScreen() {
 
                 {/* Create Room */}
                 <Pressable
-                  className='flex-row items-center gap-3 px-4 py-4 active:opacity-70'
+                  className='flex-row items-center gap-3 px-4 py-2 active:opacity-70'
                   onPress={() => {
                     setShowNewRoom(false);
                     router.navigate('/create-room');
@@ -238,7 +268,7 @@ export default function HomeScreen() {
                 >
                   <View pointerEvents='none'>
                     <IconButton
-                      icon='checkbox-outline'
+                      icon='home-plus-outline'
                       bgClassName='bg-transparent shadow-none'
                       iconClassName='text-accent-dark'
                     />
@@ -250,15 +280,15 @@ export default function HomeScreen() {
 
                 {/* Join Room */}
                 <Pressable
-                  className='flex-row items-center gap-3 px-4 py-4 active:opacity-70'
+                  className='flex-row items-center gap-3 px-4 py-2 active:opacity-70'
                   onPress={() => {
                     setShowNewRoom(false);
-                    router.navigate('/qr');
+                    router.navigate('/join-room' as never);
                   }}
                 >
                   <View pointerEvents='none'>
                     <IconButton
-                      icon='export-variant'
+                      icon='login'
                       bgClassName='bg-transparent shadow-none'
                       iconClassName='text-accent-dark'
                     />

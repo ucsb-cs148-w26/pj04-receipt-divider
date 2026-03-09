@@ -1,6 +1,13 @@
 import { USER_COLORS } from '@shared/constants';
-import { useRef } from 'react';
-import { View, Text, LayoutRectangle, Pressable, Alert } from 'react-native';
+import { useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  LayoutRectangle,
+  Pressable,
+  Alert,
+  Animated,
+} from 'react-native';
 
 interface ParticipantsProps {
   id: number;
@@ -25,6 +32,19 @@ export function Participant({
 }: ParticipantsProps) {
   const ref = useRef<View>(null);
   const displayName = name || `Name ${id}`;
+  const editAnim = useRef(new Animated.Value(isEditMode ? 1 : 0)).current;
+  const claimOpacity = editAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+
+  useEffect(() => {
+    Animated.timing(editAnim, {
+      toValue: isEditMode ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [isEditMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const confirmRemove = () => {
     Alert.alert(
@@ -46,45 +66,46 @@ export function Participant({
         });
       }}
       className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
-      style={{ width: 160 }}
+      style={{ width: 160, height: 100 }}
       onPress={goToYourItemsPage}
     >
       {/* Colored top strip */}
       <View
-        className={`h-2 bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`}
+        className={`h-3 bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`}
       />
 
-      <View className='px-3 py-3'>
+      <View className='px-3 py-3 flex-1 justify-between'>
         <View className='flex-row items-center gap-3'>
-          {/* User ID circle or delete button in edit mode */}
-          {isEditMode ? (
-            <Pressable
-              className={`w-9 h-9 rounded-full items-center justify-center bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} active:opacity-70`}
-              onPress={confirmRemove}
-              accessibilityLabel='Remove participant'
-              hitSlop={{ top: 10, bottom: 10, right: 10, left: 10 }}
-            >
+          {/* User ID circle — cross-fades ✕ (edit) ↔ number (claim) */}
+          <Pressable
+            className={`w-9 h-9 rounded-full items-center justify-center bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} ${isEditMode ? 'active:opacity-70' : ''}`}
+            onPress={isEditMode ? confirmRemove : undefined}
+            accessibilityLabel={isEditMode ? 'Remove participant' : undefined}
+            hitSlop={
+              isEditMode
+                ? { top: 10, bottom: 10, right: 10, left: 10 }
+                : undefined
+            }
+          >
+            <Animated.View style={{ position: 'absolute', opacity: editAnim }}>
               <Text className='text-white text-sm font-bold'>✕</Text>
-            </Pressable>
-          ) : (
-            <View
-              className={`w-9 h-9 rounded-full items-center justify-center bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`}
-            >
+            </Animated.View>
+            <Animated.View style={{ opacity: claimOpacity }}>
               <Text className='text-white text-sm font-bold'>{id}</Text>
-            </View>
-          )}
+            </Animated.View>
+          </Pressable>
 
           {/* Name */}
           <Text
             className='text-foreground font-bold text-sm flex-1'
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {displayName}
           </Text>
         </View>
 
         {/* Item count and total */}
-        <View className='flex-row items-center justify-between mt-2'>
+        <View className='flex-row items-center justify-between'>
           <Text className='text-muted-foreground text-xs'>
             {itemCount} {itemCount === 1 ? 'item' : 'items'} · ${totalAmount}
           </Text>
