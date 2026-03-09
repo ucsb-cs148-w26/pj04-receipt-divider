@@ -1,5 +1,5 @@
 import uuid
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from app.schemas.base import BaseRequest, BaseResponse
 
@@ -20,8 +20,13 @@ class CreateInviteLinkResponse(BaseResponse):
     url: str
 
 
+class ProfileIdWithAccentColor(BaseModel):
+    profile_id: uuid.UUID
+    accent_color: str
+
+
 class GetProfilesResponse(BaseResponse):
-    profiles_id: list[uuid.UUID]
+    profiles: list[ProfileIdWithAccentColor]
 
 
 class CreateGuestProfileRequest(BaseRequest):
@@ -40,3 +45,20 @@ class LoginAsRequest(BaseRequest):
 
 class LoginAsResponse(BaseResponse):
     access_token: str
+
+
+class AddReceiptRequest(BaseRequest):
+    group_id: uuid.UUID
+
+
+class AddReceiptResponse(BaseResponse):
+    receipt_id: uuid.UUID
+
+
+class ClaimItemRequest(BaseRequest):
+    item_id: uuid.UUID
+
+
+class AssignItemRequest(BaseRequest):
+    item_id: uuid.UUID
+    guest_profile_id: uuid.UUID
