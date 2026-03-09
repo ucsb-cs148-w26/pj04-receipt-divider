@@ -1,9 +1,8 @@
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Alert,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -12,10 +11,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconButton } from '@eezy-receipt/shared';
+import {
+  IconButton,
+  ReceiptPhotoPicker,
+  sendRoomInviteSMS,
+} from '@eezy-receipt/shared';
 import { USER_COLORS } from '@shared/constants';
-import * as ImagePicker from 'expo-image-picker';
-import * as SMS from 'expo-sms';
+import QRCode from 'react-native-qrcode-svg';
+import { randomUUID } from 'expo-crypto';
 
 interface User {
   id: number;
@@ -28,12 +31,15 @@ export default function CreateRoomScreen() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [newUserName, setNewUserName] = useState('');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [editUserName, setEditUserName] = useState('');
 
-  const [roomId] = useState(() => Math.random().toString(36).substring(2, 9));
+  //FIXME: MOCK ROOMID, SHOULD BE TAKEN FROM THE BACKEND
+  const [roomId] = useState(() => randomUUID());
+  const [showQRModal, setShowQRModal] = useState(false);
+  const qrData = `http://localhost:5173/join?roomId=${roomId}`;
+  const qrRef = useRef<QRCode>(null);
 
   const addUser = () => {
     if (!newUserName.trim()) return;
@@ -45,45 +51,12 @@ export default function CreateRoomScreen() {
     setShowAddUser(false);
   };
 
-  const handlePickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 1,
-    });
-    if (!result.canceled) {
-      setPhotoUri(result.assets[0].uri);
-    }
-    setShowPhotoOptions(false);
-  };
-
-  const handleTakePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 1,
-    });
-    if (!result.canceled) {
-      setPhotoUri(result.assets[0].uri);
-    }
-    setShowPhotoOptions(false);
-  };
-
   const handleShareSMS = async () => {
-    setShowAddOptions(false);
     try {
-      const isAvailable = await SMS.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert(
-          'SMS not available',
-          'SMS is not available on this device.',
-        );
-        return;
+      const result = await sendRoomInviteSMS(roomId);
+      if (result === 'sent') {
+        setShowAddOptions(false);
       }
-      const message = `Join my Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nOr tap this link to join: https://example.com/join?roomId=${roomId}`;
-      await SMS.sendSMSAsync([], message);
     } catch (error) {
       console.error('SMS error:', error);
     }
@@ -91,11 +64,10 @@ export default function CreateRoomScreen() {
 
   const handleShowQR = () => {
     setShowAddOptions(false);
-    router.push(`/qr?roomId=${roomId}`);
+    setShowQRModal(true);
   };
 
   const handleAddManually = () => {
-    setShowAddOptions(false);
     Alert.alert(
       'Manual Participant',
       "Adding a participant manually means they won't be linked to a real user account. When someone joins the room via link or QR code, they won't be able to claim this participant as themselves.",
@@ -103,7 +75,10 @@ export default function CreateRoomScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Add Anyway',
-          onPress: () => setShowAddUser(true),
+          onPress: () => {
+            setShowAddOptions(false);
+            setShowAddUser(true);
+          },
         },
       ],
     );
@@ -146,46 +121,15 @@ export default function CreateRoomScreen() {
       <View className='flex-1 px-5 mt-3'>
         <Text className='text-foreground text-2xl font-bold mb-3'>Receipt</Text>
 
-        {/* Photo card — flex-1 so it fills available space */}
-        <View className='bg-card rounded-2xl flex-1 relative overflow-hidden'>
-          <Pressable
-            className='absolute top-4 right-4 z-10'
-            hitSlop={8}
-            onPress={() => setShowPhotoOptions(true)}
-          >
-            <MaterialCommunityIcons
-              name='dots-horizontal'
-              size={22}
-              color='var(--color-accent-dark)'
-            />
-          </Pressable>
-          {photoUri ? (
-            <Pressable
-              className='flex-1'
-              onPress={() => setShowPhotoOptions(true)}
-            >
-              <Image
-                source={{ uri: photoUri }}
-                className='w-full h-full'
-                resizeMode='cover'
-              />
-            </Pressable>
-          ) : (
-            <Pressable
-              className='flex-1 items-center justify-center'
-              onPress={() => setShowPhotoOptions(true)}
-            >
-              <MaterialCommunityIcons
-                name='image-outline'
-                size={60}
-                color='var(--color-accent-dark)'
-              />
-              <Text className='text-accent-dark mt-3 text-base'>
-                add or take photo
-              </Text>
-            </Pressable>
-          )}
-        </View>
+        {/* Photo picker — flex-1 so it fills available space */}
+        <ReceiptPhotoPicker
+          photoUris={photoUris}
+          onPhotoAdded={(uri) => setPhotoUris((prev) => [...prev, uri])}
+          onPhotoRemoved={(uri) =>
+            setPhotoUris((prev) => prev.filter((u) => u !== uri))
+          }
+          className='flex-1'
+        />
       </View>
 
       {/* Users section — pinned above Create Room button */}
@@ -197,6 +141,7 @@ export default function CreateRoomScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 10, paddingVertical: 4 }}
+          style={{ height: 84 }}
         >
           {users.map((user) => (
             <Pressable
@@ -275,81 +220,6 @@ export default function CreateRoomScreen() {
           </Text>
         </Pressable>
       </View>
-
-      {/* Photo Options Modal */}
-      <Modal
-        transparent
-        animationType='fade'
-        visible={showPhotoOptions}
-        onRequestClose={() => setShowPhotoOptions(false)}
-      >
-        <Pressable
-          className='flex-1 bg-black/50 justify-end'
-          onPress={() => setShowPhotoOptions(false)}
-        >
-          <Pressable onPress={() => {}}>
-            <View className='bg-card rounded-t-2xl p-6'>
-              <Text className='text-foreground text-xl font-bold mb-4'>
-                Receipt Photo
-              </Text>
-              <Pressable
-                className='flex-row items-center gap-4 py-3 active:opacity-70'
-                onPress={handleTakePhoto}
-              >
-                <MaterialCommunityIcons
-                  name='camera'
-                  size={24}
-                  color='#4999DF'
-                />
-                <Text className='text-foreground text-base'>Take Photo</Text>
-              </Pressable>
-              <View className='h-px bg-border my-1' />
-              <Pressable
-                className='flex-row items-center gap-4 py-3 active:opacity-70'
-                onPress={handlePickImage}
-              >
-                <MaterialCommunityIcons
-                  name='image'
-                  size={24}
-                  color='#4999DF'
-                />
-                <Text className='text-foreground text-base'>
-                  Choose from Library
-                </Text>
-              </Pressable>
-              {photoUri && (
-                <>
-                  <View className='h-px bg-border my-1' />
-                  <Pressable
-                    className='flex-row items-center gap-4 py-3 active:opacity-70'
-                    onPress={() => {
-                      setPhotoUri(null);
-                      setShowPhotoOptions(false);
-                    }}
-                  >
-                    <MaterialCommunityIcons
-                      name='delete'
-                      size={24}
-                      color='#ef4444'
-                    />
-                    <Text className='text-destructive text-base'>
-                      Remove Photo
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-              <Pressable
-                className='mt-3 py-3 items-center active:opacity-70'
-                onPress={() => setShowPhotoOptions(false)}
-              >
-                <Text className='text-accent-dark text-base font-medium'>
-                  Cancel
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       {/* Add User Options Modal */}
       <Modal
@@ -521,6 +391,49 @@ export default function CreateRoomScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* QR Code Modal */}
+      <Modal
+        transparent={false}
+        animationType='slide'
+        visible={showQRModal}
+        onRequestClose={() => {
+          setShowQRModal(false);
+          setShowAddOptions(true);
+        }}
+      >
+        <SafeAreaView className='flex-1 bg-background'>
+          <View className='flex-1 items-center justify-center gap-8 px-6'>
+            <Text className='text-foreground text-2xl font-bold'>
+              Room QR Code
+            </Text>
+            <QRCode
+              ref={qrRef}
+              value={qrData}
+              size={220}
+              backgroundColor='white'
+              color='black'
+              getRef={(c) => (qrRef.current = c)}
+            />
+            <Text className='text-muted-foreground text-sm'>
+              Room ID: {roomId}
+            </Text>
+          </View>
+          <View className='px-5 pb-8'>
+            <Pressable
+              className='py-3 items-center active:opacity-70'
+              onPress={() => {
+                setShowQRModal(false);
+                setShowAddOptions(true);
+              }}
+            >
+              <Text className='text-accent-dark text-base font-medium'>
+                Close
+              </Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );

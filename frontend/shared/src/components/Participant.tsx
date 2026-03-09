@@ -56,12 +56,23 @@ export function Participant({
 
       <View className='px-3 py-3'>
         <View className='flex-row items-center gap-3'>
-          {/* User ID circle */}
-          <View
-            className={`w-9 h-9 rounded-full items-center justify-center bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`}
-          >
-            <Text className='text-white text-sm font-bold'>{id}</Text>
-          </View>
+          {/* User ID circle or delete button in edit mode */}
+          {isEditMode ? (
+            <Pressable
+              className={`w-9 h-9 rounded-full items-center justify-center bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} active:opacity-70`}
+              onPress={confirmRemove}
+              accessibilityLabel='Remove participant'
+              hitSlop={{ top: 10, bottom: 10, right: 10, left: 10 }}
+            >
+              <Text className='text-white text-sm font-bold'>✕</Text>
+            </Pressable>
+          ) : (
+            <View
+              className={`w-9 h-9 rounded-full items-center justify-center bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`}
+            >
+              <Text className='text-white text-sm font-bold'>{id}</Text>
+            </View>
+          )}
 
           {/* Name */}
           <Text
@@ -80,17 +91,6 @@ export function Participant({
           <Text className='text-muted-foreground text-base'>›</Text>
         </View>
       </View>
-
-      {/* Remove button - only in edit mode */}
-      {isEditMode && (
-        <Pressable
-          className='absolute top-1 right-1 bg-destructive w-5 h-5 rounded-full items-center justify-center z-10'
-          onPress={confirmRemove}
-          hitSlop={{ top: 10, bottom: 10, right: 10, left: 10 }}
-        >
-          <Text className='text-white text-xs font-bold'>✕</Text>
-        </Pressable>
-      )}
     </Pressable>
   );
 }

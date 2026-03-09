@@ -1,12 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef } from 'react';
 import { View, Text, Alert } from 'react-native';
-import { Button, DefaultButtons } from '@eezy-receipt/shared';
+import {
+  Button,
+  DefaultButtons,
+  sendRoomInviteSMS,
+  sendSMS,
+} from '@eezy-receipt/shared';
 import { useReceiptItems } from '@/providers';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import * as SMS from 'expo-sms';
 
 export default function QRScreen() {
   // Receive room ID from Receipt_Room_Page
@@ -60,8 +64,7 @@ export default function QRScreen() {
     //TODO: GET THE ACTUAL JOIN LINK INSTEAD OF THE PLACEHOLDER
     //ALSO MAYBE REMOVE ROOM ID IF WE DON'T NEED IT
 
-    const message = `Join my Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nOr tap this link to join: https://example.com/`;
-    handleShareSMS(message);
+    sendRoomInviteSMS(roomId);
   }
 
   function handleShareSubtotals() {
@@ -107,17 +110,12 @@ export default function QRScreen() {
     }, 0);
 
     const message = `Subtotals:\n\n${lines.join('\n\n')}\n\n---------------\nTotal: $${grandTotal.toFixed(2)}`;
-    handleShareSMS(message);
+    handleShareSubtotalSMS(message);
   }
 
-  async function handleShareSMS(message: string) {
+  async function handleShareSubtotalSMS(message: string) {
     try {
-      const isAvailable = await SMS.isAvailableAsync();
-      if (!isAvailable) {
-        console.log('SMS is not available');
-        return;
-      }
-      await SMS.sendSMSAsync([], message);
+      await sendSMS(message);
     } catch (error) {
       console.error('SMS error:', error);
     }

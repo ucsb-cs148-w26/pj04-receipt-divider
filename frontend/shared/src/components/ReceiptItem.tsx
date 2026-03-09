@@ -3,20 +3,38 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   Pressable,
   Animated,
   Alert,
   LayoutRectangle,
+  StyleSheet,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   Gesture,
   GestureDetector,
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 
 import { ReceiptItemData } from '@shared/types';
 import { UserTag } from '@shared/components/UserTag';
+
+// Stable styles for TextInputs — prevents formatters from stripping inline objects
+// and ensures consistent cross-platform vertical alignment.
+const inputStyles = StyleSheet.create({
+  name: {
+    padding: 0,
+    includeFontPadding: false,
+    lineHeight: 20, // matches font-size of text-xl, prevents extra height
+  },
+  price: {
+    padding: 0,
+    minWidth: 20,
+    includeFontPadding: false,
+    lineHeight: 20,
+  },
+});
 
 /** Drag-related props grouped together */
 interface DragProps {
@@ -33,6 +51,8 @@ interface DragProps {
   initialPosition?: { x: number; y: number };
   onParticipantBoundsChange?: (isInBounds: boolean) => void;
   isInParticipantBoundsProp?: boolean;
+  /** Called when drag ends on a participant; if provided, this handles the claim instead of onUpdate */
+  onDropOnParticipant?: (participantId: number) => void;
 }
 
 /** Internal drag state */
@@ -44,7 +64,6 @@ interface DragState {
 
 /** Internal UI state */
 interface UIState {
-  showDiscount: boolean;
   isHovering: boolean;
   newlyAddedTags: Set<number>;
 }
@@ -97,6 +116,7 @@ export function ReceiptItem({
   initialPosition,
   onParticipantBoundsChange,
   isInParticipantBoundsProp,
+  onDropOnParticipant,
   // Fresh data getter for overlay
   getCurrentItemData,
   // Text focus state
@@ -110,7 +130,6 @@ export function ReceiptItem({
 }: ReceiptItemProps) {
   /** ---------------- UI State ---------------- */
   const [uiState, setUIState] = useState<UIState>({
-    showDiscount: !!item.discount && parseFloat(item.discount) > 0,
     isHovering: false,
     newlyAddedTags: new Set(),
   });
@@ -183,14 +202,14 @@ export function ReceiptItem({
   );
 
   /** ---------------- Worklet-safe handlers ---------------- */
-  const handleDragStart = useCallback(() => {
-    setDragState((prev) => ({ ...prev, isDragging: true }));
-    if (viewRef.current) {
-      viewRef.current.measureInWindow((x, y, width, height) => {
-        onDragStart?.(item.id, { x, y });
-      });
-    }
-  }, [item.id, onDragStart]);
+  const handleDragStart = useCallback(
+    (touchX: number, touchY: number) => {
+      setDragState((prev) => ({ ...prev, isDragging: true }));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      onDragStart?.(item.id, { x: touchX, y: touchY });
+    },
+    [item.id, onDragStart],
+  );
 
   const handleDragChange = useCallback(
     (x: number, y: number, translationX: number, translationY: number) => {
@@ -213,14 +232,26 @@ export function ReceiptItem({
       currentPositionRef.current.y,
     );
     if (participantId !== null) {
-      const currentItem = getCurrentItemData ? getCurrentItemData() : item;
-      const updatedTags = currentItem.userTags ? [...currentItem.userTags] : [];
-      if (!updatedTags.includes(participantId)) {
-        updatedTags.push(participantId);
-        onUpdate({ userTags: updatedTags });
+      if (onDropOnParticipant) {
+        onDropOnParticipant(participantId);
+      } else {
+        const currentItem = getCurrentItemData ? getCurrentItemData() : item;
+        const updatedTags = currentItem.userTags
+          ? [...currentItem.userTags]
+          : [];
+        if (!updatedTags.includes(participantId)) {
+          updatedTags.push(participantId);
+          onUpdate({ userTags: updatedTags });
+        }
       }
     }
-  }, [checkParticipantCollision, getCurrentItemData, item, onUpdate]);
+  }, [
+    checkParticipantCollision,
+    getCurrentItemData,
+    item,
+    onUpdate,
+    onDropOnParticipant,
+  ]);
 
   const handleDragFinalize = useCallback(() => {
     setDragState({
@@ -239,58 +270,49 @@ export function ReceiptItem({
   }, [onDragEnd]);
 
   /** ---------------- Pan Gesture ---------------- */
-  const panGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .activateAfterLongPress(250)
-        .onStart(() => {
-          'worklet';
-          if (isAnyTextFocusedRef.current) return;
-          handleDragStart();
-        })
-        .onChange((event) => {
-          'worklet';
-          if (isAnyTextFocusedRef.current) return;
-          handleDragChange(
-            event.absoluteX,
-            event.absoluteY,
-            event.translationX,
-            event.translationY,
-          );
-        })
-        .onEnd(() => {
-          'worklet';
-          handleDragEnd();
-        })
-        .onFinalize(() => {
-          'worklet';
-          handleDragFinalize();
-        })
-        .runOnJS(true),
-    [handleDragStart, handleDragChange, handleDragEnd, handleDragFinalize],
-  );
+  const panGesture = useMemo(() => {
+    const base =
+      !isEditMode && isSelected
+        ? Gesture.Pan().minDistance(5)
+        : Gesture.Pan().activateAfterLongPress(250);
+    return base
+      .onStart((event) => {
+        'worklet';
+        if (isAnyTextFocusedRef.current) return;
+        handleDragStart(event.absoluteX, event.absoluteY);
+      })
+      .onChange((event) => {
+        'worklet';
+        if (isAnyTextFocusedRef.current) return;
+        handleDragChange(
+          event.absoluteX,
+          event.absoluteY,
+          event.translationX,
+          event.translationY,
+        );
+      })
+      .onEnd(() => {
+        'worklet';
+        handleDragEnd();
+      })
+      .onFinalize(() => {
+        'worklet';
+        handleDragFinalize();
+      })
+      .runOnJS(true);
+  }, [
+    isEditMode,
+    isSelected,
+    handleDragStart,
+    handleDragChange,
+    handleDragEnd,
+    handleDragFinalize,
+  ]);
 
   /** ---------------- Input Handlers ---------------- */
   const handlePriceChange = (value: string) => {
     const numericValue = value.replace(/[^\d.]/g, '');
     onUpdate?.({ price: numericValue });
-  };
-
-  const handleDiscountChange = (value: string) => {
-    const numericValue = value.replace(/[^\d.]/g, '');
-    onUpdate?.({ discount: numericValue });
-  };
-
-  const handleDiscountBlur = () => {
-    const discountValue = parseFloat(item.discount || '0');
-    if (discountValue <= 0 || !item.discount) {
-      setUIState((prev) => ({ ...prev, showDiscount: false }));
-      onUpdate?.({ discount: undefined });
-    }
-  };
-
-  const setShowDiscount = (show: boolean) => {
-    setUIState((prev) => ({ ...prev, showDiscount: show }));
   };
 
   /** ---------------- Delete with Warning ---------------- */
@@ -342,42 +364,58 @@ export function ReceiptItem({
                   top: initialPosition.y,
                   left: initialPosition.x,
                 },
-              {
-                transform: isCurrentlyDragging
-                  ? pan.getTranslateTransform()
-                  : [],
-                zIndex: isCurrentlyDragging ? 9999 : 0,
-                elevation: isCurrentlyDragging ? 9999 : 0,
-              },
             ]}
           >
-            <Pressable
-              onPress={onToggleSelect}
-              className={`w-full bg-card rounded-2xl p-4 mb-2 ${
-                isSelected ? 'border-2 border-primary' : ''
-              }`}
-            >
-              <View className='flex-row items-center'>
-                {/* Selection circle indicator */}
-                <View className='w-10 h-10 rounded-full border-2 border-accent-light mr-3' />
+            {/* Wrapper: constant paddingBottom reserves space for the straddling tags */}
+            <View style={{ paddingBottom: 11 }}>
+              <Pressable
+                onPress={onToggleSelect}
+                className='w-full bg-card rounded-2xl p-4'
+              >
+                {/* Inset selection border */}
+                {isSelected && (
+                  <View
+                    className='absolute inset-0 rounded-2xl border-2 border-primary'
+                    pointerEvents='none'
+                  />
+                )}
+                <View className='flex-row items-center'>
+                  {/* Selection/drag indicator */}
+                  {isSelected ? (
+                    <View className='w-10 h-10 items-center justify-center mr-3 flex-row'>
+                      <MaterialCommunityIcons
+                        name='dots-grid'
+                        size={20}
+                        color='var(--color-primary)'
+                        style={{ marginLeft: -8 }}
+                      />
+                    </View>
+                  ) : (
+                    <View className='w-10 h-10 rounded-full border-2 border-accent-light mr-3' />
+                  )}
 
-                {/* Item name */}
-                <Text
-                  className='text-foreground font-extrabold text-xl flex-1 mr-2'
-                  numberOfLines={1}
-                >
-                  {item.name || 'Unnamed Item'}
-                </Text>
+                  {/* Item name */}
+                  <Text
+                    className='text-foreground font-extrabold text-xl flex-1 mr-2'
+                    numberOfLines={1}
+                  >
+                    {item.name || 'Unnamed Item'}
+                  </Text>
 
-                {/* Price */}
-                <Text className='text-foreground font-extrabold text-xl'>
-                  ${item.price || '0.00'}
-                </Text>
-              </View>
+                  {/* Price */}
+                  <Text className='text-foreground font-extrabold text-xl'>
+                    ${item.price || '0.00'}
+                  </Text>
+                </View>
+              </Pressable>
 
-              {/* User tags at bottom */}
+              {/* User tags: straddle the card bottom edge (half in, half out) */}
               {sortedUserTags.length > 0 && (
-                <View className='flex-row flex-wrap gap-1.5 mt-2 ml-[52px]'>
+                <View
+                  style={{ position: 'absolute', bottom: 0, left: 52 }}
+                  className='flex-row flex-wrap gap-1'
+                  pointerEvents='none'
+                >
                   {sortedUserTags.map((userId) => (
                     <UserTag
                       key={userId}
@@ -389,7 +427,7 @@ export function ReceiptItem({
                   ))}
                 </View>
               )}
-            </Pressable>
+            </View>
           </Animated.View>
         </GestureDetector>
       </GestureHandlerRootView>
@@ -422,79 +460,57 @@ export function ReceiptItem({
             },
           ]}
         >
-          <View className='w-full bg-card rounded-2xl p-4 mb-2'>
-            <View className='flex-row items-center'>
-              {/* Delete button */}
-              <Pressable
-                onPress={confirmDelete}
-                className='w-10 h-10 items-center justify-center mr-3'
-                accessibilityLabel='Delete item'
-              >
-                <Text className='text-destructive text-2xl font-bold'>✕</Text>
-              </Pressable>
-
-              {/* Editable item name */}
-              <TextInput
-                value={item.name}
-                onChangeText={(text) => onUpdate({ name: text })}
-                placeholder='Item name'
-                placeholderTextColor='var(--color-muted-foreground)'
-                className='text-muted-foreground font-extrabold text-xl flex-1 mr-2'
-                numberOfLines={1}
-                onFocus={() => onTextFocusChange?.(true)}
-                onBlur={() => onTextFocusChange?.(false)}
-              />
-
-              {/* Editable price */}
+          {/* Wrapper: constant paddingBottom reserves space for the straddling tags */}
+          <View style={{ paddingBottom: 11 }}>
+            <View className='w-full bg-card rounded-2xl p-4'>
               <View className='flex-row items-center'>
-                <Text className='text-foreground font-extrabold text-xl'>
-                  $
-                </Text>
+                {/* Delete button */}
+                <Pressable
+                  onPress={confirmDelete}
+                  className='w-10 h-10 items-center justify-center mr-3'
+                  accessibilityLabel='Delete item'
+                >
+                  <Text className='text-destructive text-2xl font-bold'>✕</Text>
+                </Pressable>
+
+                {/* Editable item name */}
                 <TextInput
-                  value={item.price}
-                  onChangeText={handlePriceChange}
-                  placeholder='0.00'
-                  placeholderTextColor='var(--color-muted-foreground)'
-                  className='text-foreground font-extrabold text-xl'
-                  style={{ minWidth: 20 }}
-                  keyboardType='numeric'
+                  value={item.name}
+                  onChangeText={(text) => onUpdate({ name: text })}
+                  placeholder='Item name'
+                  className='text-muted-foreground font-extrabold text-xl flex-1 mr-2 placeholder:text-muted-foreground'
+                  style={inputStyles.name}
+                  numberOfLines={1}
                   onFocus={() => onTextFocusChange?.(true)}
                   onBlur={() => onTextFocusChange?.(false)}
                 />
+
+                {/* Editable price */}
+                <View className='flex-row items-center'>
+                  <Text className='text-foreground font-extrabold text-xl'>
+                    $
+                  </Text>
+                  <TextInput
+                    value={item.price}
+                    onChangeText={handlePriceChange}
+                    placeholder='0.00'
+                    className='text-foreground font-extrabold text-xl placeholder:text-muted-foreground'
+                    style={inputStyles.price}
+                    keyboardType='numeric'
+                    numberOfLines={1}
+                    onFocus={() => onTextFocusChange?.(true)}
+                    onBlur={() => onTextFocusChange?.(false)}
+                  />
+                </View>
               </View>
             </View>
 
-            {/* Discount section */}
-            {uiState.showDiscount ? (
-              <View className='flex-row items-center justify-end gap-1 mt-1'>
-                <Text className='text-xs text-foreground'>Discount:</Text>
-                <Text className='text-foreground text-sm'>$</Text>
-                <TextInput
-                  value={item.discount || ''}
-                  onChangeText={handleDiscountChange}
-                  onFocus={() => onTextFocusChange?.(true)}
-                  onBlur={() => {
-                    handleDiscountBlur();
-                    onTextFocusChange?.(false);
-                  }}
-                  placeholder='0.00'
-                  className='w-16 bg-background rounded p-1 text-foreground text-sm text-right'
-                  keyboardType='numeric'
-                />
-              </View>
-            ) : (
-              <TouchableOpacity
-                onPress={() => setShowDiscount(true)}
-                className='self-end mt-1'
-                accessibilityLabel='Add discount'
-              >
-                <Text className='text-xs text-primary'>+ Discount</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* User tags with X for removal */}
+            {/* User tags: straddle the card bottom edge (half in, half out) */}
             {sortedUserTags.length > 0 && (
-              <View className='flex-row flex-wrap gap-1.5 mt-3 ml-[52px]'>
+              <View
+                style={{ position: 'absolute', bottom: 0, left: 52 }}
+                className='flex-row flex-wrap gap-1'
+              >
                 {sortedUserTags.map((userId) => (
                   <UserTag
                     key={userId}

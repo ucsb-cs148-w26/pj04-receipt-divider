@@ -17,7 +17,7 @@ export function UserTag({
     <Pressable
       onPress={isEditMode ? onRemove : undefined}
       style={[isNewlyAdded && { transform: [{ scale: 1.1 }] }]}
-      className={`bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} w-9 h-9 rounded-lg justify-center items-center shadow-sm`}
+      className={`bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} px-2.5 py-1 rounded-md justify-center items-center shadow-sm`}
       accessibilityLabel={
         isEditMode ? `Tap to remove user ${id}` : `Claimed by user ${id}`
       }

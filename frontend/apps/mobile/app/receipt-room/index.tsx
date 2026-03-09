@@ -15,10 +15,14 @@ import {
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as SMS from 'expo-sms';
-import { IconButton } from '@eezy-receipt/shared';
+import {
+  IconButton,
+  ReceiptPhotoPicker,
+  sendRoomInviteSMS,
+} from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import QRCode from 'react-native-qrcode-svg';
 import { File } from 'expo-file-system';
 import { extractItems as extractReceiptItems } from '@/services/ocr';
 import { Participant } from '@shared/components/Participant';
@@ -93,10 +97,24 @@ export default function ReceiptRoomScreen() {
   /**---------------- Add Participant State ---------------- */
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [showAddManual, setShowAddManual] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
 
   /**---------------- Add Photo ---------------- */
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
+
+  const handlePhotoAdded = async (uri: string) => {
+    setPhotoUris((prev) => [...prev, uri]);
+    setIsLoadingPhoto(true);
+    try {
+      const imageBase64 = await new File(uri).base64();
+      const newItems = await extractReceiptItems(imageBase64);
+      receiptItems.setItems((prev) => [...prev, ...newItems]);
+    } finally {
+      setIsLoadingPhoto(false);
+    }
+  };
 
   const addPhotoFromLibrary = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -106,11 +124,7 @@ export default function ReceiptRoomScreen() {
       quality: 1,
     });
     if (!result.canceled) {
-      const imageBase64 = await new File(result.assets[0].uri).base64();
-      setIsLoadingPhoto(true);
-      const newItems = await extractReceiptItems(imageBase64);
-      receiptItems.setItems([...receiptItems.items, ...newItems]);
-      setIsLoadingPhoto(false);
+      await handlePhotoAdded(result.assets[0].uri);
     }
   };
 
@@ -126,18 +140,11 @@ export default function ReceiptRoomScreen() {
   };
 
   const handleShareSMS = async () => {
-    setShowAddOptions(false);
     try {
-      const isAvailable = await SMS.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert(
-          'SMS not available',
-          'SMS is not available on this device.',
-        );
-        return;
+      const result = await sendRoomInviteSMS(roomId);
+      if (result === 'sent') {
+        setShowAddOptions(false);
       }
-      const message = `Join my Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nOr tap this link to join: https://example.com/join?roomId=${roomId}`;
-      await SMS.sendSMSAsync([], message);
     } catch (error) {
       console.error('SMS error:', error);
     }
@@ -145,19 +152,22 @@ export default function ReceiptRoomScreen() {
 
   const handleShowQR = () => {
     setShowAddOptions(false);
-    router.push(
-      `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
-    );
+    setShowQRModal(true);
   };
 
   const handleAddManually = () => {
-    setShowAddOptions(false);
     Alert.alert(
       'Manual Participant',
       "Adding a participant manually means they won't be linked to a real user account.",
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Add Anyway', onPress: () => setShowAddManual(true) },
+        {
+          text: 'Add Anyway',
+          onPress: () => {
+            setShowAddOptions(false);
+            setShowAddManual(true);
+          },
+        },
       ],
     );
   };
@@ -196,6 +206,18 @@ export default function ReceiptRoomScreen() {
     setSelectedItemIds(new Set());
   };
 
+  const claimSelectedToParticipant = (participantId: number) => {
+    receiptItems.setItems((prevItems) =>
+      prevItems.map((item) => {
+        if (!selectedItemIds.has(item.id)) return item;
+        const userTags = item.userTags ?? [];
+        if (userTags.includes(participantId)) return item;
+        return { ...item, userTags: [...userTags, participantId] };
+      }),
+    );
+    setSelectedItemIds(new Set());
+  };
+
   /**---------------- Drag Functions ---------------- */
   const handleItemDragStart = (
     itemId: string,
@@ -230,14 +252,16 @@ export default function ReceiptRoomScreen() {
   };
 
   /**---------------- QR Code State ---------------- */
+  //FIXME: MOCK ROOMID, SHOULD BE TAKEN FROM THE BACKEND
   const [roomId] = useState(() => {
     if (params.roomId && typeof params.roomId === 'string') {
       return params.roomId;
     }
-    return Math.random().toString(36).substring(2, 9);
+    return randomUUID();
   });
 
-  const isGroupRoom = roomId.length >= 32 && /^[0-9a-f-]{36}$/i.test(roomId);
+  const isGroupRoom =
+    !!params.roomId && roomId.length >= 32 && /^[0-9a-f-]{36}$/i.test(roomId);
   const groupData = useGroupData(isGroupRoom ? roomId : '');
   const groupDisplay = useMemo(() => {
     if (!isGroupRoom || !groupData.members.length) {
@@ -367,6 +391,15 @@ export default function ReceiptRoomScreen() {
   /**---------------- Render ---------------- */
   return (
     <SafeAreaView className='bg-background flex-1'>
+      {/* Dismiss popup overlay - rendered before top bar so top bar stays interactive */}
+      {showQuickActions && (
+        <Pressable
+          className='absolute inset-0 bg-black/50'
+          style={{ zIndex: 19 }}
+          onPress={() => setShowQuickActions(false)}
+        />
+      )}
+
       {/* Top bar */}
       <View className='z-20 px-4 py-2'>
         <View className='flex-row items-center justify-between'>
@@ -384,6 +417,7 @@ export default function ReceiptRoomScreen() {
           {/* Center toggle button */}
           <Pressable
             className='bg-card shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70'
+            disabled={showQuickActions}
             onPress={() => setIsEditMode(!isEditMode)}
           >
             <MaterialCommunityIcons
@@ -395,7 +429,7 @@ export default function ReceiptRoomScreen() {
 
           {/* Right side buttons */}
           <View className='flex-row items-center gap-2'>
-            <View>
+            <View style={{ zIndex: 30 }}>
               {showQuickActions && (
                 <Pressable
                   className='absolute top-0 right-0 z-30'
@@ -421,7 +455,7 @@ export default function ReceiptRoomScreen() {
                         </Text>
                       </Pressable>
                       <Pressable
-                        className='items-center gap-1'
+                        className='items-center gap-1 pr-2'
                         onPress={() => {
                           setShowQuickActions(false);
                           router.push(
@@ -504,7 +538,7 @@ export default function ReceiptRoomScreen() {
                         color='var(--color-accent-dark)'
                       />
                       <Text className='text-foreground text-base font-medium'>
-                        Claim for All
+                        Claim for All Selected
                       </Text>
                     </Pressable>
 
@@ -521,7 +555,7 @@ export default function ReceiptRoomScreen() {
                         color='var(--color-accent-dark)'
                       />
                       <Text className='text-foreground text-base font-medium'>
-                        Unclaim for All
+                        Unclaim for All Selected
                       </Text>
                     </Pressable>
                   </View>
@@ -538,14 +572,6 @@ export default function ReceiptRoomScreen() {
           </View>
         </View>
       </View>
-
-      {/* Dismiss popup overlay */}
-      {showQuickActions && (
-        <Pressable
-          className='absolute inset-0 z-10 bg-black/50'
-          onPress={() => setShowQuickActions(false)}
-        />
-      )}
 
       <View className='flex-1'>
         {/* Middle part - scrollable receipt items */}
@@ -570,15 +596,12 @@ export default function ReceiptRoomScreen() {
                   handleItemDragStart(item.id, initialPosition)
                 }
                 onDragEnd={handleItemDragEnd}
+                onDropOnParticipant={claimSelectedToParticipant}
                 isDragging={
                   dragState.selectedItemIds.includes(item.id) &&
                   dragState.isDragging
                 }
-                dragPan={
-                  dragState.selectedItemIds.includes(item.id)
-                    ? dragPan
-                    : undefined
-                }
+                dragPan={dragPan}
                 onParticipantBoundsChange={handleParticipantBoundsChange}
                 isInParticipantBoundsProp={false}
                 getCurrentItemData={() =>
@@ -592,52 +615,43 @@ export default function ReceiptRoomScreen() {
               />
             ))}
 
-            {/* Add Receipt Item button - always visible */}
-            <Pressable
-              className='bg-card rounded-2xl border border-border w-full py-4 items-center justify-center active:opacity-70 flex-row gap-2'
-              onPress={addReceiptItem}
-            >
-              <MaterialCommunityIcons
-                name='plus'
-                size={22}
-                color='var(--color-muted-foreground)'
+            {/* Add Receipt Item button - edit mode only */}
+            {isEditMode && (
+              <Pressable
+                className='bg-card rounded-2xl border border-border w-full py-4 items-center justify-center active:opacity-70 flex-row gap-2'
+                onPress={addReceiptItem}
+              >
+                <MaterialCommunityIcons
+                  name='plus'
+                  size={22}
+                  color='var(--color-muted-foreground)'
+                />
+                <Text className='text-muted-foreground text-base font-medium'>
+                  Add Receipt Item
+                </Text>
+              </Pressable>
+            )}
+
+            {/* Photo picker - show when no items (empty state) or photos already added */}
+            {(photoUris.length > 0 ||
+              (displayItems.length === 0 && !isEditMode)) && (
+              <ReceiptPhotoPicker
+                photoUris={photoUris}
+                onPhotoAdded={handlePhotoAdded}
+                onPhotoRemoved={(uri) =>
+                  setPhotoUris((prev) => prev.filter((u) => u !== uri))
+                }
+                isLoading={isLoadingPhoto}
               />
-              <Text className='text-muted-foreground text-base font-medium'>
-                Add Receipt Item
-              </Text>
-            </Pressable>
+            )}
           </View>
         </ScrollView>
 
         {/* Bottom section - participants and drop zone */}
         <View>
-          {/* Drop to Claim - only show during drag */}
-          {dragState.isDragging && (
-            <Text className='text-accent text-center text-sm mb-1'>
-              Drop to Claim
-            </Text>
-          )}
-
-          {/* Claim button - show when items are selected and not dragging */}
-          {!isEditMode && selectedItemIds.size > 0 && !dragState.isDragging && (
-            <View className='px-4 mb-2'>
-              <Pressable
-                className='bg-primary rounded-2xl py-4 items-center active:opacity-80'
-                onPress={() => {
-                  // Placeholder - users should drag to claim
-                }}
-              >
-                <Text className='text-primary-foreground font-bold text-lg'>
-                  Claim {selectedItemIds.size}{' '}
-                  {selectedItemIds.size === 1 ? 'item' : 'items'}
-                </Text>
-              </Pressable>
-            </View>
-          )}
-
           <ScrollView
             horizontal={true}
-            className='px-4 pb-6'
+            className='px-4 pt-2 pb-6'
             contentContainerClassName='justify-start -left-[10px] gap-[10px]'
             showsHorizontalScrollIndicator={false}
             onScrollEndDrag={(event) => {
@@ -666,19 +680,23 @@ export default function ReceiptRoomScreen() {
                     x: layout.x + scrollOffset,
                   };
                 }}
-                goToYourItemsPage={() =>
-                  router.push({
-                    pathname: '../items',
-                    params: {
-                      items: JSON.stringify(
-                        displayItems.filter((item) =>
-                          item.userTags?.includes(participant.id),
+                goToYourItemsPage={() => {
+                  if (selectedItemIds.size > 0) {
+                    claimSelectedToParticipant(participant.id);
+                  } else {
+                    router.push({
+                      pathname: '../items',
+                      params: {
+                        items: JSON.stringify(
+                          displayItems.filter((item) =>
+                            item.userTags?.includes(participant.id),
+                          ),
                         ),
-                      ),
-                      participantId: participant.id.toString(),
-                    } as YourItemsRoomParams,
-                  })
-                }
+                        participantId: participant.id.toString(),
+                      } as YourItemsRoomParams,
+                    });
+                  }
+                }}
                 isEditMode={isEditMode}
               />
             ))}
@@ -690,7 +708,7 @@ export default function ReceiptRoomScreen() {
               onPress={() => setShowAddOptions(true)}
             >
               <View className='h-2 bg-accent-light' />
-              <View className='flex-1 items-center justify-center py-6'>
+              <View className='items-center justify-center py-5'>
                 <MaterialCommunityIcons
                   name='plus'
                   size={32}
@@ -699,6 +717,13 @@ export default function ReceiptRoomScreen() {
               </View>
             </Pressable>
           </ScrollView>
+
+          {/* Drop to Claim - only show during drag */}
+          {dragState.isDragging && (
+            <Text className='text-accent text-center text-sm mt-1 mb-2'>
+              Drop to Claim
+            </Text>
+          )}
         </View>
       </View>
 
@@ -710,15 +735,15 @@ export default function ReceiptRoomScreen() {
               position: 'absolute',
               zIndex: 9999,
               elevation: 9999,
-              top: dragState.initialPosition.y,
-              left: dragState.initialPosition.x - ITEMCONTAINERPADDING,
+              top: dragState.initialPosition.y - 40,
+              left: dragState.initialPosition.x - 20,
               transform: dragPan.getTranslateTransform(),
             },
           ]}
           pointerEvents='none'
         >
-          <View className='bg-primary rounded-2xl px-8 py-4 shadow-lg shadow-black/30'>
-            <Text className='text-primary-foreground font-bold text-lg text-center'>
+          <View className='bg-primary rounded-2xl px-4 py-4 h-[6vh] w-[45vw] shadow-lg shadow-black/30'>
+            <Text className='text-primary-foreground font-bold text-lg text-right'>
               Claim {dragState.selectedItemIds.length}{' '}
               {dragState.selectedItemIds.length === 1 ? 'item' : 'items'}
             </Text>
@@ -842,6 +867,47 @@ export default function ReceiptRoomScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* QR Code Modal */}
+      <Modal
+        transparent={false}
+        animationType='slide'
+        visible={showQRModal}
+        onRequestClose={() => {
+          setShowQRModal(false);
+          setShowAddOptions(true);
+        }}
+      >
+        <SafeAreaView className='flex-1 bg-background'>
+          <View className='flex-1 items-center justify-center gap-8 px-6'>
+            <Text className='text-foreground text-2xl font-bold'>
+              Room QR Code
+            </Text>
+            <QRCode
+              value={`http://localhost:5173/join?roomId=${roomId}`}
+              size={220}
+              backgroundColor='white'
+              color='black'
+            />
+            <Text className='text-muted-foreground text-sm'>
+              Room ID: {roomId}
+            </Text>
+          </View>
+          <View className='px-5 pb-8'>
+            <Pressable
+              className='py-3 items-center active:opacity-70'
+              onPress={() => {
+                setShowQRModal(false);
+                setShowAddOptions(true);
+              }}
+            >
+              <Text className='text-accent-dark text-base font-medium'>
+                Close
+              </Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
       </Modal>
 
       <Modal
