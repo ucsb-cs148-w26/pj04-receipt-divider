@@ -236,6 +236,20 @@ export function ReceiptItem({
   const isAnyTextFocusedRef = useRef(isAnyTextFocused);
   isAnyTextFocusedRef.current = isAnyTextFocused;
 
+  /** ---------------- Selection animation ---------------- */
+  const selectAnim = useRef(new Animated.Value(isSelected ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(selectAnim, {
+      toValue: isSelected ? 1 : 0,
+      duration: 50,
+      useNativeDriver: true,
+    }).start();
+  }, [isSelected]); // eslint-disable-line react-hooks/exhaustive-deps
+  const deSelectAnim = selectAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+
   /** ---------------- Pop all selected items when group drag starts/ends ---------------- */
   useEffect(() => {
     if (isDraggingProp) {
@@ -570,21 +584,31 @@ export function ReceiptItem({
                 onPress={onToggleSelect}
                 className='w-full bg-card rounded-2xl p-4'
               >
-                {/* Inset selection border */}
-                {isSelected && (
-                  <View
-                    className='absolute inset-0 rounded-2xl border-2 border-primary'
-                    pointerEvents='none'
-                  />
-                )}
+                {/* Inset selection border — fades in/out */}
+                <Animated.View
+                  className='absolute inset-0 rounded-2xl border-2 border-primary'
+                  style={{ opacity: selectAnim }}
+                  pointerEvents='none'
+                />
                 <View className='flex-row items-center'>
-                  {/* Selection indicator */}
+                  {/* Selection indicator — crossfade between icons */}
                   <View className='w-10 h-10 items-center justify-center mr-3'>
-                    <MaterialCommunityIcons
-                      name={isSelected ? 'dots-grid' : 'circle-outline'}
-                      size={26}
-                      color='#4999DF'
-                    />
+                    <Animated.View
+                      style={{ position: 'absolute', opacity: selectAnim }}
+                    >
+                      <MaterialCommunityIcons
+                        name='dots-grid'
+                        size={26}
+                        color='#4999DF'
+                      />
+                    </Animated.View>
+                    <Animated.View style={{ opacity: deSelectAnim }}>
+                      <MaterialCommunityIcons
+                        name='circle-outline'
+                        size={26}
+                        color='#4999DF'
+                      />
+                    </Animated.View>
                   </View>
 
                   {/* Item name */}
