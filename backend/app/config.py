@@ -19,7 +19,13 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_key: str
 
+    supabase_jwt_private_key: str
+    supabase_jwt_kid: str
+    supabase_jwt_algo: str
+
     receipt_image_bucket: str
+
+    frontend_url: str
 
     @computed_field
     @property

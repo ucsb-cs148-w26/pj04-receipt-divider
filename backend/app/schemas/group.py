@@ -1,27 +1,42 @@
-from pydantic import BaseModel, Field
+import uuid
+from pydantic import Field
+
+from app.schemas.base import BaseRequest, BaseResponse
 
 
-class GetUserProfiesResponse(BaseModel):
-    users_id: list[str] = Field(serialization_alias="usersId")
+class CreateGroupRequest(BaseRequest):
+    group_name: str = Field(min_length=1, max_length=64)
 
 
-class LoginAsUserRequest(BaseModel):
-    invite_token: str = Field(serialization_alias="inviteToken")
-    user_id: str = Field(serialization_alias="userId")
+class CreateGroupResponse(BaseResponse):
+    group_id: uuid.UUID
 
 
-class LoginAsUserResponse(BaseModel):
-    access_token: str = Field(serialization_alias="accessToken")
+class DeleteReceiptRequest(BaseRequest):
+    receipt_id: uuid.UUID
 
 
-class CreateUserProfileRequest(BaseModel):
-    access_token: str = Field(serialization_alias="accessToken")
-    name: str
+class CreateInviteLinkResponse(BaseResponse):
+    url: str
 
 
-class CreateGroupRequest(BaseModel):
-    group_name: str = Field(alias="group-name", min_length=1, max_length=64)
+class GetProfilesResponse(BaseResponse):
+    profiles_id: list[uuid.UUID]
 
 
-class CreateGroupResponse(BaseModel):
-    group_id: str = Field(serialization_alias="group-id")
+class CreateGuestProfileRequest(BaseRequest):
+    group_id: uuid.UUID
+    username: str
+
+
+class CreateGuestProfileResponse(BaseResponse):
+    access_token: str
+
+
+class LoginAsRequest(BaseRequest):
+    group_id: uuid.UUID
+    profile_id: uuid.UUID
+
+
+class LoginAsResponse(BaseResponse):
+    access_token: str
