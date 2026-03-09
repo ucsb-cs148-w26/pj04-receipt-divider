@@ -14,7 +14,7 @@ const MOCK_ITEMS = [
   { id: '3', name: 'Soda', price: '$2.99' },
 ];
 
-export default function GroupPage() {
+export default function ReceiptRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
 
   return (

@@ -1,7 +1,7 @@
 import datetime
 
 from app.models.profile import Profile
-from app.schemas.group import ProfileIdWithAccentColor
+from app.schemas.group import PublicProfileData
 import jwt
 from sqlalchemy import select
 
@@ -35,9 +35,7 @@ class ProfileService:
             payload, self.jwt_private_key, algorithm=self.jwt_algo, headers=header
         )
 
-    def get_group_profiles_id_with_accent(
-        self, group_id: str
-    ) -> list[ProfileIdWithAccentColor]:
+    def get_profiles_data_by_group(self, group_id: str) -> list[PublicProfileData]:
         group = self.db.get(Group, group_id)
         if not group:
             raise ValueError(f"Group '{group_id}' not found.")
@@ -47,7 +45,9 @@ class ProfileService:
         ).all()
 
         return [
-            ProfileIdWithAccentColor(profile_id=p.id, accent_color=p.accent_color or "")
+            PublicProfileData(
+                profile_id=p.id, accent_color=p.accent_color or "", username=p.username
+            )
             for p in profiles
         ]
 
