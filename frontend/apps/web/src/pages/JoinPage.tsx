@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router';
 import { useAuth } from '../providers/AuthContext';
 
@@ -32,13 +32,15 @@ const dark = {
 export default function JoinPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { accessToken, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   const roomId = searchParams.get('roomId');
   const isDark = useColorScheme();
   const t = isDark ? dark : light;
+  const hasRun = useRef(false);
 
   useEffect(() => {
-    if (!roomId || isLoading) return;
+    if (!roomId || isLoading || hasRun.current) return;
+    hasRun.current = true;
 
     const joinGroup = async () => {
       try {
@@ -64,7 +66,7 @@ export default function JoinPage() {
     };
 
     void joinGroup();
-  }, [roomId, isLoading, accessToken, navigate]);
+  }, [roomId, isLoading, navigate]);
 
   if (!roomId)
     return (

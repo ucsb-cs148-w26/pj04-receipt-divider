@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ accessToken, isLoading }),
+    () => ({ accessToken, isLoading, setAccessToken }),
     [accessToken, isLoading],
   );
 

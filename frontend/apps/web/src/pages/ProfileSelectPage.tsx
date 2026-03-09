@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { useAuth } from '../providers/AuthContext';
 
 interface ParticipantTab {
-  id: number; // local index for UI (color, avatar)
-  profileId: string; // real UUID from backend
+  id: number;
+  profileId: string;
   name: string;
 }
 
@@ -80,22 +81,28 @@ export default function ProfileSelectPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState('');
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
+  const isCreating = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isDark = useColorScheme();
   const t = isDark ? dark : light;
-
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const roomId = searchParams.get('roomId');
+  const { setAccessToken } = useAuth();
 
-  // Fetch real profiles on mount
   useEffect(() => {
     if (!roomId) return;
     fetch(`${import.meta.env.VITE_API_URL}/group/profiles?group_id=${roomId}`)
-      .then((res) => res.json())
-      .then((data: { profilesId: string[] }) => {
-        const fetched = data.profilesId.map((profileId, i) => ({
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        console.log('[ProfileSelectPage] /group/profiles response:', data);
+        const ids: string[] = data.profilesId ?? [];
+        const fetched = ids.map((profileId, i) => ({
           id: i + 1,
           profileId,
           name: `Person ${i + 1}`,
@@ -103,7 +110,8 @@ export default function ProfileSelectPage() {
         setParticipants(fetched);
         if (fetched.length > 0) setSelectedId(fetched[0].id);
       })
-      .catch(console.error);
+      .catch((err) => console.error('[ProfileSelectPage] fetch error:', err))
+      .finally(() => setIsLoadingProfiles(false));
   }, [roomId]);
 
   useEffect(() => {
@@ -115,32 +123,116 @@ export default function ProfileSelectPage() {
     setShowModal(true);
   };
 
+  const handleSelect = (participant: ParticipantTab) => {
+    setSelectedId(participant.id);
+  };
+
+  const handleContinue = async () => {
+    if (selectedId === null || !roomId) return;
+    const participant = participants.find((p) => p.id === selectedId);
+    if (!participant) return;
+
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/group/profile-login`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            groupId: roomId,
+            profileId: participant.profileId,
+          }),
+        },
+      );
+      if (!res.ok) {
+        navigate(
+          `/error?message=${encodeURIComponent('Failed to log in as profile.')}`,
+        );
+        return;
+      }
+      const data = await res.json();
+      console.log('[handleContinue] profile-login response:', data);
+      const token: string | null =
+        data.access_token ?? data.accessToken ?? null;
+      if (token) setAccessToken(token);
+      navigate(`/room/${roomId}`);
+    } catch {
+      navigate(
+        `/error?message=${encodeURIComponent('Could not reach the server.')}`,
+      );
+    }
+  };
+
   const handleConfirm = async () => {
-    if (!newName.trim() || !roomId) return;
+    if (!newName.trim() || !roomId || isCreating.current) return;
+    isCreating.current = true;
+
+    let accessTokenValue: string | null = null;
+
     try {
       const res = await fetch(
         `${import.meta.env.VITE_API_URL}/group/create-profile`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ group_id: roomId, username: newName.trim() }),
+          body: JSON.stringify({
+            groupId: roomId,
+            username: newName.trim(),
+          }),
         },
       );
-      if (!res.ok) return;
-      const newId = participants.length + 1;
-      const { profileId: newProfileId } = await res.json().then((d) => ({
-        profileId: d.access_token, // token returned, profileId inferred from position
-      }));
+      if (!res.ok) {
+        console.error(
+          '[handleConfirm] create-profile failed:',
+          res.status,
+          await res.text(),
+        );
+        navigate(
+          `/error?message=${encodeURIComponent('Failed to create profile.')}`,
+        );
+        return;
+      }
+      const data = await res.json();
+      console.log('[handleConfirm] create-profile response:', data);
+      accessTokenValue = data.access_token ?? data.accessToken ?? null;
+      if (!accessTokenValue) {
+        console.error('[handleConfirm] no access_token in response:', data);
+        isCreating.current = false;
+        setShowModal(false);
+        return;
+      }
+      setAccessToken(accessTokenValue);
+    } catch (e) {
+      console.error('[handleConfirm] network error:', e);
+      navigate(
+        `/error?message=${encodeURIComponent('Could not reach the server.')}`,
+      );
+      isCreating.current = false;
+      return;
+    }
+
+    try {
+      const base64 = accessTokenValue
+        .split('.')[1]
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+      const padded = base64.padEnd(
+        base64.length + ((4 - (base64.length % 4)) % 4),
+        '=',
+      );
+      const payload = JSON.parse(atob(padded));
       const newParticipant: ParticipantTab = {
-        id: newId,
-        profileId: newProfileId,
+        id: participants.length + 1,
+        profileId: payload.sub,
         name: newName.trim(),
       };
       setParticipants((prev) => [...prev, newParticipant]);
       setSelectedId(newParticipant.id);
     } catch (e) {
-      console.error(e);
+      console.error('[handleConfirm] JWT decode error:', e);
     }
+
+    isCreating.current = false;
     setShowModal(false);
   };
 
@@ -151,6 +243,30 @@ export default function ProfileSelectPage() {
 
   const selected = participants.find((p) => p.id === selectedId);
 
+  if (isLoadingProfiles) {
+    return (
+      <div
+        style={{
+          ...styles.page,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '60vh',
+        }}
+      >
+        <p
+          style={{
+            color: t.placeholder,
+            fontSize: 16,
+            fontFamily: 'system-ui, sans-serif',
+          }}
+        >
+          Loading profiles...
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ ...styles.page, background: t.pageBg }}>
       <h2 style={{ ...styles.heading, color: t.heading }}>Who are you?</h2>
@@ -160,8 +276,8 @@ export default function ProfileSelectPage() {
           const isSelected = p.id === selectedId;
           return (
             <button
-              key={p.id}
-              onClick={() => setSelectedId(p.id)}
+              key={p.profileId}
+              onClick={() => void handleSelect(p)}
               style={{
                 ...styles.card,
                 background: t.cardBg,
@@ -204,6 +320,7 @@ export default function ProfileSelectPage() {
           </div>
         </button>
       </div>
+
       <div style={{ ...styles.content, background: t.contentBg }}>
         {selected ? (
           <p style={{ ...styles.placeholder, color: t.placeholder }}>
@@ -225,16 +342,11 @@ export default function ProfileSelectPage() {
           opacity: selectedId !== null ? 1 : 0.4,
         }}
         disabled={selectedId === null}
-        onClick={() => {
-          if (selectedId === null) return;
-          const path = roomId ? `/room/${roomId}` : '/room/preview';
-          navigate(path);
-        }}
+        onClick={() => void handleContinue()}
       >
         Continue →
       </button>
 
-      {/* Modal */}
       {showModal && (
         <div style={styles.overlay} onClick={() => setShowModal(false)}>
           <div
@@ -390,11 +502,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 16,
   },
-  modalTitle: {
-    margin: 0,
-    fontSize: 18,
-    fontWeight: 700,
-  },
+  modalTitle: { margin: 0, fontSize: 18, fontWeight: 700 },
   input: {
     border: '1.5px solid',
     borderRadius: 8,
