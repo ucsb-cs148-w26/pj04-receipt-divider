@@ -120,7 +120,7 @@ class UserService:
 
     async def add_receipt(
         self, profile_id: str, group_id: str, image_bytes: bytes, image_ext: str
-    ) -> None:
+    ) -> uuid.UUID:
         member = self.db.get(
             GroupMember, {"profile_id": profile_id, "group_id": group_id}
         )
@@ -170,6 +170,8 @@ class UserService:
         self.db.add(receipt)
 
         self.db.commit()
+
+        return receipt_id
 
     def remove_receipt(self, profile_id: str, receipt_id: str) -> None:
         receipt = self.db.get(Receipt, receipt_id)
