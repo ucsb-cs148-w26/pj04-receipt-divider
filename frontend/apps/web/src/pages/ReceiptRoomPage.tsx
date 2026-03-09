@@ -48,6 +48,45 @@ function decodeProfileId(token: string | null): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Theme
+// ---------------------------------------------------------------------------
+
+function useColorScheme() {
+  const [dark, setDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setDark(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return dark;
+}
+
+const light = {
+  bg: '#f9fafb',
+  card: '#ffffff',
+  border: 'rgba(0,0,0,0.08)',
+  text: '#111827',
+  sub: '#6b7280',
+  participantCard: '#f3f4f6',
+  sectionBorder: '1px solid rgba(0,0,0,0.06)',
+  claimBorder: 'rgba(0,0,0,0.15)',
+};
+
+const dark = {
+  bg: '#111827',
+  card: '#1f2937',
+  border: 'rgba(255,255,255,0.08)',
+  text: '#f9fafb',
+  sub: '#9ca3af',
+  participantCard: '#111827',
+  sectionBorder: '1px solid rgba(255,255,255,0.08)',
+  claimBorder: 'rgba(255,255,255,0.35)',
+};
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -71,7 +110,7 @@ export default function ReceiptRoomPage() {
   const [claims, setClaims] = useState<ClaimsMap>({});
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [claimingIds, setClaimingIds] = useState<Set<string>>(new Set());
 
   // Read the profile JWT saved by ProfileSelectPage. Stored in sessionStorage so
   // it survives tab switches (anon session refreshes won't overwrite it).
@@ -83,14 +122,15 @@ export default function ReceiptRoomPage() {
   const profileId = useMemo(() => decodeProfileId(profileJwt), [profileJwt]);
 
   const channelsRef = useRef<RealtimeChannel[]>([]);
+  // Ref mirror of claimingIds so realtime callbacks always see the current set
+  // without capturing a stale closure.
+  const claimingIdsRef = useRef<Set<string>>(new Set());
+  // Latest desired state per item while in-flight (true = claimed, false = unclaimed).
+  // Allows sequential toggling to queue a follow-up without a second parallel request.
+  const desiredStateRef = useRef<Record<string, boolean>>({});
 
-  const t = {
-    bg: '#f9fafb',
-    card: '#ffffff',
-    border: 'rgba(0,0,0,0.08)',
-    text: '#111827',
-    sub: '#6b7280',
-  };
+  const isDark = useColorScheme();
+  const t = isDark ? dark : light;
 
   // Authed Supabase client using the profile JWT from sessionStorage.
   // Not tied to accessToken so anon session refreshes don't invalidate it.
@@ -137,6 +177,8 @@ export default function ReceiptRoomPage() {
         if (!map[c.item_id]) map[c.item_id] = [];
         map[c.item_id].push(c.profile_id);
       }
+      // Sort each array so tag order is deterministic and matches optimistic state
+      for (const key of Object.keys(map)) map[key].sort();
       setClaims(map);
     } else {
       setClaims({});
@@ -172,7 +214,12 @@ export default function ReceiptRoomPage() {
   }, [roomId]);
 
   useEffect(() => {
+    // fetchAll/fetchParticipants are async – setState only runs after promise
+    // resolution, never synchronously in this effect body. The v7 rule does not
+    // distinguish sync from async setState calls, so this is a false positive.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAll();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchParticipants();
   }, [fetchAll, fetchParticipants]);
 
@@ -198,7 +245,10 @@ export default function ReceiptRoomPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'item_claims' },
-        () => void fetchAll(),
+        // Suppress while optimistic updates are in-flight to avoid overwriting them
+        () => {
+          if (claimingIdsRef.current.size === 0) void fetchAll();
+        },
       )
       .subscribe();
 
@@ -226,48 +276,69 @@ export default function ReceiptRoomPage() {
 
   const toggleClaim = async (itemId: string) => {
     const jwt = profileJwt;
-    if (!jwt || !profileId || claimingId) return;
+    if (!jwt || !profileId) return;
+
     const isClaimed = (claims[itemId] ?? []).includes(profileId);
+    const newDesired = !isClaimed;
 
     // Optimistic update
     setClaims((prev) => {
-      const current = prev[itemId] ?? [];
-      return {
-        ...prev,
-        [itemId]: isClaimed
-          ? current.filter((id) => id !== profileId)
-          : [...current, profileId],
-      };
+      const list = prev[itemId] ?? [];
+      const updated = newDesired
+        ? list.includes(profileId)
+          ? list
+          : [...list, profileId].sort()
+        : list.filter((id) => id !== profileId);
+      return { ...prev, [itemId]: updated };
     });
 
-    setClaimingId(itemId);
-    try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/group/item/${isClaimed ? 'unclaim' : 'claim'}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${jwt}`,
+    // Record latest intent. If already in-flight, the running sendRequest will
+    // detect the changed desired state after its current fetch and send a follow-up.
+    desiredStateRef.current[itemId] = newDesired;
+    if (claimingIdsRef.current.has(itemId)) return;
+
+    claimingIdsRef.current.add(itemId);
+    setClaimingIds(new Set(claimingIdsRef.current));
+
+    const clearItem = () => {
+      delete desiredStateRef.current[itemId];
+      claimingIdsRef.current.delete(itemId);
+      setClaimingIds(new Set(claimingIdsRef.current));
+    };
+
+    const sendRequest = async (desired: boolean): Promise<void> => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/group/item/${desired ? 'claim' : 'unclaim'}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${jwt}`,
+            },
+            body: JSON.stringify({ itemId }),
           },
-          body: JSON.stringify({ itemId }),
-        },
-      );
-      if (!res.ok) {
-        // Revert on failure
-        setClaims((prev) => {
-          const current = prev[itemId] ?? [];
-          return {
-            ...prev,
-            [itemId]: isClaimed
-              ? [...current, profileId]
-              : current.filter((id) => id !== profileId),
-          };
-        });
+        );
+        if (!res.ok) {
+          clearItem();
+          void fetchAll();
+          return;
+        }
+        // If the desired state changed while this request was in-flight, send
+        // a follow-up instead of leaving the item in the intermediate state.
+        const latest = desiredStateRef.current[itemId];
+        if (latest !== undefined && latest !== desired) {
+          await sendRequest(latest);
+        } else {
+          clearItem();
+        }
+      } catch {
+        clearItem();
+        void fetchAll();
       }
-    } finally {
-      setClaimingId(null);
-    }
+    };
+
+    void sendRequest(newDesired);
   };
 
   // ---------------------------------------------------------------------------
@@ -341,7 +412,7 @@ export default function ReceiptRoomPage() {
             const price = item.unit_price * item.amount;
             const itemClaims = claims[item.id] ?? [];
             const isClaimed = !!profileId && itemClaims.includes(profileId);
-            const isBusy = claimingId === item.id;
+            const isBusy = claimingIds.has(item.id);
 
             return (
               <div
@@ -373,7 +444,7 @@ export default function ReceiptRoomPage() {
                         ? '2px solid #4999DF'
                         : isClaimed
                           ? 'none'
-                          : '2px solid rgba(0,0,0,0.15)',
+                          : `2px solid ${t.claimBorder}`,
                       animation: isBusy
                         ? 'pulse-ring 0.8s ease-in-out infinite'
                         : 'none',
@@ -429,8 +500,16 @@ export default function ReceiptRoomPage() {
       </div>
 
       {/* My profile card */}
-      <div style={{ ...styles.participantsSection, background: t.card }}>
-        <div style={styles.participantCard}>
+      <div
+        style={{
+          ...styles.participantsSection,
+          background: t.card,
+          borderTop: t.sectionBorder,
+        }}
+      >
+        <div
+          style={{ ...styles.participantCard, background: t.participantCard }}
+        >
           <div
             style={{
               ...styles.participantBar,
@@ -562,12 +641,10 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 4,
   },
   participantsSection: {
-    borderTop: '1px solid rgba(0,0,0,0.06)',
     padding: '12px 16px 24px',
     flexShrink: 0,
   },
   participantCard: {
-    background: '#f9fafb',
     borderRadius: 16,
     overflow: 'hidden',
     boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
