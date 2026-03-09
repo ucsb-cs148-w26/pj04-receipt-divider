@@ -380,19 +380,16 @@ export function ReceiptItem({
                   />
                 )}
                 <View className='flex-row items-center'>
-                  {/* Selection/drag indicator */}
-                  {isSelected ? (
-                    <View className='w-10 h-10 items-center justify-center mr-3 flex-row'>
-                      <MaterialCommunityIcons
-                        name='dots-grid'
-                        size={20}
-                        color='var(--color-primary)'
-                        style={{ marginLeft: -8 }}
-                      />
-                    </View>
-                  ) : (
-                    <View className='w-10 h-10 rounded-full border-2 border-accent-light mr-3' />
-                  )}
+                  {/* Delete button */}
+                  <Pressable
+                    onPress={confirmDelete}
+                    className='w-10 h-10 items-center justify-center mr-3'
+                    accessibilityLabel='Delete item'
+                  >
+                    <Text className='text-destructive text-2xl font-bold'>
+                      ✕
+                    </Text>
+                  </Pressable>
 
                   {/* Item name */}
                   <Text
@@ -409,20 +406,19 @@ export function ReceiptItem({
                 </View>
               </Pressable>
 
-              {/* User tags: straddle the card bottom edge (half in, half out) */}
+              {/* User tags: straddle the card bottom edge, with remove buttons */}
               {sortedUserTags.length > 0 && (
                 <View
                   style={{ position: 'absolute', bottom: 0, left: 52 }}
                   className='flex-row flex-wrap gap-1'
-                  pointerEvents='none'
                 >
                   {sortedUserTags.map((userId) => (
                     <UserTag
                       key={userId}
                       id={userId}
-                      onRemove={() => {}}
+                      onRemove={() => confirmRemoveTag(userId)}
                       isNewlyAdded={false}
-                      isEditMode={false}
+                      isEditMode={true}
                     />
                   ))}
                 </View>

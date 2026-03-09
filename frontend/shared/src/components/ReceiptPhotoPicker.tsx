@@ -88,10 +88,7 @@ export function ReceiptPhotoPicker({
           <View className='bg-card rounded-2xl flex-1 relative overflow-hidden min-h-48'>
             {isLoading ? (
               <View className='flex-1 items-center justify-center gap-3'>
-                <ActivityIndicator
-                  size='large'
-                  color='var(--color-accent-dark)'
-                />
+                <ActivityIndicator size='large' color='#546079' />
                 <Text className='text-accent-dark text-base'>Processing…</Text>
               </View>
             ) : (
@@ -102,7 +99,7 @@ export function ReceiptPhotoPicker({
                 <MaterialCommunityIcons
                   name='image-outline'
                   size={60}
-                  color='var(--color-accent-dark)'
+                  className='text-accent-dark'
                 />
                 <Text className='text-accent-dark mt-3 text-base'>
                   add or take photo
@@ -151,10 +148,7 @@ export function ReceiptPhotoPicker({
                 className='rounded-2xl bg-card items-center justify-center'
                 style={{ width: 120, height: 120 }}
               >
-                <ActivityIndicator
-                  size='small'
-                  color='var(--color-accent-dark)'
-                />
+                <ActivityIndicator size='small' color='#546079' />
               </View>
             )}
 
@@ -168,7 +162,7 @@ export function ReceiptPhotoPicker({
               <MaterialCommunityIcons
                 name='plus'
                 size={32}
-                color='var(--color-accent-dark)'
+                className='text-accent-dark'
               />
               <Text className='text-accent-dark text-xs mt-1'>add photo</Text>
             </Pressable>

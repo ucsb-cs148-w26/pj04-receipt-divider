@@ -1,5 +1,4 @@
 import { router } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -63,13 +62,12 @@ export default function HomeScreen() {
         <Text className='flex-1 text-foreground text-2xl font-bold'>
           Eezy Receipt
         </Text>
-        <Pressable onPress={() => router.navigate('/setting')} hitSlop={8}>
-          <MaterialCommunityIcons
-            name='menu'
-            size={28}
-            color='var(--color-accent-dark)'
-          />
-        </Pressable>
+        <IconButton
+          icon='menu'
+          bgClassName='bg-transparent shadow-none'
+          iconClassName='text-accent-dark'
+          onPress={() => router.navigate('/setting')}
+        />
       </View>
 
       <ScrollView
@@ -178,11 +176,13 @@ export default function HomeScreen() {
                   {item.amount >= 0 ? '+' : ''}$
                   {Math.abs(item.amount).toFixed(2)}
                 </Text>
-                <MaterialCommunityIcons
-                  name='chevron-right'
-                  size={18}
-                  color='var(--color-accent-dark)'
-                />
+                <View pointerEvents='none'>
+                  <IconButton
+                    icon='chevron-right'
+                    bgClassName='bg-transparent shadow-none'
+                    iconClassName='text-accent-dark'
+                  />
+                </View>
               </Pressable>
             </View>
           ))}
@@ -218,13 +218,12 @@ export default function HomeScreen() {
                   <Text className='text-foreground text-lg font-bold'>
                     New Room
                   </Text>
-                  <Pressable onPress={() => setShowNewRoom(false)} hitSlop={8}>
-                    <MaterialCommunityIcons
-                      name='close'
-                      size={20}
-                      color='var(--color-accent-dark)'
-                    />
-                  </Pressable>
+                  <IconButton
+                    icon='close'
+                    bgClassName='bg-transparent shadow-none'
+                    iconClassName='text-accent-dark'
+                    onPress={() => setShowNewRoom(false)}
+                  />
                 </View>
 
                 <View className='h-px bg-border' />
@@ -237,11 +236,13 @@ export default function HomeScreen() {
                     router.navigate('/create-room');
                   }}
                 >
-                  <MaterialCommunityIcons
-                    name='checkbox-outline'
-                    size={22}
-                    color='var(--color-accent-dark)'
-                  />
+                  <View pointerEvents='none'>
+                    <IconButton
+                      icon='checkbox-outline'
+                      bgClassName='bg-transparent shadow-none'
+                      iconClassName='text-accent-dark'
+                    />
+                  </View>
                   <Text className='text-foreground text-base'>Create Room</Text>
                 </Pressable>
 
@@ -255,11 +256,13 @@ export default function HomeScreen() {
                     router.navigate('/qr');
                   }}
                 >
-                  <MaterialCommunityIcons
-                    name='export-variant'
-                    size={22}
-                    color='var(--color-accent-dark)'
-                  />
+                  <View pointerEvents='none'>
+                    <IconButton
+                      icon='export-variant'
+                      bgClassName='bg-transparent shadow-none'
+                      iconClassName='text-accent-dark'
+                    />
+                  </View>
                   <Text className='text-foreground text-base'>Join Room</Text>
                 </Pressable>
               </View>

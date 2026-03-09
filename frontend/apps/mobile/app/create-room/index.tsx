@@ -15,6 +15,8 @@ import {
   IconButton,
   ReceiptPhotoPicker,
   sendRoomInviteSMS,
+  AddParticipantSheet,
+  AddParticipantManualModal,
 } from '@eezy-receipt/shared';
 import { USER_COLORS } from '@shared/constants';
 import QRCode from 'react-native-qrcode-svg';
@@ -30,7 +32,6 @@ export default function CreateRoomScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddOptions, setShowAddOptions] = useState(false);
-  const [newUserName, setNewUserName] = useState('');
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [editUserName, setEditUserName] = useState('');
@@ -41,14 +42,11 @@ export default function CreateRoomScreen() {
   const qrData = `http://localhost:5173/join?roomId=${roomId}`;
   const qrRef = useRef<QRCode>(null);
 
-  const addUser = () => {
-    if (!newUserName.trim()) return;
+  const addUser = (name: string) => {
     setUsers((prev) => [
       ...prev,
-      { id: prev.length + 1, name: newUserName.trim(), source: 'manual' },
+      { id: prev.length + 1, name, source: 'manual' },
     ]);
-    setNewUserName('');
-    setShowAddUser(false);
   };
 
   const handleShareSMS = async () => {
@@ -178,7 +176,7 @@ export default function CreateRoomScreen() {
                     <MaterialCommunityIcons
                       name='close'
                       size={14}
-                      color='var(--color-accent-dark)'
+                      className='text-accent-dark'
                     />
                   </Pressable>
                 )}
@@ -194,7 +192,7 @@ export default function CreateRoomScreen() {
             <MaterialCommunityIcons
               name='plus'
               size={28}
-              color='var(--color-accent-dark)'
+              className='text-accent-dark'
             />
           </Pressable>
         </ScrollView>
@@ -229,129 +227,20 @@ export default function CreateRoomScreen() {
         </Pressable>
       </View>
 
-      {/* Add User Options Modal */}
-      <Modal
-        transparent
-        animationType='fade'
+      <AddParticipantSheet
         visible={showAddOptions}
-        onRequestClose={() => setShowAddOptions(false)}
-      >
-        <Pressable
-          className='flex-1 bg-black/50 justify-end'
-          onPress={() => setShowAddOptions(false)}
-        >
-          <Pressable onPress={() => {}}>
-            <View className='bg-card rounded-t-2xl p-6'>
-              <Text className='text-foreground text-xl font-bold mb-4'>
-                Add Participant
-              </Text>
-              <Pressable
-                className='flex-row items-center gap-4 py-3 active:opacity-70'
-                onPress={handleShareSMS}
-              >
-                <MaterialCommunityIcons
-                  name='message-text'
-                  size={24}
-                  color='#4999DF'
-                />
-                <Text className='text-foreground text-base'>
-                  Share Link via SMS
-                </Text>
-              </Pressable>
-              <View className='h-px bg-border my-1' />
-              <Pressable
-                className='flex-row items-center gap-4 py-3 active:opacity-70'
-                onPress={handleShowQR}
-              >
-                <MaterialCommunityIcons
-                  name='qrcode'
-                  size={24}
-                  color='#4999DF'
-                />
-                <Text className='text-foreground text-base'>
-                  Show Room QR Code
-                </Text>
-              </Pressable>
-              <View className='h-px bg-border my-1' />
-              <Pressable
-                className='flex-row items-center gap-4 py-3 active:opacity-70'
-                onPress={handleAddManually}
-              >
-                <MaterialCommunityIcons
-                  name='account-plus'
-                  size={24}
-                  color='#4999DF'
-                />
-                <Text className='text-foreground text-base'>Add Manually</Text>
-              </Pressable>
-              <Pressable
-                className='mt-3 py-3 items-center active:opacity-70'
-                onPress={() => setShowAddOptions(false)}
-              >
-                <Text className='text-accent-dark text-base font-medium'>
-                  Cancel
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        onClose={() => setShowAddOptions(false)}
+        onShareSMS={handleShareSMS}
+        onShowQR={handleShowQR}
+        onAddManually={handleAddManually}
+      />
 
-      {/* Add User (Manual) Modal */}
-      <Modal
-        transparent
-        animationType='fade'
+      <AddParticipantManualModal
         visible={showAddUser}
-        onRequestClose={() => setShowAddUser(false)}
-      >
-        <Pressable
-          className='flex-1 bg-black/50 justify-center items-center px-6'
-          onPress={() => setShowAddUser(false)}
-        >
-          <Pressable onPress={() => {}}>
-            <View className='bg-card rounded-2xl p-6 w-80'>
-              <View className='flex-row items-center justify-between mb-4'>
-                <Text className='text-foreground text-xl font-bold'>
-                  Add Participant
-                </Text>
-                <Pressable onPress={() => setShowAddUser(false)} hitSlop={8}>
-                  <MaterialCommunityIcons
-                    name='close'
-                    size={22}
-                    color='var(--color-accent-dark)'
-                  />
-                </Pressable>
-              </View>
-
-              <TextInput
-                placeholder='Name'
-                placeholderTextColor='var(--color-muted-foreground)'
-                value={newUserName}
-                onChangeText={setNewUserName}
-                onSubmitEditing={addUser}
-                returnKeyType='done'
-                className='border border-border rounded-xl px-4 py-3 text-foreground mb-4'
-                autoFocus
-              />
-
-              {users.length > 0 && (
-                <View className='flex-row flex-wrap gap-2'>
-                  {users.map((user) => (
-                    <View
-                      key={user.id}
-                      className={`px-3 py-1 rounded-full border-2 border-${USER_COLORS[(user.id - 1) % USER_COLORS.length]}`}
-                    >
-                      <Text className='text-foreground text-sm'>
-                        {user.name}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        onClose={() => setShowAddUser(false)}
+        onAdd={addUser}
+        addedParticipants={users}
+      />
 
       {/* Edit User Name Modal */}
       <Modal
@@ -374,7 +263,7 @@ export default function CreateRoomScreen() {
                   <MaterialCommunityIcons
                     name='close'
                     size={22}
-                    color='var(--color-accent-dark)'
+                    className='text-accent-dark'
                   />
                 </Pressable>
               </View>

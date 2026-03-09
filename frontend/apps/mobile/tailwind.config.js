@@ -35,6 +35,9 @@ const colorExtentions = {
   'success-foreground': 'var(--color-success-foreground)',
   warning: 'var(--color-warning)',
   'warning-foreground': 'var(--color-warning-foreground)',
+  'status-pending': 'var(--color-status-pending)',
+  'status-completed': 'var(--color-status-completed)',
+  'status-waiting': 'var(--color-status-waiting)',
 
   // App-specific
   'amount-positive': 'var(--color-amount-positive)',

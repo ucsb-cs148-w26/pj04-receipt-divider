@@ -160,7 +160,12 @@ export class DefaultButtons {
   static Close({ onPress }: DefaultButtonProps) {
     return (
       <View className='absolute top-[6vh] left-[4vw]'>
-        <IconButton icon='close' pressEffect='overlay' onPress={onPress} />
+        <IconButton
+          icon='chevron-left'
+          pressEffect='overlay'
+          onPress={onPress}
+          iconClassName='text-accent-dark'
+        />
       </View>
     );
   }

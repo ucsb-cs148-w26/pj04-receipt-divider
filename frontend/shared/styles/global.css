@@ -40,6 +40,9 @@
     --color-success-foreground: #ffffff;
     --color-warning: #f59e0b;
     --color-warning-foreground: #ffffff;
+    --color-status-pending: #c2760a;
+    --color-status-completed: #16a34a;
+    --color-status-waiting: #7c3aed;
 
     /* Receipt/Financial Colors - consistent across themes */
     --color-amount-positive: #22c55e;
@@ -76,7 +79,7 @@
       --color-border-strong: #1e2635;
       --color-muted: #1f2937;
       --color-muted-background: #2e2e2e;
-      --color-muted-foreground: #9ca3af;
+      --color-muted-foreground: #6e727a;
       --color-receipt-background: #1f2937;
       --color-item-background: #374151;
       --color-item-selected: #1e3a8a;
@@ -100,6 +103,9 @@
       --color-success-foreground: #ffffff;
       --color-warning: #f59e0b;
       --color-warning-foreground: #ffffff;
+      --color-status-pending: #f4b942;
+      --color-status-completed: #4ade80;
+      --color-status-waiting: #a78bfa;
 
       /* Receipt/Financial Colors - consistent across themes */
       --color-amount-positive: #22c55e;

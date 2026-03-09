@@ -125,8 +125,8 @@ export default function ReceiptDetailScreen() {
   };
 
   const STATUS_ORDER: Record<PersonStatus, number> = {
-    pending: 0,
-    waiting: 1,
+    waiting: 0,
+    pending: 1,
     completed: 2,
   };
 
@@ -148,6 +148,7 @@ export default function ReceiptDetailScreen() {
 
   const completedFraction = total > 0 ? completedCount / total : 0;
   const waitingFraction = total > 0 ? waitingCount / total : 0;
+  const pendingFraction = total > 0 ? pendingCount / total : 0;
 
   const remainingAmount = people
     .filter((p) => p.status !== 'completed')
@@ -155,8 +156,9 @@ export default function ReceiptDetailScreen() {
   const displayAmount = amountNum >= 0 ? remainingAmount : -remainingAmount;
 
   const statusParts: string[] = [];
-  if (pendingCount > 0) statusParts.push(`${pendingCount} Pending`);
-  if (waitingCount > 0) statusParts.push(`${waitingCount} Waiting`);
+  if (pendingCount > 0) statusParts.push(`${pendingCount} Requested & Unpaid`);
+  if (waitingCount > 0)
+    statusParts.push(`${waitingCount} Awaiting Verification`);
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
@@ -170,19 +172,13 @@ export default function ReceiptDetailScreen() {
           <MaterialCommunityIcons
             name='chevron-left'
             size={24}
-            color='var(--color-accent-dark)'
+            className='text-accent-dark'
           />
         </Pressable>
         <Text className='flex-1 text-center text-foreground text-xl font-bold'>
           {name}
         </Text>
-        <Pressable hitSlop={8} className='w-9 h-9 items-center justify-center'>
-          <MaterialCommunityIcons
-            name='dots-horizontal'
-            size={24}
-            color='var(--color-accent-dark)'
-          />
-        </Pressable>
+        <View className='w-9' />
       </View>
 
       <ScrollView
@@ -217,20 +213,31 @@ export default function ReceiptDetailScreen() {
           <View className='h-2.5 bg-border rounded-full overflow-hidden flex-row'>
             {completedFraction > 0 && (
               <View
-                className='h-full bg-success'
+                className='h-full bg-status-completed'
                 style={{ flex: completedFraction }}
               />
             )}
             {waitingFraction > 0 && (
               <View
-                className='h-full bg-warning'
+                className='h-full bg-status-waiting'
                 style={{ flex: waitingFraction }}
               />
             )}
-            <View
-              className='h-full bg-border'
-              style={{ flex: 1 - completedFraction - waitingFraction }}
-            />
+            {pendingFraction > 0 && (
+              <View
+                className='h-full bg-status-pending'
+                style={{ flex: pendingFraction }}
+              />
+            )}
+            {completedFraction + waitingFraction + pendingFraction < 1 && (
+              <View
+                className='h-full bg-border'
+                style={{
+                  flex:
+                    1 - completedFraction - waitingFraction - pendingFraction,
+                }}
+              />
+            )}
           </View>
         </View>
 
@@ -249,15 +256,17 @@ export default function ReceiptDetailScreen() {
                   hitSlop={8}
                   className={`w-7 h-7 rounded-full border-2 items-center justify-center mr-3 ${
                     person.status === 'completed'
-                      ? 'border-primary bg-transparent'
-                      : 'border-border'
+                      ? 'border-status-completed'
+                      : person.status === 'waiting'
+                        ? 'border-status-waiting'
+                        : 'border-status-pending'
                   }`}
                 >
                   {person.status === 'completed' && (
                     <MaterialCommunityIcons
                       name='check'
                       size={16}
-                      color='var(--color-primary)'
+                      className='text-status-completed'
                     />
                   )}
                 </Pressable>
@@ -268,7 +277,9 @@ export default function ReceiptDetailScreen() {
                     className={`font-semibold text-base ${
                       person.status === 'completed'
                         ? 'text-muted-foreground line-through'
-                        : 'text-foreground'
+                        : person.status === 'waiting'
+                          ? 'text-status-waiting'
+                          : 'text-status-pending'
                     }`}
                     numberOfLines={1}
                   >
@@ -277,8 +288,11 @@ export default function ReceiptDetailScreen() {
                       : person.name}
                   </Text>
                   <Text className='text-muted-foreground text-sm'>
-                    {person.status.charAt(0).toUpperCase() +
-                      person.status.slice(1)}
+                    {person.status === 'completed'
+                      ? 'Paid & Verified'
+                      : person.status === 'waiting'
+                        ? 'Claimed, Awaiting Verification'
+                        : 'Requested, Awaiting Payment'}
                   </Text>
                 </View>
 
@@ -287,7 +301,9 @@ export default function ReceiptDetailScreen() {
                   className={`font-semibold mr-1 ${
                     person.status === 'completed'
                       ? 'text-muted-foreground line-through'
-                      : 'text-amount-positive'
+                      : person.status === 'waiting'
+                        ? 'text-status-waiting'
+                        : 'text-status-pending'
                   }`}
                 >
                   +${person.amount.toFixed(2)}
@@ -296,12 +312,27 @@ export default function ReceiptDetailScreen() {
                 <MaterialCommunityIcons
                   name='chevron-right'
                   size={18}
-                  color='var(--color-accent-dark)'
+                  className='text-accent-dark'
                 />
               </Pressable>
             </View>
           ))}
         </View>
+
+        {/* Go to Receipt Room */}
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/receipt-room',
+              params: { roomId: id, items: '[]', participants: '[]' },
+            })
+          }
+          className='mt-4 bg-primary rounded-2xl flex-row items-center justify-center py-3.5 gap-2 active:opacity-70'
+        >
+          <Text className='text-white font-semibold text-base'>
+            View Receipt Room
+          </Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
