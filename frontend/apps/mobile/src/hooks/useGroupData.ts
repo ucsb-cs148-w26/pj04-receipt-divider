@@ -15,6 +15,7 @@ import { useRealtimeRefetch } from './useRealtimeTable';
 export function useGroupData(groupId: string) {
   const { groupEntries, fetchGroup, refetchGroup } = useGroupCache();
   const entry = groupEntries[groupId] ?? EMPTY_ENTRY;
+  console.log('Test: ', groupEntries[groupId]?.profiles);
   const filter = useMemo(() => `group_id=eq.${groupId}`, [groupId]);
 
   // Trigger an initial fetch (or background refresh if already loaded).

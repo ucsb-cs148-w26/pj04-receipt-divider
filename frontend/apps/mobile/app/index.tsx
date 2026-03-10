@@ -34,6 +34,8 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<'groups' | 'people'>('groups');
   const [showNewRoom, setShowNewRoom] = useState(false);
 
+  console.log(myGroups);
+
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
 
   const [profileName, setProfileName] = useState<string>('');

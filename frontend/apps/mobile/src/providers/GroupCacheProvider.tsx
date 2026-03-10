@@ -23,7 +23,6 @@ import React, {
 } from 'react';
 import { supabase } from '@/services/supabase';
 import {
-  getUserGroups,
   getGroupProfiles,
   type GroupSummary,
   type ProfileWithColor,
@@ -46,6 +45,8 @@ export interface GroupEntry {
   profiles: Record<string, ProfileWithColor>;
   /** auth user UUID of the group creator */
   createdBy: string;
+  /** group name */
+  username: string | null;
   isLoaded: boolean;
 }
 
@@ -56,6 +57,7 @@ export const EMPTY_ENTRY: GroupEntry = {
   receipts: [],
   profiles: {},
   createdBy: '',
+  username: null,
   isLoaded: false,
 };
 
@@ -89,11 +91,16 @@ async function doFetchGroup(
   setEntries: React.Dispatch<React.SetStateAction<Record<string, GroupEntry>>>,
 ): Promise<void> {
   try {
-    // Supabase reads run in parallel; profiles come from the FastAPI backend.
-    const [itemsRes, membersRes, receiptsRes] = await Promise.all([
+    // Supabase reads run in parallel
+    const [itemsRes, membersRes, receiptsRes, groupRes] = await Promise.all([
       supabase.from('items').select('*').eq('group_id', groupId),
       supabase.from('group_members').select('*').eq('group_id', groupId),
       supabase.from('receipts').select('*').eq('group_id', groupId),
+      supabase
+        .from('groups')
+        .select('name, created_by')
+        .eq('id', groupId)
+        .single(),
     ]);
 
     const items: Item[] = itemsRes.error ? [] : (itemsRes.data ?? []);
@@ -103,18 +110,23 @@ async function doFetchGroup(
     const receipts: Receipt[] = receiptsRes.error
       ? []
       : (receiptsRes.data ?? []);
+    const groupName = groupRes.data?.name ?? null;
+    const createdBy = groupRes.data?.created_by ?? '';
 
-    // Profiles fetched from FastAPI — gracefully degrade if backend is unavailable.
+    // Profiles fetched from backend API (bypasses RLS)
     const profiles: Record<string, ProfileWithColor> = {};
-    let createdBy = '';
+    let profileCreatedBy = '';
     try {
       const { profiles: list, groupCreatedBy } =
         await getGroupProfiles(groupId);
       for (const p of list) profiles[p.profileId] = p;
-      createdBy = groupCreatedBy;
+      profileCreatedBy = groupCreatedBy;
     } catch {
       // Backend unavailable — names will fall back to truncated profile IDs.
     }
+
+    // Use createdBy from Supabase if available, otherwise from backend
+    const finalCreatedBy = createdBy || profileCreatedBy;
 
     // Claims depend on item IDs
     const itemIds = items.map((i) => i.id);
@@ -135,7 +147,8 @@ async function doFetchGroup(
         members,
         receipts,
         profiles,
-        createdBy,
+        createdBy: finalCreatedBy,
+        username: groupName,
         isLoaded: true,
       },
     }));
@@ -177,12 +190,121 @@ export function GroupCacheProvider({
 
   // ── My Groups ──────────────────────────────────────────────────────────────
 
+  async function fetchMyGroupsMetadata(
+    profileId: string,
+  ): Promise<Map<string, { name: string | null; paidStatus: string }>> {
+    const { data: groupMembers, error: gmError } = await supabase
+      .from('group_members')
+      .select('group_id, paid_status')
+      .eq('profile_id', profileId);
+
+    if (gmError || !groupMembers) return new Map();
+
+    const groupIds = groupMembers.map((gm) => gm.group_id);
+    if (groupIds.length === 0) return new Map();
+
+    const { data: groups, error: groupsError } = await supabase
+      .from('groups')
+      .select('id, name')
+      .in('id', groupIds);
+
+    const metadata = new Map<
+      string,
+      { name: string | null; paidStatus: string }
+    >();
+
+    if (!groupsError && groups) {
+      const groupNameMap = new Map(groups.map((g) => [g.id, g.name]));
+      for (const gm of groupMembers) {
+        metadata.set(gm.group_id, {
+          name: groupNameMap.get(gm.group_id) ?? null,
+          paidStatus: gm.paid_status,
+        });
+      }
+    }
+
+    return metadata;
+  }
+
+  function computeMyGroupsFromEntries(
+    entries: Record<string, GroupEntry>,
+    metadata: Map<string, { name: string | null; paidStatus: string }>,
+    profileId: string,
+  ): GroupSummary[] {
+    const summaries: GroupSummary[] = [];
+
+    for (const [groupId, entry] of Object.entries(entries)) {
+      if (!entry.isLoaded) continue;
+
+      const meta = metadata.get(groupId);
+      const name = meta?.name ?? entry.username ?? null;
+      const paidStatus =
+        (meta?.paidStatus as GroupSummary['paidStatus']) || 'unrequested';
+
+      const memberCount = entry.members.length;
+
+      const itemMap = new Map(entry.items.map((i) => [i.id, i]));
+
+      let totalClaimed = 0;
+      for (const claim of entry.claims) {
+        if (claim.profile_id === profileId) {
+          const item = itemMap.get(claim.item_id);
+          if (item) {
+            totalClaimed += item.unit_price * claim.share;
+          }
+        }
+      }
+
+      const receiptCreatedBy = new Set(entry.receipts.map((r) => r.created_by));
+      let totalUploaded = 0;
+      for (const item of entry.items) {
+        if (item.receipt_id && receiptCreatedBy.has(profileId)) {
+          totalUploaded += item.unit_price * item.amount;
+        }
+      }
+
+      summaries.push({
+        groupId,
+        name,
+        memberCount,
+        totalClaimed,
+        totalUploaded,
+        paidStatus,
+      });
+    }
+
+    return summaries;
+  }
+
   const refetchMyGroups = useCallback(async () => {
     if (myGroupsInFlight.current) return;
     myGroupsInFlight.current = true;
     setIsLoadingMyGroups(true);
     try {
-      const { groups } = await getUserGroups();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setMyGroups([]);
+        return;
+      }
+
+      const metadata = await fetchMyGroupsMetadata(user.id);
+      const groupIds = Array.from(metadata.keys());
+
+      const missingGroupIds = groupIds.filter(
+        (id) => !groupEntries[id]?.isLoaded,
+      );
+
+      await Promise.all(
+        missingGroupIds.map((id) => doFetchGroup(id, setGroupEntries)),
+      );
+
+      const groups = computeMyGroupsFromEntries(
+        groupEntries,
+        metadata,
+        user.id,
+      );
       setMyGroups(groups);
     } catch (err) {
       console.error('[GroupCache] refetchMyGroups failed:', err);
@@ -190,7 +312,7 @@ export function GroupCacheProvider({
       myGroupsInFlight.current = false;
       setIsLoadingMyGroups(false);
     }
-  }, []);
+  }, [groupEntries]);
 
   // ── Per-group data ─────────────────────────────────────────────────────────
 

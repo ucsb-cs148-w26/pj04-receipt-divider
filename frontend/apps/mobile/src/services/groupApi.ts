@@ -243,15 +243,6 @@ export interface GroupSummary {
   paidStatus: PaidStatus;
 }
 
-export interface GetMyGroupsResponse {
-  groups: GroupSummary[];
-}
-
-/** GET /group/my-groups — get all groups for the authenticated user with balances and paid_status */
-export async function getUserGroups(): Promise<GetMyGroupsResponse> {
-  return apiFetch<GetMyGroupsResponse>('/group/my-groups');
-}
-
 /** POST /group/join — join an existing group as a registered (email) user */
 export async function joinGroup(groupId: string): Promise<void> {
   return apiFetch<void>('/group/join', {
