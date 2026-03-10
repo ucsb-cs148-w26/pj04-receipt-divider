@@ -1,3 +1,4 @@
+import { useAuth } from '@/providers/AuthContext';
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 
@@ -160,11 +161,13 @@ export default function ProfileSelectPage() {
   const t = isDark ? dark : light;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const roomId = searchParams.get('roomId');
+  const groupId = searchParams.get('roomId');
+
+  const { setSessionToken } = useAuth();
 
   useEffect(() => {
-    if (!roomId) return;
-    fetch(`${import.meta.env.VITE_API_URL}/group/profiles?group_id=${roomId}`)
+    if (!groupId) return;
+    fetch(`${import.meta.env.VITE_API_URL}/group/profiles?group_id=${groupId}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -187,7 +190,7 @@ export default function ProfileSelectPage() {
       })
       .catch((err) => console.error('[ProfileSelectPage] fetch error:', err))
       .finally(() => setIsLoadingProfiles(false));
-  }, [roomId]);
+  }, [groupId]);
 
   useEffect(() => {
     if (showModal) setTimeout(() => inputRef.current?.focus(), 50);
@@ -207,7 +210,7 @@ export default function ProfileSelectPage() {
   };
 
   const handleContinue = async () => {
-    if (selectedId === null || !roomId) return;
+    if (selectedId === null || !groupId) return;
     const participant = participants.find((p) => p.id === selectedId);
     if (!participant) return;
 
@@ -218,7 +221,7 @@ export default function ProfileSelectPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            groupId: roomId,
+            groupId: groupId,
             profileId: participant.profileId,
           }),
         },
@@ -231,11 +234,13 @@ export default function ProfileSelectPage() {
       }
       const data = await res.json();
       console.log('[handleContinue] profile-login response:', data);
-      const token: string | null =
+      const sessionToken: string | null =
         data.access_token ?? data.accessToken ?? null;
-      if (token) sessionStorage.setItem(`profileJwt:${roomId}`, token);
-      navigate(`/room/${roomId}`);
-    } catch {
+
+      if (sessionToken) setSessionToken(sessionToken);
+      navigate(`/group/${groupId}`);
+    } catch (e) {
+      console.log(e);
       navigate(
         `/error?message=${encodeURIComponent('Could not reach the server.')}`,
       );
@@ -243,11 +248,11 @@ export default function ProfileSelectPage() {
   };
 
   const handleConfirm = async () => {
-    if (!newName.trim() || !roomId || isCreating.current) return;
+    if (!newName.trim() || !groupId || isCreating.current) return;
     isCreating.current = true;
     setIsAddingProfile(true);
 
-    let accessTokenValue: string | null = null;
+    let sessionToken: string | null = null;
 
     try {
       const res = await fetch(
@@ -256,7 +261,7 @@ export default function ProfileSelectPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            groupId: roomId,
+            groupId: groupId,
             username: newName.trim(),
           }),
         },
@@ -274,15 +279,15 @@ export default function ProfileSelectPage() {
       }
       const data = await res.json();
       console.log('[handleConfirm] create-profile response:', data);
-      accessTokenValue = data.access_token ?? data.accessToken ?? null;
-      if (!accessTokenValue) {
+      sessionToken = data.access_token ?? data.accessToken ?? null;
+      if (!sessionToken) {
         console.error('[handleConfirm] no access_token in response:', data);
         isCreating.current = false;
         setIsAddingProfile(false);
         setShowModal(false);
         return;
       }
-      sessionStorage.setItem(`profileJwt:${roomId}`, accessTokenValue);
+      setSessionToken(sessionToken);
     } catch (e) {
       console.error('[handleConfirm] network error:', e);
       navigate(
@@ -294,7 +299,7 @@ export default function ProfileSelectPage() {
     }
 
     try {
-      const base64 = accessTokenValue
+      const base64 = sessionToken
         .split('.')[1]
         .replace(/-/g, '+')
         .replace(/_/g, '/');
