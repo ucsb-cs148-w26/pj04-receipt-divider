@@ -1,54 +1,57 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/services/supabase';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useGroupCache, EMPTY_ENTRY } from '@/providers/GroupCacheProvider';
 import { useRealtimeRefetch } from './useRealtimeTable';
-import type {
-  Item,
-  ItemClaim,
-  GroupMember,
-  Receipt,
-} from '@eezy-receipt/shared';
 
+/**
+ * Hook that returns cached group data for the given groupId and keeps it fresh
+ * via Supabase Realtime subscriptions.
+ *
+ * Data is stored in GroupCacheProvider so it survives navigation — screens that
+ * return to the same groupId get instant renders without a loading spinner.
+ *
+ * Returned `profiles` is a map of profileId → ProfileWithColor (username +
+ * accentColor) fetched from the FastAPI backend alongside the Supabase data.
+ */
 export function useGroupData(groupId: string) {
-  const [items, setItems] = useState<Item[]>([]);
-  const [claims, setClaims] = useState<ItemClaim[]>([]);
-  const [members, setMembers] = useState<GroupMember[]>([]);
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-
+  const { groupEntries, fetchGroup, refetchGroup } = useGroupCache();
+  const entry = groupEntries[groupId] ?? EMPTY_ENTRY;
   const filter = useMemo(() => `group_id=eq.${groupId}`, [groupId]);
 
-  const refetch = useCallback(async () => {
-    if (!groupId) return;
-
-    const [itemsRes, membersRes, receiptsRes] = await Promise.all([
-      supabase.from('items').select('*').eq('group_id', groupId),
-      supabase.from('group_members').select('*').eq('group_id', groupId),
-      supabase.from('receipts').select('*').eq('group_id', groupId),
-    ]);
-
-    if (!itemsRes.error) setItems(itemsRes.data ?? []);
-    if (!membersRes.error) setMembers(membersRes.data ?? []);
-    if (!receiptsRes.error) setReceipts(receiptsRes.data ?? []);
-
-    const itemIds = (itemsRes.data ?? []).map((i) => i.id);
-    if (itemIds.length > 0) {
-      const claimsRes = await supabase
-        .from('item_claims')
-        .select('*')
-        .in('item_id', itemIds);
-      if (!claimsRes.error) setClaims(claimsRes.data ?? []);
-    } else {
-      setClaims([]);
-    }
-  }, [groupId]);
-
+  // Trigger an initial fetch (or background refresh if already loaded).
+  // fetchGroup is deduped — concurrent calls for the same groupId are no-ops.
   useEffect(() => {
-    void refetch();
-  }, [refetch]);
+    if (groupId) void fetchGroup(groupId);
+  }, [groupId, fetchGroup]);
 
-  useRealtimeRefetch('items', refetch, { filter });
-  useRealtimeRefetch('item_claims', refetch);
-  useRealtimeRefetch('group_members', refetch, { filter });
-  useRealtimeRefetch('receipts', refetch, { filter });
+  // Immediate refetch — used by the returned `refetch` so pull-to-refresh feels instant.
+  const refetch = useCallback(() => {
+    void refetchGroup(groupId);
+  }, [refetchGroup, groupId]);
 
-  return { items, claims, members, receipts, refetch };
+  // Debounced refetch — used for realtime events so that rapid-fire DB change
+  // notifications (e.g. from a bulk claim/unclaim touching N rows) collapse
+  // into a single cache refresh instead of N parallel fetches.
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRefetch = useCallback(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      void refetchGroup(groupId);
+    }, 300);
+  }, [refetchGroup, groupId]);
+
+  useRealtimeRefetch('items', debouncedRefetch, { filter });
+  useRealtimeRefetch('item_claims', debouncedRefetch);
+  useRealtimeRefetch('group_members', debouncedRefetch, { filter });
+  useRealtimeRefetch('receipts', debouncedRefetch, { filter });
+
+  return {
+    items: entry.items,
+    claims: entry.claims,
+    members: entry.members,
+    receipts: entry.receipts,
+    profiles: entry.profiles,
+    createdBy: entry.createdBy,
+    isLoaded: entry.isLoaded,
+    refetch,
+  };
 }

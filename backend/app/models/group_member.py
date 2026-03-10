@@ -6,11 +6,15 @@ if TYPE_CHECKING:
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import Enum as SAEnum, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
+
+paid_status_enum = SAEnum(
+    "verified", "pending", "requested", "unrequested", name="paid_status_enum"
+)
 
 
 class GroupMember(Base):
@@ -24,6 +28,9 @@ class GroupMember(Base):
     )
     joined_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now()
+    )
+    paid_status: Mapped[str] = mapped_column(
+        paid_status_enum, nullable=False, server_default="unrequested"
     )
 
     # Relationships

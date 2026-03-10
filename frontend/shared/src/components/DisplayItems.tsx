@@ -46,14 +46,18 @@ export function DisplayItems({
         </Text>
 
         {/* Price */}
-        <Text className='text-foreground font-extrabold text-xl'>${price}</Text>
+        <Text className='text-foreground font-extrabold text-xl'>
+          ${parseFloat(price || '0').toFixed(2)}
+        </Text>
       </View>
 
       {/* Discount row */}
       {showDiscount && (
         <View className='flex-row items-center justify-end gap-1 mt-1'>
           <Text className='text-xs text-muted-foreground'>Discount:</Text>
-          <Text className='text-sm text-foreground'>${discount}</Text>
+          <Text className='text-sm text-foreground'>
+            ${parseFloat(discount!).toFixed(2)}
+          </Text>
         </View>
       )}
     </View>

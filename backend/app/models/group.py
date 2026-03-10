@@ -33,11 +33,17 @@ class Group(Base):
         back_populates="profile_groups_created", foreign_keys=[created_by]
     )
     group_members: Mapped[List["GroupMember"]] = relationship(
-        back_populates="group_member_group"
+        back_populates="group_member_group",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     group_receipts: Mapped[List["Receipt"]] = relationship(
-        back_populates="receipt_group"
+        back_populates="receipt_group",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     group_items: Mapped[List["Item"]] = relationship(
-        back_populates="item_receipt_group"
+        back_populates="item_receipt_group",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )

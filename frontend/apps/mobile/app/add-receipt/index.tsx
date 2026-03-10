@@ -5,11 +5,31 @@ import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconButton, ReceiptPhotoPicker } from '@eezy-receipt/shared';
 import { addReceipt } from '@/services/groupApi';
+import { supabase } from '@/services/supabase';
+import { ReceiptConfidenceModal, type ConfidenceData } from '@/components';
+
+/** Poll Supabase until all uploaded receipts are visible in the DB (max ~15 s). */
+async function waitForReceiptsInDb(receiptIds: string[]): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const { data } = await supabase
+      .from('receipts')
+      .select('id')
+      .in('id', receiptIds);
+    if (data && data.length >= receiptIds.length) return;
+    await new Promise<void>((r) => setTimeout(r, 600));
+  }
+  // Timeout — proceed anyway; receipt-room will show items when realtime fires.
+}
 
 export default function AddReceiptScreen() {
   const { groupId } = useLocalSearchParams<{ groupId?: string }>();
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [confidenceData, setConfidenceData] = useState<ConfidenceData | null>(
+    null,
+  );
+  const [showConfidence, setShowConfidence] = useState(false);
 
   const handleScan = async () => {
     if (photoUris.length === 0 || isProcessing) return;
@@ -19,8 +39,29 @@ export default function AddReceiptScreen() {
     }
     setIsProcessing(true);
     try {
-      await Promise.all(photoUris.map((uri) => addReceipt(groupId, uri)));
-      router.back();
+      const results = await Promise.all(
+        photoUris.map((uri) => addReceipt(groupId, uri)),
+      );
+      const receiptIds = results.map((r) => r.receiptId);
+
+      // Wait for receipts to appear in DB so items are visible immediately on navigate back
+      await waitForReceiptsInDb(receiptIds);
+
+      // Collect confidence data from the first result that has it
+      const first = results.find((r) => r.confidenceScore != null);
+      if (first) {
+        setConfidenceData({
+          confidenceScore: first.confidenceScore!,
+          warnings: first.warnings,
+          notes: first.notes,
+          tax: first.tax,
+          ocrTotal: first.ocrTotal,
+        });
+        setShowConfidence(true);
+        // Navigation happens when user dismisses the modal (see onClose below)
+      } else {
+        router.back();
+      }
     } catch (err) {
       Alert.alert(
         'Upload Failed',
@@ -88,6 +129,18 @@ export default function AddReceiptScreen() {
           </Text>
         </Pressable>
       </View>
+
+      {confidenceData && (
+        <ReceiptConfidenceModal
+          visible={showConfidence}
+          onClose={() => {
+            setShowConfidence(false);
+            setConfidenceData(null);
+            router.back();
+          }}
+          data={confidenceData}
+        />
+      )}
     </SafeAreaView>
   );
 }

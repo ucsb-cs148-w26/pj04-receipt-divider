@@ -5,7 +5,7 @@ if TYPE_CHECKING:
 
 import uuid
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import ForeignKey, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -21,8 +21,10 @@ class Receipt(Base):
         primary_key=True, server_default=text("gen_random_uuid()")
     )
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id"), nullable=False)
-    image: Mapped[str] = mapped_column(Text, nullable=False)
+    image: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_manual: Mapped[bool] = mapped_column(nullable=False, default=False)
     total: Mapped[float] = mapped_column(nullable=False)
+    tax: Mapped[Optional[float]] = mapped_column(nullable=True, default=None)
     created_by: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("profiles.id"), nullable=False
     )

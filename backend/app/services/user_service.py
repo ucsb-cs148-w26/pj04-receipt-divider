@@ -1,14 +1,16 @@
 import uuid
+from typing import Optional
 
 from fastapi import HTTPException, status
 from supabase import Client as SupabaseClient
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy.dialects.postgresql import insert
 
 from app.config import settings
 from app.models import Group, Item, Receipt, GroupMember, ItemClaim
 from app.services.ocr_service import OCRService
+from app.services.receipt_parser.types import ReceiptConfidence
 
 
 class UserService:
@@ -93,6 +95,145 @@ class UserService:
 
         return self.db.execute(stmt).scalars().all()
 
+    def delete_item(self, profile_id: str, item_id: str) -> None:
+        item = self.db.get(Item, item_id)
+        if item is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
+            )
+        member = self.db.get(
+            GroupMember, {"profile_id": profile_id, "group_id": str(item.group_id)}
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this group",
+            )
+        self.db.delete(item)
+        self.db.commit()
+
+    def update_item(
+        self,
+        profile_id: str,
+        item_id: str,
+        name: Optional[str] = None,
+        unit_price: Optional[float] = None,
+    ) -> None:
+        item = self.db.get(Item, item_id)
+        if item is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
+            )
+        member = self.db.get(
+            GroupMember, {"profile_id": profile_id, "group_id": str(item.group_id)}
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this group",
+            )
+        if name is not None:
+            item.name = name
+        if unit_price is not None:
+            item.unit_price = unit_price
+        self.db.commit()
+
+    def delete_group(self, profile_id: str, group_id: str) -> None:
+        if not self._is_host(profile_id, group_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the host can delete the group",
+            )
+        group = self.db.get(Group, group_id)
+        if group is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
+            )
+        self.db.delete(group)
+        self.db.commit()
+
+    def update_group_name(self, profile_id: str, group_id: str, name: str) -> None:
+        member = self.db.get(
+            GroupMember, {"profile_id": profile_id, "group_id": group_id}
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this group",
+            )
+        group = self.db.get(Group, group_id)
+        if group is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
+            )
+        group.name = name
+        self.db.commit()
+
+    def get_groups_summary(self, profile_id: str):
+        """Return one row per group the user belongs to:
+        group id, name, member count, total claimed amount, and the user's paid_status.
+        """
+        # Subquery: member count per group
+        member_count_sq = (
+            select(
+                GroupMember.group_id,
+                func.count(GroupMember.profile_id).label("member_count"),
+            )
+            .group_by(GroupMember.group_id)
+            .subquery()
+        )
+
+        # Subquery: sum of items claimed by this user per group
+        claimed_sum_sq = (
+            select(
+                Item.group_id,
+                func.coalesce(func.sum(Item.unit_price * ItemClaim.share), 0.0).label(
+                    "total_claimed"
+                ),
+            )
+            .join(ItemClaim, ItemClaim.item_id == Item.id)
+            .where(ItemClaim.profile_id == profile_id)
+            .group_by(Item.group_id)
+            .subquery()
+        )
+
+        # Subquery: sum of items from receipts uploaded by this user per group
+        uploaded_sum_sq = (
+            select(
+                Receipt.group_id,
+                func.coalesce(func.sum(Item.unit_price * Item.amount), 0.0).label(
+                    "total_uploaded"
+                ),
+            )
+            .join(Item, Item.receipt_id == Receipt.id)
+            .where(Receipt.created_by == profile_id)
+            .group_by(Receipt.group_id)
+            .subquery()
+        )
+
+        stmt = (
+            select(
+                Group.id,
+                Group.name,
+                member_count_sq.c.member_count,
+                func.coalesce(claimed_sum_sq.c.total_claimed, 0.0).label(
+                    "total_claimed"
+                ),
+                func.coalesce(uploaded_sum_sq.c.total_uploaded, 0.0).label(
+                    "total_uploaded"
+                ),
+                GroupMember.paid_status,
+            )
+            .join(GroupMember, GroupMember.group_id == Group.id)
+            .join(member_count_sq, member_count_sq.c.group_id == Group.id)
+            .outerjoin(claimed_sum_sq, claimed_sum_sq.c.group_id == Group.id)
+            .outerjoin(uploaded_sum_sq, uploaded_sum_sq.c.group_id == Group.id)
+            .where(GroupMember.profile_id == profile_id)
+            .order_by(Group.id)
+        )
+
+        return self.db.execute(stmt).all()
+
     def remove_member(
         self, host_profile_id: str, group_id: str, member_profile_id: str
     ) -> None:
@@ -120,7 +261,9 @@ class UserService:
 
     async def add_receipt(
         self, profile_id: str, group_id: str, image_bytes: bytes, image_ext: str
-    ) -> uuid.UUID:
+    ) -> tuple[
+        uuid.UUID, Optional[float], Optional[float], Optional[ReceiptConfidence]
+    ]:
         member = self.db.get(
             GroupMember, {"profile_id": profile_id, "group_id": group_id}
         )
@@ -157,6 +300,7 @@ class UserService:
             )
 
         total_price = parsed.calculated_subtotal
+        tax = parsed.ocr_tax
         receipt_id = uuid.uuid4()
         for cleaned_item in cleaned_items:
             item = Item(
@@ -172,7 +316,9 @@ class UserService:
             id=receipt_id,
             group_id=group_id,
             image=image_url,
+            is_manual=False,
             total=total_price,
+            tax=tax,
             created_by=profile_id,
         )
         self.db.add(receipt)
@@ -186,7 +332,7 @@ class UserService:
                 detail=f"Failed to save receipt: {str(e)}",
             )
 
-        return receipt_id
+        return receipt_id, tax, parsed.ocr_total, parsed.confidence
 
     def remove_receipt(self, profile_id: str, receipt_id: str) -> None:
         receipt = self.db.get(Receipt, receipt_id)
@@ -270,7 +416,10 @@ class UserService:
     def assign_item(
         self, host_profile_id: str, guest_profile_id: str, item_id: str
     ) -> None:
-        if not self._is_host_of_item(host_profile_id, item_id):
+        if (
+            not self._is_host_of_item(host_profile_id, item_id)
+            and host_profile_id != guest_profile_id
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only host can assign items",
@@ -278,13 +427,99 @@ class UserService:
 
         self.claim_item(guest_profile_id, item_id)
 
+    def assign_items(
+        self, host_profile_id: str, guest_profile_id: str, item_ids: list[str]
+    ) -> None:
+        for item_id in item_ids:
+            self.assign_item(host_profile_id, guest_profile_id, item_id)
+
     def unassign_item(
         self, host_profile_id: str, guest_profile_id: str, item_id: str
     ) -> None:
-        if not self._is_host_of_item(host_profile_id, item_id):
+        if (
+            not self._is_host_of_item(host_profile_id, item_id)
+            and host_profile_id != guest_profile_id
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only host can unassign items",
             )
 
         self.unclaim_item(guest_profile_id, item_id)
+
+    def unassign_items(
+        self, host_profile_id: str, guest_profile_id: str, item_ids: list[str]
+    ) -> None:
+        for item_id in item_ids:
+            self.unassign_item(host_profile_id, guest_profile_id, item_id)
+
+    def add_item(
+        self,
+        profile_id: str,
+        group_id: str,
+        receipt_id: Optional[str] = None,
+        name: str = "",
+        unit_price: float = 0.0,
+    ) -> uuid.UUID:
+        member = self.db.get(
+            GroupMember, {"profile_id": profile_id, "group_id": group_id}
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this group",
+            )
+        item = Item(
+            group_id=group_id,
+            receipt_id=receipt_id,
+            name=name,
+            unit_price=unit_price,
+            amount=1,
+        )
+        self.db.add(item)
+        self.db.commit()
+        self.db.refresh(item)
+        return item.id
+
+    def create_manual_receipt(
+        self, profile_id: str, group_id: str, tax: Optional[float] = None
+    ) -> uuid.UUID:
+        member = self.db.get(
+            GroupMember, {"profile_id": profile_id, "group_id": group_id}
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this group",
+            )
+        receipt = Receipt(
+            group_id=group_id,
+            image=None,
+            is_manual=True,
+            total=0.0,
+            tax=tax,
+            created_by=profile_id,
+        )
+        self.db.add(receipt)
+        self.db.commit()
+        self.db.refresh(receipt)
+        return receipt.id
+
+    def update_receipt_tax(
+        self, profile_id: str, receipt_id: str, tax: Optional[float]
+    ) -> None:
+        receipt = self.db.get(Receipt, receipt_id)
+        if receipt is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Receipt not found"
+            )
+        member = self.db.get(
+            GroupMember, {"profile_id": profile_id, "group_id": str(receipt.group_id)}
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this group",
+            )
+        receipt.tax = tax
+        self.db.commit()

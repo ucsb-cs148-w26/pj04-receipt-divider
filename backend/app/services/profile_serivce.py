@@ -35,7 +35,9 @@ class ProfileService:
             payload, self.jwt_private_key, algorithm=self.jwt_algo, headers=header
         )
 
-    def get_profiles_data_by_group(self, group_id: str) -> list[PublicProfileData]:
+    def get_profiles_data_by_group(
+        self, group_id: str
+    ) -> tuple[list[PublicProfileData], str]:
         group = self.db.get(Group, group_id)
         if not group:
             raise ValueError(f"Group '{group_id}' not found.")
@@ -44,12 +46,13 @@ class ProfileService:
             select(Profile).join(GroupMember).where(GroupMember.group_id == group_id)
         ).all()
 
-        return [
+        profile_list = [
             PublicProfileData(
                 profile_id=p.id, accent_color=p.accent_color or "", username=p.username
             )
             for p in profiles
         ]
+        return profile_list, str(group.created_by)
 
     def login_as(self, group_id: str, profile_id: str) -> str:
         member = self.db.get(
@@ -73,3 +76,10 @@ class ProfileService:
         self.db.commit()
 
         return response.session.access_token
+
+    def update_username(self, profile_id: str, username: str) -> None:
+        profile = self.db.get(Profile, profile_id)
+        if profile is None:
+            raise Exception(f"Profile '{profile_id}' not found.")
+        profile.username = username
+        self.db.commit()

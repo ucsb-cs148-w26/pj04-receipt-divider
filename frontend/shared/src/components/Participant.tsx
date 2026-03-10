@@ -1,5 +1,5 @@
 import { USER_COLORS } from '@shared/constants';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Pressable,
   Alert,
   Animated,
+  TextInput,
 } from 'react-native';
 
 interface ParticipantsProps {
@@ -18,6 +19,8 @@ interface ParticipantsProps {
   onLayout: (event: LayoutRectangle) => void;
   goToYourItemsPage: () => void;
   isEditMode?: boolean;
+  /** Called when the participant name is changed; if undefined, name is read-only */
+  onRename?: (_newName: string) => void;
 }
 
 export function Participant({
@@ -29,9 +32,18 @@ export function Participant({
   onLayout,
   goToYourItemsPage,
   isEditMode = true,
+  onRename,
 }: ParticipantsProps) {
   const ref = useRef<View>(null);
   const displayName = name || `Name ${id}`;
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(displayName);
+
+  // Keep local input in sync when name prop changes externally
+  useEffect(() => {
+    if (!isEditingName) setNameInput(name || `Name ${id}`);
+  }, [name, id, isEditingName]);
+
   const editAnim = useRef(new Animated.Value(isEditMode ? 1 : 0)).current;
   const claimOpacity = editAnim.interpolate({
     inputRange: [0, 1],
@@ -96,12 +108,48 @@ export function Participant({
           </Pressable>
 
           {/* Name */}
-          <Text
-            className='text-foreground font-bold text-sm flex-1'
-            numberOfLines={2}
-          >
-            {displayName}
-          </Text>
+          {isEditMode && onRename && isEditingName ? (
+            <TextInput
+              value={nameInput}
+              onChangeText={setNameInput}
+              autoFocus
+              returnKeyType='done'
+              onSubmitEditing={() => {
+                const trimmed = nameInput.trim();
+                if (trimmed) onRename(trimmed);
+                setIsEditingName(false);
+              }}
+              onBlur={() => {
+                const trimmed = nameInput.trim();
+                if (trimmed) onRename(trimmed);
+                else setNameInput(displayName);
+                setIsEditingName(false);
+              }}
+              className='text-foreground font-bold text-sm flex-1'
+              style={{ padding: 0, includeFontPadding: false }}
+              numberOfLines={1}
+            />
+          ) : (
+            <Pressable
+              className='flex-1'
+              onPress={
+                isEditMode && onRename
+                  ? () => {
+                      setNameInput(displayName);
+                      setIsEditingName(true);
+                    }
+                  : undefined
+              }
+              disabled={!isEditMode || !onRename}
+            >
+              <Text
+                className={`text-foreground font-bold text-sm${isEditMode && onRename ? ' underline' : ''}`}
+                numberOfLines={2}
+              >
+                {displayName}
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Item count and total */}

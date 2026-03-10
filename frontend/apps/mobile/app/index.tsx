@@ -1,58 +1,75 @@
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '@/providers';
+import { useAuth, useGroupCache } from '@/providers';
+import { supabase } from '@/services/supabase';
 import { IconButton } from '@eezy-receipt/shared';
+import type { PaidStatus } from '@/services/groupApi';
 
-const MOCK_GROUPS = [
-  { id: '1', name: 'Costco', status: 'pending', amount: 135.12, members: 5 },
-  { id: '2', name: 'Chipotle', status: 'pending', amount: -25.12, members: 2 },
-  { id: '3', name: 'Target', status: 'pending', amount: 75.21, members: 5 },
-  { id: '4', name: 'Taco Bell', status: 'completed', amount: 5.99, members: 2 },
-  {
-    id: '5',
-    name: "Trader Joe's",
-    status: 'completed',
-    amount: 7.02,
-    members: 4,
-  },
-  {
-    id: '6',
-    name: "Trader Joe's",
-    status: 'completed',
-    amount: 7.02,
-    members: 4,
-  },
-];
+type HistoryItem = {
+  id: string;
+  name: string;
+  status: 'completed' | 'pending';
+  amount: number;
+  members: number;
+};
 
-const MOCK_PEOPLE = [
-  { id: '1', name: 'Alice', status: 'pending', amount: -20.0, members: 1 },
-  { id: '2', name: 'Bob', status: 'completed', amount: 45.0, members: 1 },
-];
+function mapPaidStatus(ps: PaidStatus): 'completed' | 'pending' {
+  return ps === 'verified' ? 'completed' : 'pending';
+}
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { myGroups, refetchMyGroups } = useGroupCache();
   const [activeTab, setActiveTab] = useState<'groups' | 'people'>('groups');
   const [showNewRoom, setShowNewRoom] = useState(false);
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
-  const metaName =
-    (user?.user_metadata?.full_name as string | undefined) ?? user?.email;
 
-  // Mock DB profile fetch — replace with real API call when backend is ready
-  const [profileName, setProfileName] = useState<string>(metaName ?? '');
+  const [profileName, setProfileName] = useState<string>('');
   useEffect(() => {
-    if (metaName) {
-      setProfileName(metaName);
-      return;
-    }
-    // Simulate fetching display name from DB
-    const timeout = setTimeout(() => {
-      setProfileName('there'); // fallback until real DB call is wired up
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [metaName]);
+    if (!user?.id) return;
+    void supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.username) setProfileName(data.username);
+      });
+  }, [user?.id]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchGroups = useCallback(() => {
+    void refetchMyGroups();
+  }, [refetchMyGroups]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refetchMyGroups();
+    setIsRefreshing(false);
+  }, [refetchMyGroups]);
+
+  useFocusEffect(fetchGroups);
+
+  const groups: HistoryItem[] = (myGroups ?? []).map((g) => ({
+    id: g.groupId,
+    name: g.name ?? 'Unnamed Group',
+    status: mapPaidStatus(g.paidStatus),
+    amount: g.totalUploaded - g.totalClaimed,
+    members: g.memberCount,
+  }));
 
   const firstName = profileName.split(' ')[0] || 'there';
 
@@ -61,7 +78,14 @@ export default function HomeScreen() {
     user?.email ??
     'U';
 
-  const data = activeTab === 'groups' ? MOCK_GROUPS : MOCK_PEOPLE;
+  const data: HistoryItem[] = activeTab === 'groups' ? groups : [];
+
+  const youAreOwed = groups
+    .filter((g) => g.amount > 0)
+    .reduce((sum, g) => sum + g.amount, 0);
+  const youOwe = groups
+    .filter((g) => g.amount < 0)
+    .reduce((sum, g) => sum + Math.abs(g.amount), 0);
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
@@ -95,6 +119,9 @@ export default function HomeScreen() {
         className='flex-1 px-5'
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+        }
       >
         {/* Finances */}
         <Text className='text-foreground text-2xl font-bold mb-3'>
@@ -104,7 +131,7 @@ export default function HomeScreen() {
           <View className='flex-1 bg-card rounded-2xl p-4'>
             <Text className='text-muted-foreground text-sm mb-1'>You Owe</Text>
             <Text className='text-amount-negative text-2xl font-bold'>
-              $64.91
+              ${youOwe.toFixed(2)}
             </Text>
           </View>
           <View className='flex-1 bg-card rounded-2xl p-4'>
@@ -112,7 +139,7 @@ export default function HomeScreen() {
               You Are Owed
             </Text>
             <Text className='text-amount-positive text-2xl font-bold'>
-              $105.62
+              ${youAreOwed.toFixed(2)}
             </Text>
           </View>
         </View>
@@ -153,61 +180,73 @@ export default function HomeScreen() {
         </View>
 
         {/* History list */}
-        <View className='bg-card rounded-2xl overflow-hidden'>
-          {data.map((item, index) => (
-            <View key={item.id}>
-              {index > 0 && <View className='h-px bg-border mx-4' />}
-              <Pressable
-                className='flex-row items-center px-4 py-3 active:opacity-70'
-                onPress={() =>
-                  router.navigate({
-                    pathname: '/receipt-detail',
-                    params: {
-                      id: item.id,
-                      name: item.name,
-                      amount: item.amount.toString(),
-                      tab: activeTab,
-                    },
-                  })
-                }
-              >
-                <View className='flex-1 mr-3'>
-                  <Text
-                    className={`font-bold text-base ${item.status === 'completed' ? 'text-muted-foreground line-through' : 'text-foreground'}`}
-                    numberOfLines={1}
-                  >
-                    {item.name}
-                  </Text>
-                  <Text className='text-muted-foreground text-sm'>
-                    {activeTab === 'groups'
-                      ? `${item.members} ${item.members === 1 ? 'member' : 'members'} · ${item.status.charAt(0).toUpperCase() + item.status.slice(1)}`
-                      : item.status.charAt(0).toUpperCase() +
-                        item.status.slice(1)}
-                  </Text>
-                </View>
-                <Text
-                  className={`font-semibold mr-1 ${
-                    item.status === 'completed'
-                      ? 'text-muted-foreground line-through'
-                      : item.amount >= 0
-                        ? 'text-amount-positive'
-                        : 'text-amount-negative'
-                  }`}
+        {myGroups === null && activeTab === 'groups' ? (
+          <View className='bg-card rounded-2xl p-8 items-center'>
+            <ActivityIndicator />
+          </View>
+        ) : data.length === 0 ? (
+          <View className='bg-card rounded-2xl p-8 items-center'>
+            <Text className='text-muted-foreground text-sm'>
+              {activeTab === 'groups' ? 'No groups yet' : 'No people yet'}
+            </Text>
+          </View>
+        ) : (
+          <View className='bg-card rounded-2xl overflow-hidden'>
+            {data.map((item, index) => (
+              <View key={item.id}>
+                {index > 0 && <View className='h-px bg-border mx-4' />}
+                <Pressable
+                  className='flex-row items-center px-4 py-3 active:opacity-70'
+                  onPress={() =>
+                    router.navigate({
+                      pathname: '/receipt-detail',
+                      params: {
+                        id: item.id,
+                        name: item.name,
+                        amount: item.amount.toString(),
+                        tab: activeTab,
+                      },
+                    })
+                  }
                 >
-                  {item.amount >= 0 ? '+' : ''}$
-                  {Math.abs(item.amount).toFixed(2)}
-                </Text>
-                <View pointerEvents='none'>
-                  <IconButton
-                    icon='chevron-right'
-                    bgClassName='bg-transparent shadow-none'
-                    iconClassName='text-accent-dark'
-                  />
-                </View>
-              </Pressable>
-            </View>
-          ))}
-        </View>
+                  <View className='flex-1 mr-3'>
+                    <Text
+                      className={`font-bold text-base ${item.status === 'completed' ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+                      numberOfLines={1}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text className='text-muted-foreground text-sm'>
+                      {activeTab === 'groups'
+                        ? `${item.members} ${item.members === 1 ? 'member' : 'members'} · ${item.status.charAt(0).toUpperCase() + item.status.slice(1)}`
+                        : item.status.charAt(0).toUpperCase() +
+                          item.status.slice(1)}
+                    </Text>
+                  </View>
+                  <Text
+                    className={`font-semibold mr-1 ${
+                      item.status === 'completed'
+                        ? 'text-muted-foreground line-through'
+                        : item.amount >= 0
+                          ? 'text-amount-positive'
+                          : 'text-amount-negative'
+                    }`}
+                  >
+                    {item.amount >= 0 ? '+' : ''}$
+                    {Math.abs(item.amount).toFixed(2)}
+                  </Text>
+                  <View pointerEvents='none'>
+                    <IconButton
+                      icon='chevron-right'
+                      bgClassName='bg-transparent shadow-none'
+                      iconClassName='text-accent-dark'
+                    />
+                  </View>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       {/* FAB */}

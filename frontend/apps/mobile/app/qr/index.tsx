@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useRef } from 'react';
-import { View, Text, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Alert, ActivityIndicator } from 'react-native';
 import {
   Button,
   DefaultButtons,
@@ -11,6 +11,7 @@ import { useReceiptItems } from '@/providers';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import { createInviteLink } from '@/services/groupApi';
 
 export default function QRScreen() {
   // Receive room ID from Receipt_Room_Page
@@ -23,10 +24,19 @@ export default function QRScreen() {
   const { items } = useReceiptItems();
   const qrRef = useRef<QRCode>(null);
 
-  // The URL encoded in the QR code
-  // TODO: currently using local web,
-  // will need change to vercel deployment
-  const qrData = `http://localhost:5173/join?roomId=${roomId}`;
+  const [qrData, setQrData] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (roomId === 'unknown') return;
+    createInviteLink(roomId)
+      .then(({ url }) => setQrData(url))
+      .catch(() => {
+        // Fallback to env var if backend call fails
+        setQrData(
+          `${process.env.EXPO_PUBLIC_FRONTEND_URL ?? 'http://localhost:5173'}/join?roomId=${roomId}`,
+        );
+      });
+  }, [roomId]);
 
   async function handleShareQRImage() {
     try {
@@ -61,9 +71,6 @@ export default function QRScreen() {
   }
 
   function handleShareJoinLink() {
-    //TODO: GET THE ACTUAL JOIN LINK INSTEAD OF THE PLACEHOLDER
-    //ALSO MAYBE REMOVE ROOM ID IF WE DON'T NEED IT
-
     sendRoomInviteSMS(roomId);
   }
 
@@ -124,14 +131,18 @@ export default function QRScreen() {
   return (
     <View className='flex-1 bg-background justify-center items-center gap-3'>
       <View className='justify-center items-center'>
-        <QRCode
-          ref={qrRef}
-          value={qrData}
-          size={200}
-          backgroundColor='white'
-          color='black'
-          getRef={(c) => (qrRef.current = c)}
-        />
+        {qrData ? (
+          <QRCode
+            ref={qrRef}
+            value={qrData}
+            size={200}
+            backgroundColor='white'
+            color='black'
+            getRef={(c) => (qrRef.current = c)}
+          />
+        ) : (
+          <ActivityIndicator size='large' />
+        )}
         <Text className='bg-surface-elevated text-foreground text-base mt-5'>
           Room ID: {roomId}
         </Text>

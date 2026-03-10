@@ -25,7 +25,11 @@ import {
   GestureDetector,
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import {
+  runOnJS,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { ReceiptItemData } from '@shared/types';
@@ -68,6 +72,8 @@ interface DragProps {
   onDropOnParticipant?: (participantId: number) => void;
   /** Called on every drag move with the current translation from origin */
   onDragMove?: (translation: { x: number; y: number }) => void;
+  /** Reanimated shared value updated directly on the UI thread during drag — avoids JS-bridge lag */
+  bannerTranslation?: SharedValue<{ x: number; y: number }>;
 }
 
 /** Internal drag state */
@@ -141,6 +147,7 @@ export function ReceiptItem({
   isInParticipantBoundsProp,
   onDropOnParticipant,
   onDragMove,
+  bannerTranslation,
   // Fresh data getter for overlay
   getCurrentItemData,
   // Text focus state
@@ -233,8 +240,10 @@ export function ReceiptItem({
     inputRange: [0, 1],
     outputRange: [1, 0],
   });
-  const isAnyTextFocusedRef = useRef(isAnyTextFocused);
-  isAnyTextFocusedRef.current = isAnyTextFocused;
+  const isAnyTextFocusedS = useSharedValue(isAnyTextFocused);
+  useEffect(() => {
+    isAnyTextFocusedS.value = isAnyTextFocused;
+  }, [isAnyTextFocused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** ---------------- Selection animation ---------------- */
   const selectAnim = useRef(new Animated.Value(isSelected ? 1 : 0)).current;
@@ -420,12 +429,18 @@ export function ReceiptItem({
     return base
       .onStart((event) => {
         'worklet';
-        if (isAnyTextFocusedRef.current) return;
+        if (isAnyTextFocusedS.value) return;
         runOnJS(handleDragStart)(event.absoluteX, event.absoluteY);
       })
       .onChange((event) => {
         'worklet';
-        if (isAnyTextFocusedRef.current) return;
+        if (isAnyTextFocusedS.value) return;
+        if (bannerTranslation) {
+          bannerTranslation.value = {
+            x: event.translationX,
+            y: event.translationY,
+          };
+        }
         runOnJS(handleDragChange)(
           event.absoluteX,
           event.absoluteY,
@@ -448,6 +463,8 @@ export function ReceiptItem({
     handleDragChange,
     handleDragEnd,
     handleDragFinalize,
+    bannerTranslation,
+    isAnyTextFocusedS,
   ]);
 
   /** ---------------- Input Handlers ---------------- */
@@ -562,7 +579,13 @@ export function ReceiptItem({
                       keyboardType='numeric'
                       numberOfLines={1}
                       onFocus={() => onTextFocusChange?.(true)}
-                      onBlur={() => onTextFocusChange?.(false)}
+                      onBlur={() => {
+                        const parsed = parseFloat(item.price || '0');
+                        onUpdate?.({
+                          price: isNaN(parsed) ? '0.00' : parsed.toFixed(2),
+                        });
+                        onTextFocusChange?.(false);
+                      }}
                     />
                   </View>
                 </View>
@@ -621,7 +644,7 @@ export function ReceiptItem({
 
                   {/* Price */}
                   <Text className='text-foreground font-extrabold text-xl'>
-                    ${item.price || '0.00'}
+                    ${parseFloat(item.price || '0').toFixed(2)}
                   </Text>
                 </View>
               </Pressable>

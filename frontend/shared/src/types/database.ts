@@ -17,10 +17,13 @@ export interface Group {
   name: string | null;
 }
 
+export type PaidStatusDb = 'verified' | 'pending' | 'requested' | 'unrequested';
+
 export interface GroupMember {
   profile_id: string;
   group_id: string;
   joined_at: string;
+  paid_status: PaidStatusDb;
 }
 
 export interface Item {
@@ -43,8 +46,10 @@ export interface ItemClaim {
 export interface Receipt {
   id: string;
   group_id: string;
-  image: string;
+  image: string | null;
+  is_manual: boolean;
   total: number;
+  tax: number | null;
   created_by: string;
   created_at: string;
 }
