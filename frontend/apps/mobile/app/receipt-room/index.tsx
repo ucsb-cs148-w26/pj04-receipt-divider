@@ -150,6 +150,8 @@ export default function ReceiptRoomScreen() {
   const dropdownOpacity = useRef(new Animated.Value(0)).current;
   const editModeAnim = useRef(new Animated.Value(0)).current;
   const [isEditAnimating, setIsEditAnimating] = useState(false);
+  const addItemBackdropAnim = useRef(new Animated.Value(0)).current;
+  const addItemSheetAnim = useRef(new Animated.Value(0)).current;
 
   /**---------------- Text Focus State ---------------- */
   const [isAnyTextFocused, setIsAnyTextFocused] = useState(false);
@@ -613,6 +615,14 @@ export default function ReceiptRoomScreen() {
     return m;
   }, [groupData.receipts, groupData.profiles, currentUserId]);
 
+  // Stable receipt numbers based on groupData.receipts order — used in both the
+  // room section headers and the add-item picker so they always match.
+  const receiptNumberMap = useMemo(() => {
+    const m = new Map<string, number>();
+    groupData.receipts.forEach((r, i) => m.set(r.id, i + 1));
+    return m;
+  }, [groupData.receipts]);
+
   // Map receipt id → tax amount (null/0 if not present)
   const receiptTaxMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -638,22 +648,25 @@ export default function ReceiptRoomScreen() {
     displayItems.length > 0 &&
     displayItems.every((item) => item.userTags && item.userTags.length > 0);
 
-  // Group display items by receipt id (preserves order)
+  // Group display items by receipt id, ordered by groupData.receipts (so
+  // Receipt #1 always renders before Receipt #2, etc.). Uncategorized items
+  // (null receiptId) are placed at the end.
   const itemSections = useMemo(() => {
     if (!isGroupRoom)
       return [{ receiptId: null as string | null, items: displayItems }];
-    const order: (string | null)[] = [];
     const map = new Map<string | null, ReceiptItemData[]>();
     for (const item of displayItems) {
       const rid = item.receiptId ?? null;
-      if (!map.has(rid)) {
-        order.push(rid);
-        map.set(rid, []);
-      }
+      if (!map.has(rid)) map.set(rid, []);
       map.get(rid)!.push(item);
     }
+    // Build order: receipts in their canonical order, then null (uncategorized)
+    const order: (string | null)[] = groupData.receipts
+      .map((r) => r.id)
+      .filter((id) => map.has(id));
+    if (map.has(null)) order.push(null);
     return order.map((rid) => ({ receiptId: rid, items: map.get(rid)! }));
-  }, [isGroupRoom, displayItems]);
+  }, [isGroupRoom, displayItems, groupData.receipts]);
 
   /**---------------- Quick Actions Functions ---------------- */
   const claimForAll = () => {
@@ -762,11 +775,39 @@ export default function ReceiptRoomScreen() {
     }
     setAddItemReceiptChoice(null);
     setAddItemTax('');
+    addItemBackdropAnim.setValue(0);
+    addItemSheetAnim.setValue(0);
     setShowAddItemSheet(true);
+    Animated.parallel([
+      Animated.timing(addItemBackdropAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(addItemSheetAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const dismissAddItemSheet = () => {
+    Animated.parallel([
+      Animated.timing(addItemBackdropAnim, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(addItemSheetAnim, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setShowAddItemSheet(false));
   };
 
   const confirmAddItem = async () => {
-    setShowAddItemSheet(false);
     setIsAddingItem(true);
     try {
       let finalReceiptId: string | null = null;
@@ -800,6 +841,7 @@ export default function ReceiptRoomScreen() {
           receiptId: finalReceiptId,
         },
       ]);
+      dismissAddItemSheet();
     } catch (err) {
       console.error('Failed to add item:', err);
       Alert.alert('Error', 'Failed to add item. Please try again.');
@@ -1077,7 +1119,7 @@ export default function ReceiptRoomScreen() {
                               const byLine = r?.is_manual
                                 ? `Created by ${receiptUploaderMap.get(receiptId) ?? 'Unknown'}`
                                 : `Uploaded by ${receiptUploaderMap.get(receiptId) ?? 'Unknown'}`;
-                              return `Receipt #${sectionIndex + 1} · ${byLine}`;
+                              return `Receipt #${receiptNumberMap.get(receiptId) ?? sectionIndex + 1} · ${byLine}`;
                             })()
                           : 'No Receipt'}
                       </Text>
@@ -1621,20 +1663,37 @@ export default function ReceiptRoomScreen() {
       <Modal
         visible={showAddItemSheet}
         transparent
-        animationType='slide'
-        onRequestClose={() => setShowAddItemSheet(false)}
+        animationType='none'
+        onRequestClose={dismissAddItemSheet}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
-          <Pressable
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
-            onPress={() => setShowAddItemSheet(false)}
-          />
-          <View
+          <Animated.View
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.45)',
+              opacity: addItemBackdropAnim,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={dismissAddItemSheet} />
+          </Animated.View>
+          <Animated.View
             className='bg-background border-t border-border rounded-t-3xl'
-            style={{ paddingBottom: insets.bottom + 12 }}
+            style={[
+              { paddingBottom: insets.bottom + 12 },
+              {
+                transform: [
+                  {
+                    translateY: addItemSheetAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [600, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
           >
             <View className='items-center py-3'>
               <View className='w-10 h-1 rounded-full bg-border' />
@@ -1670,8 +1729,8 @@ export default function ReceiptRoomScreen() {
               </Pressable>
 
               {/* Existing receipts */}
-              {groupData.receipts.map((r, i) => {
-                const label = `Receipt #${i + 1}`;
+              {groupData.receipts.map((r) => {
+                const label = `Receipt #${receiptNumberMap.get(r.id) ?? '?'}`;
                 const byLine = r.is_manual
                   ? `Created by ${receiptUploaderMap.get(r.id) ?? 'Unknown'}`
                   : `Uploaded by ${receiptUploaderMap.get(r.id) ?? 'Unknown'}`;
@@ -1763,8 +1822,10 @@ export default function ReceiptRoomScreen() {
 
             <View className='flex-row gap-3 px-4 pt-4'>
               <Pressable
-                onPress={() => setShowAddItemSheet(false)}
+                onPress={dismissAddItemSheet}
+                disabled={isAddingItem}
                 className='flex-1 bg-card border border-border rounded-xl py-3 items-center active:opacity-70'
+                style={{ opacity: isAddingItem ? 0.4 : 1 }}
               >
                 <Text className='text-muted-foreground font-medium'>
                   Cancel
@@ -1775,12 +1836,16 @@ export default function ReceiptRoomScreen() {
                 disabled={isAddingItem}
                 className='flex-1 bg-primary rounded-xl py-3 items-center active:opacity-70'
               >
-                <Text className='text-primary-foreground font-medium'>
-                  {isAddingItem ? 'Adding…' : 'Add Item'}
-                </Text>
+                {isAddingItem ? (
+                  <ActivityIndicator size='small' color='#ffffff' />
+                ) : (
+                  <Text className='text-primary-foreground font-medium'>
+                    Add Item
+                  </Text>
+                )}
               </Pressable>
             </View>
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
