@@ -158,6 +158,11 @@ export default function ReceiptRoomScreen() {
     isAnyTextFocusedRef.current = isAnyTextFocused;
   }, [isAnyTextFocused]);
 
+  // Tracks the number of in-flight claim/unclaim API requests. The Supabase
+  // realtime sync is suppressed while this is > 0, so that intermediate
+  // refetches (triggered by unrelated events) don't overwrite optimistic state.
+  const pendingClaimsRef = useRef(0);
+
   /**---------------- Debounce timers for item updates ---------------- */
   const itemUpdateTimers = useRef<
     Record<string, ReturnType<typeof setTimeout>>
@@ -383,18 +388,23 @@ export default function ReceiptRoomScreen() {
         groupDisplay.participantIdToProfileId.get(participantId);
       if (profileId) {
         const ids = [...selectedItemIds];
+        pendingClaimsRef.current++;
         const req =
           ids.length === 1
             ? assignItem(ids[0], profileId)
             : assignItems(ids, profileId);
-        req.catch((err) => {
-          receiptItems.setItems(itemsSnapshot);
-          Alert.alert(
-            'Error',
-            'Failed to assign item. Changes have been reverted.',
-          );
-          console.error(err);
-        });
+        req
+          .catch((err) => {
+            receiptItems.setItems(itemsSnapshot);
+            Alert.alert(
+              'Error',
+              'Failed to assign item. Changes have been reverted.',
+            );
+            console.error(err);
+          })
+          .finally(() => {
+            pendingClaimsRef.current--;
+          });
       }
     }
     setSelectedItemIds(new Set());
@@ -561,9 +571,15 @@ export default function ReceiptRoomScreen() {
   ]);
 
   // Keep receiptItems in sync with Supabase data for group rooms.
-  // Sync is paused while a TextInput is focused so in-progress edits are not overwritten.
+  // Sync is paused while a TextInput is focused or a claim/unclaim op is in-flight,
+  // so intermediate refetches don't overwrite optimistic state.
   useEffect(() => {
-    if (!isGroupRoom || isAnyTextFocusedRef.current) return;
+    if (
+      !isGroupRoom ||
+      isAnyTextFocusedRef.current ||
+      pendingClaimsRef.current > 0
+    )
+      return;
     receiptItems.setItems(groupDisplay.items);
   }, [groupDisplay.items]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -663,16 +679,21 @@ export default function ReceiptRoomScreen() {
       displayParticipants.forEach((p) => {
         const profileId = groupDisplay.participantIdToProfileId.get(p.id);
         if (!profileId) return;
+        pendingClaimsRef.current++;
         (ids.length === 1
           ? assignItem(ids[0], profileId)
           : assignItems(ids, profileId)
-        ).catch((err) => {
-          console.error(err);
-          if (!claimAlertShown) {
-            claimAlertShown = true;
-            Alert.alert('Error', 'Failed to claim items. Please try again.');
-          }
-        });
+        )
+          .catch((err) => {
+            console.error(err);
+            if (!claimAlertShown) {
+              claimAlertShown = true;
+              Alert.alert('Error', 'Failed to claim items. Please try again.');
+            }
+          })
+          .finally(() => {
+            pendingClaimsRef.current--;
+          });
       });
     }
   };
@@ -701,16 +722,24 @@ export default function ReceiptRoomScreen() {
       });
       let unclaimAlertShown = false;
       byProfile.forEach((ids, profileId) => {
+        pendingClaimsRef.current++;
         (ids.length === 1
           ? unassignItem(ids[0], profileId)
           : unassignItems(ids, profileId)
-        ).catch((err) => {
-          console.error(err);
-          if (!unclaimAlertShown) {
-            unclaimAlertShown = true;
-            Alert.alert('Error', 'Failed to unclaim items. Please try again.');
-          }
-        });
+        )
+          .catch((err) => {
+            console.error(err);
+            if (!unclaimAlertShown) {
+              unclaimAlertShown = true;
+              Alert.alert(
+                'Error',
+                'Failed to unclaim items. Please try again.',
+              );
+            }
+          })
+          .finally(() => {
+            pendingClaimsRef.current--;
+          });
       });
     }
   };
@@ -882,14 +911,20 @@ export default function ReceiptRoomScreen() {
     );
     if (isGroupRoom) {
       const profileId = groupDisplay.participantIdToProfileId.get(userId);
-      if (profileId)
-        unassignItem(itemId, profileId).catch((err) => {
-          console.error(err);
-          Alert.alert(
-            'Error',
-            'Failed to remove item assignment. Please refresh and try again.',
-          );
-        });
+      if (profileId) {
+        pendingClaimsRef.current++;
+        unassignItem(itemId, profileId)
+          .catch((err) => {
+            console.error(err);
+            Alert.alert(
+              'Error',
+              'Failed to remove item assignment. Please refresh and try again.',
+            );
+          })
+          .finally(() => {
+            pendingClaimsRef.current--;
+          });
+      }
     }
   };
 
@@ -1451,39 +1486,43 @@ export default function ReceiptRoomScreen() {
                   </Text>
                 </Pressable>
 
-                <Pressable
-                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                  onPress={() => {
-                    claimForAll();
-                    setShowQuickActions(false);
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name='download'
-                    size={22}
-                    className='text-accent-dark'
-                  />
-                  <Text className='text-foreground text-base font-medium'>
-                    Claim for All Selected Items
-                  </Text>
-                </Pressable>
+                {isHost && (
+                  <>
+                    <Pressable
+                      className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                      onPress={() => {
+                        claimForAll();
+                        setShowQuickActions(false);
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name='download'
+                        size={22}
+                        className='text-accent-dark'
+                      />
+                      <Text className='text-foreground text-base font-medium'>
+                        Claim Selected Items for All Participants
+                      </Text>
+                    </Pressable>
 
-                <Pressable
-                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                  onPress={() => {
-                    unclaimForAll();
-                    setShowQuickActions(false);
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name='upload'
-                    size={22}
-                    className='text-accent-dark'
-                  />
-                  <Text className='text-foreground text-base font-medium'>
-                    Unclaim for All Selected Items
-                  </Text>
-                </Pressable>
+                    <Pressable
+                      className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                      onPress={() => {
+                        unclaimForAll();
+                        setShowQuickActions(false);
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name='upload'
+                        size={22}
+                        className='text-accent-dark'
+                      />
+                      <Text className='text-foreground text-base font-medium'>
+                        Unclaim Selected Items for All Participants
+                      </Text>
+                    </Pressable>
+                  </>
+                )}
               </View>
             </Animated.View>
           </Pressable>
