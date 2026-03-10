@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile
+import uuid
+
+from fastapi import APIRouter, Depends, Form, HTTPException, status, UploadFile
 
 from app.schemas.group import (
-    AddReceiptRequest,
     AddReceiptResponse,
     AssignItemRequest,
     ClaimItemRequest,
@@ -97,8 +98,8 @@ def create_profile(
 
 @router.post("/receipt/add", response_model=AddReceiptResponse)
 async def add_receipt(
-    payload: AddReceiptRequest,
-    file: UploadFile,
+    group_id: uuid.UUID = Form(...),
+    file: UploadFile = ...,
     auth_service: AuthService = Depends(get_auth_service),
     user_service: UserService = Depends(get_user_service),
 ):
@@ -115,7 +116,7 @@ async def add_receipt(
     image_ext = filename.rsplit(".", 1)[-1] if "." in filename else "jpg"
 
     receipt_id = await user_service.add_receipt(
-        profile_id, str(payload.group_id), image_bytes, image_ext
+        profile_id, str(group_id), image_bytes, image_ext
     )
 
     return AddReceiptResponse(receipt_id=receipt_id)

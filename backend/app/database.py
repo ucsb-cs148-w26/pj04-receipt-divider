@@ -6,7 +6,13 @@ from app.config import settings
 
 engine = create_engine(
     str(settings.database_url),
-    connect_args={"sslmode": "require"},
+    connect_args={
+        "sslmode": "require",
+        # Disable psycopg3 server-side prepared statement cache.
+        # Without this, reused pooled connections raise DuplicatePreparedStatement
+        # when the same INSERT/SELECT is executed a second time.
+        "prepare_threshold": None,
+    },
     poolclass=(
         NullPool
         if settings.serverless

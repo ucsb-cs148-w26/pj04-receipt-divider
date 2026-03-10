@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -20,7 +21,8 @@ import {
 } from '@eezy-receipt/shared';
 import { USER_COLORS } from '@shared/constants';
 import QRCode from 'react-native-qrcode-svg';
-import { randomUUID } from 'expo-crypto';
+import { useAuth } from '@/providers';
+import { createGroup } from '@/services/groupApi';
 
 interface User {
   id: number;
@@ -29,17 +31,29 @@ interface User {
 }
 
 export default function CreateRoomScreen() {
-  const [users, setUsers] = useState<User[]>([]);
+  const { user } = useAuth();
+  const hostName =
+    user?.user_metadata?.full_name ??
+    user?.user_metadata?.name ??
+    user?.email ??
+    'You (Host)';
+
+  const [users, setUsers] = useState<User[]>(() => [
+    { id: 1, name: hostName, source: 'link' },
+  ]);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [editUserName, setEditUserName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
-  //FIXME: MOCK ROOMID, SHOULD BE TAKEN FROM THE BACKEND
-  const [roomId] = useState(() => randomUUID());
+  // roomId is null until the backend creates the group
+  const [roomId, setRoomId] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
-  const qrData = `http://localhost:5173/join?roomId=${roomId}`;
+  const qrData = roomId
+    ? `${process.env.EXPO_PUBLIC_FRONTEND_URL ?? 'http://localhost:5173'}/join?roomId=${roomId}`
+    : '';
   const qrRef = useRef<QRCode>(null);
 
   const addUser = (name: string) => {
@@ -51,7 +65,7 @@ export default function CreateRoomScreen() {
 
   const handleShareSMS = async () => {
     try {
-      const result = await sendRoomInviteSMS(roomId);
+      const result = await sendRoomInviteSMS(roomId ?? '');
       if (result === 'sent') {
         setShowAddOptions(false);
       }
@@ -138,7 +152,12 @@ export default function CreateRoomScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 10, paddingVertical: 4 }}
+          contentContainerStyle={{
+            gap: 10,
+            paddingVertical: 4,
+            flexGrow: 1,
+            justifyContent: 'center',
+          }}
           style={{ height: 84 }}
         >
           {users.map((user) => (
@@ -201,8 +220,13 @@ export default function CreateRoomScreen() {
       {/* Create Room button */}
       <View className='absolute bottom-10 left-5 right-5'>
         <Pressable
-          className='bg-primary rounded-2xl py-4 items-center active:opacity-80'
-          onPress={() => {
+          className={`rounded-2xl py-4 items-center flex-row justify-center gap-2 ${
+            isCreating
+              ? 'bg-primary opacity-70'
+              : 'bg-primary active:opacity-80'
+          }`}
+          disabled={isCreating}
+          onPress={async () => {
             if (photoUris.length === 0) {
               Alert.alert(
                 'No Receipt Photo',
@@ -210,19 +234,35 @@ export default function CreateRoomScreen() {
               );
               return;
             }
-            router.navigate({
-              pathname: '/receipt-room',
-              params: {
-                participants: JSON.stringify(
-                  users.map((u) => ({ id: u.id, name: u.name })),
-                ),
-                photos: JSON.stringify(photoUris),
-              },
-            });
+            setIsCreating(true);
+            try {
+              const { groupId } = await createGroup('New Room');
+              setRoomId(groupId);
+              router.navigate({
+                pathname: '/receipt-room',
+                params: {
+                  roomId: groupId,
+                  participants: JSON.stringify(
+                    users.map((u) => ({ id: u.id, name: u.name })),
+                  ),
+                  photos: JSON.stringify(photoUris),
+                },
+              });
+            } catch (err) {
+              Alert.alert(
+                'Failed to Create Room',
+                err instanceof Error
+                  ? err.message
+                  : 'Unknown error. Check your connection and try again.',
+              );
+            } finally {
+              setIsCreating(false);
+            }
           }}
         >
+          {isCreating && <ActivityIndicator size='small' color='#ffffff' />}
           <Text className='text-primary-foreground font-bold text-base'>
-            Create Room
+            {isCreating ? 'Creating…' : 'Create Room'}
           </Text>
         </Pressable>
       </View>

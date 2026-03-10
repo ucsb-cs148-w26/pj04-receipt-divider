@@ -41,6 +41,11 @@ jest.mock('expo-image-picker', () => ({
 
 jest.mock('react-native-qrcode-svg', () => 'QRCode');
 
+jest.mock('expo-camera', () => ({
+  CameraView: 'CameraView',
+  useCameraPermissions: jest.fn(() => [{ granted: true }, jest.fn()]),
+}));
+
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
@@ -93,10 +98,6 @@ jest.mock('@/providers', () => ({
 }));
 
 // Mock services
-jest.mock('@/services/ocr', () => ({
-  extractItems: jest.fn(() => Promise.resolve([])),
-}));
-
 jest.mock('@/services/supabase', () => ({
   supabase: {
     from: jest.fn(() => ({

@@ -26,15 +26,22 @@ from .stores import determine_tax_groups
 
 def _resize_image(image_bytes: bytes) -> bytes:
     """Resize image so the longest side is at most MAX_IMAGE_DIMENSION."""
-    img = Image.open(BytesIO(image_bytes))
-    w, h = img.size
-    if max(w, h) <= MAX_IMAGE_DIMENSION:
+    try:
+        img = Image.open(BytesIO(image_bytes))
+        w, h = img.size
+        if max(w, h) <= MAX_IMAGE_DIMENSION:
+            return image_bytes
+        img.thumbnail(
+            (MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.Resampling.LANCZOS
+        )
+        buf = BytesIO()
+        fmt = img.format or "JPEG"
+        img.save(buf, format=fmt)
+        return buf.getvalue()
+    except Exception:
+        # Pillow can't open this format (e.g. HEIC) — pass bytes through
+        # unchanged; Vision API handles most formats natively.
         return image_bytes
-    img.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.Resampling.LANCZOS)
-    buf = BytesIO()
-    fmt = img.format or "JPEG"
-    img.save(buf, format=fmt)
-    return buf.getvalue()
 
 
 async def _call_vision_api(image_bytes: bytes) -> dict:
@@ -63,7 +70,16 @@ async def _call_vision_api(image_bytes: bytes) -> dict:
     if not responses:
         raise RuntimeError("No response from Vision API")
 
-    return responses[0]
+    vision_resp = responses[0]
+
+    # Vision API embeds per-image errors in the response body rather than HTTP status
+    if "error" in vision_resp:
+        err = vision_resp["error"]
+        raise RuntimeError(
+            f"Vision API error {err.get('code', '?')}: {err.get('message', err)}"
+        )
+
+    return vision_resp
 
 
 def _extract_detected_language(vision_resp: dict) -> str:
@@ -145,7 +161,8 @@ async def detect_receipt(image_bytes: bytes) -> DebugReceipt:
 
     annotations = vision_resp.get("textAnnotations", [])
     if not annotations:
-        raise RuntimeError("No text detected in image.")
+        keys = list(vision_resp.keys())
+        raise RuntimeError(f"No text detected in image. Vision response keys: {keys}")
 
     # Reconstruct lines (skip first annotation = full text block)
     result = reconstruct_lines(annotations[1:])

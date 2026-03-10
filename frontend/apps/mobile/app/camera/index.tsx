@@ -1,18 +1,22 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Modal, ActivityIndicator, Text, View } from 'react-native';
-import { File } from 'expo-file-system';
-import { Button } from '@eezy-receipt/shared';
+import {
+  Button,
+  ImageCropPopUp,
+  type ImageCropPopUpRef,
+} from '@eezy-receipt/shared';
 
 import { ReceiptRoomParams } from '@/app/receipt-room/index';
 import { useReceiptItems } from '@/providers';
 
-import { extractItems as extractReceiptItems } from '@/services/ocr';
 import { randomUUID } from 'expo-crypto';
 
 export default function CameraScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [capturedUri, setCapturedUri] = useState<string | null>(null);
+  const cropRef = useRef<ImageCropPopUpRef>(null);
   const receiptItems = useReceiptItems();
 
   const goToReceiptRoom = () => {
@@ -35,13 +39,25 @@ export default function CameraScreen() {
     });
 
     if (!result.canceled) {
-      const imageBase64 = await new File(result.assets[0].uri).base64();
-      setIsLoading(true);
-      const extractedItems = await extractReceiptItems(imageBase64);
-      receiptItems.setItems(extractedItems);
-      setIsLoading(false);
-      goToReceiptRoom();
+      setCapturedUri(result.assets[0].uri);
+      cropRef.current?.open();
     }
+  };
+
+  const handleCropComplete = (_croppedUri: string) => {
+    setCapturedUri(null);
+    setIsLoading(true);
+    goToReceiptRoom();
+    setIsLoading(false);
+  };
+
+  const handleCropCancel = () => {
+    setCapturedUri(null);
+  };
+
+  const handleTakeNewPhoto = () => {
+    setCapturedUri(null);
+    openCamera();
   };
 
   return (
@@ -86,6 +102,14 @@ export default function CameraScreen() {
           </View>
         </Modal>
       </View>
+
+      <ImageCropPopUp
+        ref={cropRef}
+        imageUri={capturedUri}
+        onComplete={handleCropComplete}
+        onCancel={handleCropCancel}
+        onTakeNewPhoto={handleTakeNewPhoto}
+      />
     </>
   );
 }

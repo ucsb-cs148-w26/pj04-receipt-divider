@@ -1,30 +1,33 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconButton, ReceiptPhotoPicker } from '@eezy-receipt/shared';
-import { File } from 'expo-file-system';
-import { extractItems as extractReceiptItems } from '@/services/ocr';
-import { useReceiptItems } from '@/providers';
+import { addReceipt } from '@/services/groupApi';
 
 export default function AddReceiptScreen() {
-  const receiptItems = useReceiptItems();
+  const { groupId } = useLocalSearchParams<{ groupId?: string }>();
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleScan = async () => {
     if (photoUris.length === 0 || isProcessing) return;
+    if (!groupId) {
+      Alert.alert('No Group', 'Receipt scanning requires an active group.');
+      return;
+    }
     setIsProcessing(true);
     try {
-      const results = await Promise.all(
-        photoUris.map(async (uri) => {
-          const imageBase64 = await new File(uri).base64();
-          return extractReceiptItems(imageBase64);
-        }),
-      );
-      receiptItems.setItems((prev) => [...prev, ...results.flat()]);
+      await Promise.all(photoUris.map((uri) => addReceipt(groupId, uri)));
       router.back();
+    } catch (err) {
+      Alert.alert(
+        'Upload Failed',
+        err instanceof Error
+          ? err.message
+          : 'Could not process receipt. Try again.',
+      );
     } finally {
       setIsProcessing(false);
     }
