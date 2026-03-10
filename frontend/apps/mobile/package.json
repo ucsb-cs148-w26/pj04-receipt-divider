@@ -32,7 +32,6 @@
     "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "^17.0.10",
     "expo-linking": "~8.0.11",
-    "expo-qrcode-scanner": "^1.0.6",
     "expo-router": "~6.0.22",
     "expo-sharing": "~14.0.8",
     "expo-sms": "~14.0.8",

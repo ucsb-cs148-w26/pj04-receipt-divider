@@ -1,5 +1,5 @@
 import { USER_COLORS } from '@shared/constants';
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   Pressable,
   Alert,
   Animated,
-  TextInput,
 } from 'react-native';
 
 interface ParticipantsProps {
@@ -19,8 +18,8 @@ interface ParticipantsProps {
   onLayout: (event: LayoutRectangle) => void;
   goToYourItemsPage: () => void;
   isEditMode?: boolean;
-  /** Called when the participant name is changed; if undefined, name is read-only */
-  onRename?: (_newName: string) => void;
+  /** If false, the remove button is hidden (real/registered users cannot be removed) */
+  isGuest?: boolean;
 }
 
 export function Participant({
@@ -32,23 +31,16 @@ export function Participant({
   onLayout,
   goToYourItemsPage,
   isEditMode = true,
-  onRename,
+  isGuest = true,
 }: ParticipantsProps) {
   const ref = useRef<View>(null);
   const displayName = name || `Name ${id}`;
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState(displayName);
-
-  // Keep local input in sync when name prop changes externally
-  useEffect(() => {
-    if (!isEditingName) setNameInput(name || `Name ${id}`);
-  }, [name, id, isEditingName]);
 
   const editAnim = useRef(new Animated.Value(isEditMode ? 1 : 0)).current;
-  const claimOpacity = editAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0],
-  });
+  // For guests: number fades out when ✕ fades in. For non-guests: number always visible.
+  const numberOpacity = isGuest
+    ? editAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })
+    : 1;
 
   useEffect(() => {
     Animated.timing(editAnim, {
@@ -88,68 +80,36 @@ export function Participant({
 
       <View className='px-3 py-3 flex-1 justify-between'>
         <View className='flex-row items-center gap-3'>
-          {/* User ID circle — cross-fades ✕ (edit) ↔ number (claim) */}
+          {/* User ID circle — cross-fades ✕ (edit, guests only) ↔ number (claim) */}
           <Pressable
-            className={`w-9 h-9 rounded-full items-center justify-center bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} ${isEditMode ? 'active:opacity-70' : ''}`}
-            onPress={isEditMode ? confirmRemove : undefined}
-            accessibilityLabel={isEditMode ? 'Remove participant' : undefined}
+            className={`w-9 h-9 rounded-full items-center justify-center bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} ${isEditMode && isGuest ? 'active:opacity-70' : ''}`}
+            onPress={isEditMode && isGuest ? confirmRemove : undefined}
+            accessibilityLabel={
+              isEditMode && isGuest ? 'Remove participant' : undefined
+            }
             hitSlop={
-              isEditMode
+              isEditMode && isGuest
                 ? { top: 10, bottom: 10, right: 10, left: 10 }
                 : undefined
             }
           >
-            <Animated.View style={{ position: 'absolute', opacity: editAnim }}>
+            <Animated.View
+              style={{ position: 'absolute', opacity: isGuest ? editAnim : 0 }}
+            >
               <Text className='text-white text-sm font-bold'>✕</Text>
             </Animated.View>
-            <Animated.View style={{ opacity: claimOpacity }}>
+            <Animated.View style={{ opacity: numberOpacity }}>
               <Text className='text-white text-sm font-bold'>{id}</Text>
             </Animated.View>
           </Pressable>
 
           {/* Name */}
-          {isEditMode && onRename && isEditingName ? (
-            <TextInput
-              value={nameInput}
-              onChangeText={setNameInput}
-              autoFocus
-              returnKeyType='done'
-              onSubmitEditing={() => {
-                const trimmed = nameInput.trim();
-                if (trimmed) onRename(trimmed);
-                setIsEditingName(false);
-              }}
-              onBlur={() => {
-                const trimmed = nameInput.trim();
-                if (trimmed) onRename(trimmed);
-                else setNameInput(displayName);
-                setIsEditingName(false);
-              }}
-              className='text-foreground font-bold text-sm flex-1'
-              style={{ padding: 0, includeFontPadding: false }}
-              numberOfLines={1}
-            />
-          ) : (
-            <Pressable
-              className='flex-1'
-              onPress={
-                isEditMode && onRename
-                  ? () => {
-                      setNameInput(displayName);
-                      setIsEditingName(true);
-                    }
-                  : undefined
-              }
-              disabled={!isEditMode || !onRename}
-            >
-              <Text
-                className={`text-foreground font-bold text-sm${isEditMode && onRename ? ' underline' : ''}`}
-                numberOfLines={2}
-              >
-                {displayName}
-              </Text>
-            </Pressable>
-          )}
+          <Text
+            className='text-foreground font-bold text-sm flex-1'
+            numberOfLines={2}
+          >
+            {displayName}
+          </Text>
         </View>
 
         {/* Item count and total */}

@@ -25,6 +25,7 @@ class PublicProfileData(BaseResponse):
     profile_id: uuid.UUID
     username: str
     accent_color: str
+    is_guest: bool = False
 
 
 class GetProfilesResponse(BaseResponse):
@@ -39,6 +40,11 @@ class CreateGuestProfileRequest(BaseRequest):
 
 class CreateGuestProfileResponse(BaseResponse):
     access_token: str
+
+
+class RemoveMemberRequest(BaseRequest):
+    group_id: uuid.UUID
+    profile_id: uuid.UUID
 
 
 class LoginAsRequest(BaseRequest):
@@ -111,6 +117,8 @@ class GroupSummary(BaseResponse):
     total_claimed: float
     total_uploaded: float
     paid_status: str
+    is_finished: bool = False
+    all_members_paid: bool = False
 
 
 class GetMyGroupsResponse(BaseResponse):
@@ -144,3 +152,13 @@ class CreateManualReceiptResponse(BaseResponse):
 class UpdateReceiptTaxRequest(BaseRequest):
     receipt_id: uuid.UUID
     tax: Optional[float] = None
+
+
+class UpdatePaidStatusRequest(BaseRequest):
+    group_id: uuid.UUID
+    profile_id: uuid.UUID
+    paid_status: str  # 'verified' | 'pending' | 'requested' | 'unrequested'
+
+
+class FinishGroupRequest(BaseRequest):
+    group_id: uuid.UUID

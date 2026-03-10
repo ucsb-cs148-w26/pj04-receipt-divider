@@ -27,6 +27,7 @@ class Group(Base):
         ForeignKey("profiles.id"), nullable=False
     )
     name: Mapped[Optional[str]] = mapped_column(Text)
+    is_finished: Mapped[bool] = mapped_column(default=False, server_default="false")
 
     # Relationships
     group_creator: Mapped["Profile"] = relationship(

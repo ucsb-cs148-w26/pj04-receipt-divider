@@ -108,6 +108,32 @@ export default function ReceiptDetailScreen() {
     );
   }, [members]);
 
+  const persistVerify = async (personId: string, verified: boolean) => {
+    const newStatus = verified ? 'verified' : 'unrequested';
+    try {
+      await updatePaidStatus(id ?? '', personId, newStatus);
+      if (verified) {
+        setCompletedIds((prev) => new Set(prev).add(personId));
+      } else {
+        setCompletedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(personId);
+          return next;
+        });
+        setLocalStatusOverrides((prev) => {
+          const next = new Map(prev);
+          next.delete(personId);
+          return next;
+        });
+      }
+    } catch (err) {
+      Alert.alert(
+        'Error',
+        err instanceof Error ? err.message : 'Failed to update status.',
+      );
+    }
+  };
+
   const handleCheckboxPress = (person: {
     id: string;
     name: string;
@@ -122,12 +148,7 @@ export default function ReceiptDetailScreen() {
           {
             text: 'Unverify',
             style: 'destructive',
-            onPress: () =>
-              setCompletedIds((prev) => {
-                const next = new Set(prev);
-                next.delete(person.id);
-                return next;
-              }),
+            onPress: () => void persistVerify(person.id, false),
           },
         ],
       );
@@ -143,22 +164,13 @@ export default function ReceiptDetailScreen() {
         {
           text: 'Verify Anyway',
           style: 'destructive',
-          onPress: () =>
-            setCompletedIds((prev) => new Set(prev).add(person.id)),
+          onPress: () => void persistVerify(person.id, true),
         },
       ]);
       return;
     }
     // status === 'waiting' — eligible to verify
-    setCompletedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(person.id)) {
-        next.delete(person.id);
-      } else {
-        next.add(person.id);
-      }
-      return next;
-    });
+    void persistVerify(person.id, !completedIds.has(person.id));
   };
 
   const STATUS_ORDER: Record<PersonStatus, number> = {
@@ -202,6 +214,52 @@ export default function ReceiptDetailScreen() {
     setSelectedPerson(null);
   };
 
+  const handleSelfPayToggle = async () => {
+    if (!selfPerson) return;
+    if (selfPerson.status === 'pending') {
+      // 'requested' in DB → 'pending' in UI; mark as paid sets DB to 'pending' → UI 'waiting'
+      try {
+        await updatePaidStatus(id ?? '', currentUserId, 'pending');
+        setLocalStatusOverrides((prev) =>
+          new Map(prev).set(currentUserId, 'waiting'),
+        );
+      } catch (err) {
+        Alert.alert(
+          'Error',
+          err instanceof Error ? err.message : 'Failed to update status.',
+        );
+      }
+    } else if (selfPerson.status === 'waiting') {
+      // Already marked as paid — offer to unmark (sets back to 'requested' in DB → 'pending' in UI)
+      Alert.alert(
+        'Unmark as Paid?',
+        'This will set your payment status back to unpaid. The host will need to re-verify your payment.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Unmark',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await updatePaidStatus(id ?? '', currentUserId, 'requested');
+                setLocalStatusOverrides((prev) =>
+                  new Map(prev).set(currentUserId, 'pending'),
+                );
+              } catch (err) {
+                Alert.alert(
+                  'Error',
+                  err instanceof Error
+                    ? err.message
+                    : 'Failed to update status.',
+                );
+              }
+            },
+          },
+        ],
+      );
+    }
+  };
+
   // All members with updated status, current user excluded from ordering/counts
   const allPeople = basePeople.map((p) => ({
     ...p,
@@ -223,16 +281,21 @@ export default function ReceiptDetailScreen() {
   // people shown in list: others first (sorted), self pinned to bottom
   const people = selfPerson ? [...otherPeople, selfPerson] : otherPeople;
 
-  // Counts / fractions exclude the current user
-  const completedCount = otherPeople.filter(
+  // Counts / fractions exclude the current user and members who don't owe anything
+  const relevantPeople = otherPeople.filter((p) => p.amount > 0);
+  const completedCount = relevantPeople.filter(
     (p) => p.status === 'completed',
   ).length;
-  const waitingCount = otherPeople.filter((p) => p.status === 'waiting').length;
-  const pendingCount = otherPeople.filter((p) => p.status === 'pending').length;
-  const unrequestedCount = otherPeople.filter(
+  const waitingCount = relevantPeople.filter(
+    (p) => p.status === 'waiting',
+  ).length;
+  const pendingCount = relevantPeople.filter(
+    (p) => p.status === 'pending',
+  ).length;
+  const unrequestedCount = relevantPeople.filter(
     (p) => p.status === 'unrequested',
   ).length;
-  const total = otherPeople.length;
+  const total = relevantPeople.length;
 
   const completedFraction = total > 0 ? completedCount / total : 0;
   const waitingFraction = total > 0 ? waitingCount / total : 0;
@@ -431,8 +494,14 @@ export default function ReceiptDetailScreen() {
           ) : (
             people.map((person, index) => {
               const isSelf = person.id === currentUserId;
+              const selfRequested = isSelf && person.status === 'pending';
+              const selfWaiting = isSelf && person.status === 'waiting';
               const borderColor = isSelf
-                ? 'border-border'
+                ? selfRequested
+                  ? 'border-status-pending'
+                  : selfWaiting
+                    ? 'border-status-waiting'
+                    : 'border-border'
                 : person.status === 'completed'
                   ? 'border-status-completed'
                   : person.status === 'waiting'
@@ -441,7 +510,9 @@ export default function ReceiptDetailScreen() {
                       ? 'border-status-pending'
                       : 'border-status-unrequested';
               const textColor = isSelf
-                ? 'text-muted-foreground'
+                ? selfRequested
+                  ? 'text-status-pending'
+                  : 'text-muted-foreground'
                 : person.status === 'completed'
                   ? 'text-muted-foreground line-through'
                   : person.status === 'waiting'
@@ -450,7 +521,11 @@ export default function ReceiptDetailScreen() {
                       ? 'text-status-pending'
                       : 'text-status-unrequested';
               const statusLabel = isSelf
-                ? 'You'
+                ? selfRequested
+                  ? 'Payment Requested — tap to mark as paid'
+                  : selfWaiting
+                    ? 'Marked as Paid — Awaiting Verification'
+                    : 'You'
                 : person.status === 'completed'
                   ? 'Paid & Verified'
                   : person.status === 'waiting'
@@ -465,6 +540,7 @@ export default function ReceiptDetailScreen() {
                     className='flex-row items-center px-4 py-3 active:opacity-70'
                     onPress={() =>
                       !isSelf &&
+                      person.amount > 0 &&
                       setSelectedPerson({
                         id: person.id,
                         name: person.name,
@@ -473,11 +549,17 @@ export default function ReceiptDetailScreen() {
                       })
                     }
                   >
-                    {/* Checkbox — disabled for self */}
+                    {/* Checkbox — interactive for self when payment is requested */}
                     <Pressable
-                      onPress={() => !isSelf && handleCheckboxPress(person)}
+                      onPress={() => {
+                        if (selfRequested || selfWaiting) {
+                          void handleSelfPayToggle();
+                        } else if (!isSelf) {
+                          handleCheckboxPress(person);
+                        }
+                      }}
                       hitSlop={8}
-                      disabled={isSelf}
+                      disabled={isSelf && !selfRequested && !selfWaiting}
                       className={`w-7 h-7 rounded-full border-2 items-center justify-center mr-3 ${borderColor}`}
                     >
                       {person.status === 'completed' && !isSelf && (
@@ -485,6 +567,13 @@ export default function ReceiptDetailScreen() {
                           name='check'
                           size={16}
                           className='text-status-completed'
+                        />
+                      )}
+                      {selfWaiting && (
+                        <MaterialCommunityIcons
+                          name='check'
+                          size={16}
+                          className='text-status-waiting'
                         />
                       )}
                     </Pressable>
@@ -505,17 +594,28 @@ export default function ReceiptDetailScreen() {
                       </Text>
                     </View>
 
-                    {/* Amount */}
+                    {/* Amount — shown for others, and for self when payment is requested/marked */}
                     {!isSelf && (
                       <Text className={`font-semibold mr-1 ${textColor}`}>
                         +${person.amount.toFixed(2)}
                       </Text>
                     )}
+                    {isSelf &&
+                      (selfRequested || selfWaiting) &&
+                      person.amount > 0 && (
+                        <Text className={`font-semibold mr-1 ${textColor}`}>
+                          ${person.amount.toFixed(2)}
+                        </Text>
+                      )}
 
                     <MaterialCommunityIcons
                       name='chevron-right'
                       size={18}
-                      className='text-accent-dark'
+                      className={
+                        !isSelf && person.amount <= 0
+                          ? 'text-transparent'
+                          : 'text-accent-dark'
+                      }
                     />
                   </Pressable>
                 </View>

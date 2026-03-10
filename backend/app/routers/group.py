@@ -19,17 +19,20 @@ from app.schemas.group import (
     CreateInviteLinkResponse,
     DeleteGroupRequest,
     DeleteReceiptRequest,
+    FinishGroupRequest,
     GetMyGroupsResponse,
     GetProfilesResponse,
     GroupSummary,
     JoinGroupRequest,
     LoginAsRequest,
     LoginAsResponse,
+    RemoveMemberRequest,
     UpdateItemRequest,
     UpdateGroupNameRequest,
     UpdateProfileColorRequest,
     UpdateUsernameRequest,
     UpdateReceiptTaxRequest,
+    UpdatePaidStatusRequest,
 )
 from app.dependencies import (
     get_auth_service,
@@ -72,6 +75,8 @@ def get_my_groups(
             total_claimed=float(row.total_claimed),
             total_uploaded=float(row.total_uploaded),
             paid_status=row.paid_status,
+            is_finished=bool(row.is_finished),
+            all_members_paid=row.outstanding_count == 0,
         )
         for row in rows
     ]
@@ -172,6 +177,18 @@ async def add_receipt(
         confidence_score=confidence.overall_score if confidence else None,
         warnings=confidence.warnings if confidence else None,
         notes=confidence.notes if confidence else None,
+    )
+
+
+@router.delete("/member")
+def remove_member(
+    payload: RemoveMemberRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    host_profile_id = auth_service.authenticate_registered_user()
+    user_service.remove_guest_member(
+        host_profile_id, str(payload.group_id), str(payload.profile_id)
     )
 
 
@@ -291,6 +308,16 @@ def update_group_name(
     )
 
 
+@router.patch("/finish")
+def finish_group(
+    payload: FinishGroupRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_registered_user()
+    user_service.finish_group(profile_id, str(payload.group_id))
+
+
 @router.patch("/profile/username")
 def update_username(
     payload: UpdateUsernameRequest,
@@ -361,3 +388,15 @@ def update_receipt_tax(
 ):
     profile_id = auth_service.authenticate_any_user()
     user_service.update_receipt_tax(profile_id, str(payload.receipt_id), payload.tax)
+
+
+@router.patch("/paid-status")
+def update_paid_status(
+    payload: UpdatePaidStatusRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    caller_id = auth_service.authenticate_any_user()
+    user_service.update_paid_status(
+        caller_id, str(payload.group_id), str(payload.profile_id), payload.paid_status
+    )

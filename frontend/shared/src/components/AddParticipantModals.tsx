@@ -1,5 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { USER_COLORS } from '../constants';
 
@@ -9,6 +17,7 @@ export type AddParticipantSheetProps = {
   visible: boolean;
   onClose: () => void;
   onShareSMS: () => void;
+  onShareQR?: () => void;
   onAddManually: () => void;
 };
 
@@ -16,6 +25,7 @@ export function AddParticipantSheet({
   visible,
   onClose,
   onShareSMS,
+  onShareQR,
   onAddManually,
 }: AddParticipantSheetProps) {
   return (
@@ -44,6 +54,24 @@ export function AddParticipantSheet({
                 Share Link via SMS
               </Text>
             </Pressable>
+            {onShareQR && (
+              <>
+                <View className='h-px bg-border my-1' />
+                <Pressable
+                  className='flex-row items-center gap-4 py-3 active:opacity-70'
+                  onPress={onShareQR}
+                >
+                  <MaterialCommunityIcons
+                    name='qrcode'
+                    size={24}
+                    color='#4999DF'
+                  />
+                  <Text className='text-foreground text-base'>
+                    Share via QR Code
+                  </Text>
+                </Pressable>
+              </>
+            )}
             <View className='h-px bg-border my-1' />
             <Pressable
               className='flex-row items-center gap-4 py-3 active:opacity-70'
@@ -54,7 +82,9 @@ export function AddParticipantSheet({
                 size={24}
                 color='#4999DF'
               />
-              <Text className='text-foreground text-base'>Add Manually</Text>
+              <Text className='text-foreground text-base'>
+                Add Manually (Guest)
+              </Text>
             </Pressable>
             <Pressable
               className='mt-3 py-3 items-center active:opacity-70'
@@ -89,6 +119,8 @@ export type AddParticipantManualModalProps = {
   /** Called when a participant tag is deleted. */
   // eslint-disable-next-line no-unused-vars
   onRemoveParticipant?: (_id: number) => void;
+  /** Names of participants currently being added (shows a loading spinner instead of the name). */
+  loadingParticipantNames?: string[];
 };
 
 export function AddParticipantManualModal({
@@ -99,6 +131,7 @@ export function AddParticipantManualModal({
   lockedParticipantIds,
   onRenameParticipant,
   onRemoveParticipant,
+  loadingParticipantNames,
 }: AddParticipantManualModalProps) {
   const [value, setValue] = useState('');
   const valueRef = useRef(value);
@@ -191,9 +224,11 @@ export function AddParticipantManualModal({
               autoFocus
             />
 
-            {addedParticipants && addedParticipants.length > 0 && (
+            {((addedParticipants && addedParticipants.length > 0) ||
+              (loadingParticipantNames &&
+                loadingParticipantNames.length > 0)) && (
               <View className='flex-row flex-wrap items-center justify-center gap-2 mb-4'>
-                {addedParticipants.map((p) => (
+                {(addedParticipants ?? []).map((p) => (
                   <Pressable
                     key={p.id}
                     onPress={() => handleParticipantPress(p)}
@@ -201,6 +236,17 @@ export function AddParticipantManualModal({
                   >
                     <Text className='text-foreground text-sm'>{p.name}</Text>
                   </Pressable>
+                ))}
+                {(loadingParticipantNames ?? []).map((name) => (
+                  <View
+                    key={`loading-${name}`}
+                    className='flex-row items-center gap-1.5 px-3 py-1 rounded-full border-2 border-border opacity-60'
+                  >
+                    <ActivityIndicator size='small' color='#4999DF' />
+                    <Text className='text-muted-foreground text-sm'>
+                      {name}
+                    </Text>
+                  </View>
                 ))}
               </View>
             )}

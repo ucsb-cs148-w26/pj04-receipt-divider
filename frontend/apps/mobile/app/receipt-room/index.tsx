@@ -35,6 +35,7 @@ import {
   AddParticipantManualModal,
   sendRoomInviteSMS,
   useScrollToInput,
+  calculateParticipantTotal,
 } from '@eezy-receipt/shared';
 import { ReceiptConfidenceModal, type ConfidenceData } from '@/components';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -56,7 +57,8 @@ import {
   createManualReceipt,
   updateReceiptTax,
   updateGroupName,
-  updateUsername,
+  createGuestProfile,
+  removeGroupMember,
 } from '@/services/groupApi';
 import { supabase } from '@/services/supabase';
 import type {
@@ -77,6 +79,7 @@ interface DragState {
 interface ParticipantType {
   id: number;
   name: string;
+  isGuest?: boolean;
 }
 
 export type ReceiptRoomParams = {
@@ -96,6 +99,10 @@ export default function ReceiptRoomScreen() {
   /**---------------- Group Name State ---------------- */
   const [groupName, setGroupName] = useState('');
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+
+  /**---------------- Room Finished State ---------------- */
+  const [isRoomFinished, setIsRoomFinished] = useState(false);
+  const finishedAlertShownRef = useRef(false);
 
   /**---------------- Mode State ---------------- */
   const [isEditMode, setIsEditMode] = useState(false);
@@ -176,6 +183,7 @@ export default function ReceiptRoomScreen() {
   /**---------------- Add Participant State ---------------- */
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [showAddManual, setShowAddManual] = useState(false);
+  const [pendingGuestNames, setPendingGuestNames] = useState<string[]>([]);
 
   /**---------------- Add Item Sheet State ---------------- */
   const [showAddItemSheet, setShowAddItemSheet] = useState(false);
@@ -287,6 +295,26 @@ export default function ReceiptRoomScreen() {
       participants.length > 0 ? Math.max(...participants.map((p) => p.id)) : 0;
     const newID = maxID + 1;
     setParticipants((prev) => [...prev, { id: newID, name }]);
+  };
+
+  const addGuestParticipant = async (name: string) => {
+    if (!isGroupRoom) {
+      addParticipant(name);
+      return;
+    }
+    setPendingGuestNames((prev) => [...prev, name]);
+    try {
+      await createGuestProfile(roomId, name);
+      await groupData.refetch();
+      // Pending name is cleared by the useEffect below once the participant
+      // appears in groupDisplay.participants, preventing a flash of absence.
+    } catch (err) {
+      setPendingGuestNames((prev) => prev.filter((n) => n !== name));
+      Alert.alert(
+        'Error',
+        err instanceof Error ? err.message : 'Could not add guest participant.',
+      );
+    }
   };
 
   const handleShareSMS = async () => {
@@ -532,12 +560,25 @@ export default function ReceiptRoomScreen() {
     (async () => {
       const { data } = await supabase
         .from('groups')
-        .select('name')
+        .select('name, is_finished')
         .eq('id', roomId)
         .single();
       setGroupName(data?.name ?? '');
+      if (data?.is_finished) setIsRoomFinished(true);
     })();
   }, [roomId, isGroupRoom, currentUserId]);
+
+  // Alert non-hosts when the room has been completed
+  useEffect(() => {
+    if (!isRoomFinished || isHost || finishedAlertShownRef.current) return;
+    if (!groupData.isLoaded) return;
+    finishedAlertShownRef.current = true;
+    Alert.alert(
+      'Room Completed',
+      'The host has completed this room. Editing items or claims now may cause issues.',
+      [{ text: 'OK' }],
+    );
+  }, [isRoomFinished, isHost, groupData.isLoaded]);
 
   const groupDisplay = useMemo(() => {
     if (!isGroupRoom || !groupData.members.length) {
@@ -557,6 +598,7 @@ export default function ReceiptRoomScreen() {
     const participants: ParticipantType[] = members.map((m, i) => ({
       id: i + 1,
       name: groupData.profiles[m.profile_id]?.username ?? `Member ${i + 1}`,
+      isGuest: groupData.profiles[m.profile_id]?.isGuest ?? false,
     }));
     const claims = groupData.claims as DbItemClaim[];
     const items = (groupData.items as DbItem[]).map((item) => {
@@ -598,6 +640,18 @@ export default function ReceiptRoomScreen() {
       return;
     receiptItems.setItems(groupDisplay.items);
   }, [groupDisplay.items]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear pending guest names once they actually appear in groupDisplay.participants.
+  // This ensures the loading pill stays visible until the real pill is ready.
+  useEffect(() => {
+    if (pendingGuestNames.length === 0) return;
+    const participantNames = new Set(
+      groupDisplay.participants.map((p) => p.name),
+    );
+    setPendingGuestNames((prev) =>
+      prev.filter((n) => !participantNames.has(n)),
+    );
+  }, [groupDisplay.participants]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stop the loading overlay once all uploaded receipts have arrived in the cache.
   useEffect(() => {
@@ -1005,19 +1059,11 @@ export default function ReceiptRoomScreen() {
     const participantItems = receiptItems.items.filter((item) =>
       item.userTags?.includes(participantId),
     );
-    const subtotal = participantItems.reduce((sum, item) => {
-      const price = parseFloat(item.price || '0');
-      const discount = parseFloat(item.discount || '0');
-      const claimCount = item.userTags?.length || 1;
-      return sum + (price - discount) / claimCount;
-    }, 0);
-    const tax = participantItems.reduce((sum, item) => {
-      const rid = item.receiptId ?? null;
-      if (!rid || !taxPerItemMap.has(rid)) return sum;
-      const claimCount = item.userTags?.length || 1;
-      return sum + taxPerItemMap.get(rid)! / claimCount;
-    }, 0);
-    const total = subtotal + tax;
+    const { total } = calculateParticipantTotal(
+      participantId,
+      participantItems,
+      taxPerItemMap,
+    );
     if (total > 100000) {
       return '100,000.00+';
     }
@@ -1269,7 +1315,28 @@ export default function ReceiptRoomScreen() {
                 name={participant.name}
                 itemCount={getParticipantItemCount(participant.id)}
                 totalAmount={getParticipantTotal(participant.id)}
-                onRemove={() => removeParticipant(participant.id)}
+                isGuest={isGroupRoom ? (participant.isGuest ?? false) : true}
+                onRemove={
+                  isGroupRoom
+                    ? () => {
+                        const profileId =
+                          groupDisplay.participantIdToProfileId.get(
+                            participant.id,
+                          );
+                        if (!profileId) return;
+                        removeGroupMember(roomId, profileId)
+                          .then(() => groupData.refetch())
+                          .catch((err) => {
+                            Alert.alert(
+                              'Error',
+                              err instanceof Error
+                                ? err.message
+                                : 'Could not remove participant.',
+                            );
+                          });
+                      }
+                    : () => removeParticipant(participant.id)
+                }
                 onLayout={(layout) => {
                   participantLayouts.current[participant.id] = {
                     ...layout,
@@ -1303,24 +1370,6 @@ export default function ReceiptRoomScreen() {
                   }
                 }}
                 isEditMode={isEditMode}
-                onRename={
-                  isGroupRoom
-                    ? // In a group room: only the current user can rename themselves
-                      groupDisplay.participantIdToProfileId.get(
-                        participant.id,
-                      ) === currentUserId
-                      ? (newName) =>
-                          updateUsername(newName).catch((err) => {
-                            console.error(err);
-                            Alert.alert(
-                              'Save Failed',
-                              'Could not update your username. Please try again.',
-                            );
-                          })
-                      : undefined
-                    : // In a local room: anyone can be renamed
-                      (newName) => renameParticipant(participant.id, newName)
-                }
               />
             ))}
 
@@ -1438,20 +1487,6 @@ export default function ReceiptRoomScreen() {
         className='absolute right-4 flex-row items-center gap-2'
         style={{ zIndex: 30, top: insets.top + 8 }}
       >
-        {/* Complete button — visible only when all items are assigned */}
-        {allItemsAssigned && !showQuickActions && (
-          <Pressable
-            className='bg-primary px-3 h-[14vw] rounded-2xl items-center justify-center shadow-md shadow-black/20 active:opacity-70'
-            onPress={() =>
-              router.push({ pathname: '/room-summary', params: { roomId } })
-            }
-          >
-            <Text className='text-primary-foreground font-semibold text-sm'>
-              Complete
-            </Text>
-          </Pressable>
-        )}
-
         {/* Three-dots button + dropdown */}
         <View>
           <Pressable
@@ -1463,6 +1498,41 @@ export default function ReceiptRoomScreen() {
               <View className='bg-card border border-border rounded-[25px] shadow-lg shadow-black/30 overflow-hidden'>
                 {/* Top row of icon buttons */}
                 <View className='flex-row items-center justify-around py-3 px-4'>
+                  {/* Complete Room — host only; navigate to review screen */}
+                  {isHost && (
+                    <Pressable
+                      className='items-center gap-1'
+                      onPress={() => {
+                        setShowQuickActions(false);
+                        if (!allItemsAssigned) {
+                          Alert.alert(
+                            'Not All Items Claimed',
+                            'Every item must be claimed by at least one participant before you can complete the room.',
+                            [{ text: 'OK' }],
+                          );
+                          return;
+                        }
+                        router.push({
+                          pathname: '/room-summary',
+                          params: { roomId },
+                        });
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name='check-circle-outline'
+                        size={24}
+                        color={allItemsAssigned ? '#22c55e' : '#9ca3af'}
+                      />
+                      <Text
+                        className='text-xs'
+                        style={{
+                          color: allItemsAssigned ? '#22c55e' : '#9ca3af',
+                        }}
+                      >
+                        Complete Room
+                      </Text>
+                    </Pressable>
+                  )}
                   <Pressable
                     className='items-center gap-1'
                     onPress={() => {
@@ -1637,13 +1707,21 @@ export default function ReceiptRoomScreen() {
         visible={showAddOptions}
         onClose={() => setShowAddOptions(false)}
         onShareSMS={handleShareSMS}
+        onShareQR={() => {
+          setShowAddOptions(false);
+          router.push(
+            `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(isGroupRoom ? groupDisplay.participants : participants))}`,
+          );
+        }}
         onAddManually={handleAddManually}
       />
 
       <AddParticipantManualModal
         visible={showAddManual}
         onClose={() => setShowAddManual(false)}
-        onAdd={(name) => addParticipant(name)}
+        onAdd={(name) => {
+          void addGuestParticipant(name);
+        }}
         addedParticipants={
           isGroupRoom ? groupDisplay.participants : participants
         }
@@ -1652,6 +1730,7 @@ export default function ReceiptRoomScreen() {
         }
         onRenameParticipant={isGroupRoom ? undefined : renameParticipant}
         onRemoveParticipant={isGroupRoom ? undefined : removeParticipant}
+        loadingParticipantNames={isGroupRoom ? pendingGuestNames : undefined}
       />
 
       {isLoadingPhoto && (
