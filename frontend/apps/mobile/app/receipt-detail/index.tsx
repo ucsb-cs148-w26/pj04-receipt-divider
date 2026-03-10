@@ -108,6 +108,32 @@ export default function ReceiptDetailScreen() {
     );
   }, [members]);
 
+  const persistVerify = async (personId: string, verified: boolean) => {
+    const newStatus = verified ? 'verified' : 'unrequested';
+    try {
+      await updatePaidStatus(id ?? '', personId, newStatus);
+      if (verified) {
+        setCompletedIds((prev) => new Set(prev).add(personId));
+      } else {
+        setCompletedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(personId);
+          return next;
+        });
+        setLocalStatusOverrides((prev) => {
+          const next = new Map(prev);
+          next.delete(personId);
+          return next;
+        });
+      }
+    } catch (err) {
+      Alert.alert(
+        'Error',
+        err instanceof Error ? err.message : 'Failed to update status.',
+      );
+    }
+  };
+
   const handleCheckboxPress = (person: {
     id: string;
     name: string;
@@ -122,12 +148,7 @@ export default function ReceiptDetailScreen() {
           {
             text: 'Unverify',
             style: 'destructive',
-            onPress: () =>
-              setCompletedIds((prev) => {
-                const next = new Set(prev);
-                next.delete(person.id);
-                return next;
-              }),
+            onPress: () => void persistVerify(person.id, false),
           },
         ],
       );
@@ -143,22 +164,13 @@ export default function ReceiptDetailScreen() {
         {
           text: 'Verify Anyway',
           style: 'destructive',
-          onPress: () =>
-            setCompletedIds((prev) => new Set(prev).add(person.id)),
+          onPress: () => void persistVerify(person.id, true),
         },
       ]);
       return;
     }
     // status === 'waiting' — eligible to verify
-    setCompletedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(person.id)) {
-        next.delete(person.id);
-      } else {
-        next.add(person.id);
-      }
-      return next;
-    });
+    void persistVerify(person.id, !completedIds.has(person.id));
   };
 
   const STATUS_ORDER: Record<PersonStatus, number> = {
