@@ -27,6 +27,7 @@ from app.schemas.group import (
     LoginAsResponse,
     UpdateItemRequest,
     UpdateGroupNameRequest,
+    UpdateProfileColorRequest,
     UpdateUsernameRequest,
     UpdateReceiptTaxRequest,
 )
@@ -298,6 +299,18 @@ def update_username(
 ):
     profile_id = auth_service.authenticate_any_user()
     profile_service.update_username(profile_id, payload.username)
+    return "OK"
+
+
+@router.patch("/profile/color")
+def update_profile_color(
+    payload: UpdateProfileColorRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    profile_service.update_color(profile_id, payload.accent_color)
+    return "OK"
 
 
 @router.delete("/delete")

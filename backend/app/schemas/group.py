@@ -96,6 +96,10 @@ class UpdateUsernameRequest(BaseRequest):
     username: str = Field(min_length=1, max_length=64)
 
 
+class UpdateProfileColorRequest(BaseRequest):
+    accent_color: str
+
+
 class DeleteGroupRequest(BaseRequest):
     group_id: uuid.UUID
 

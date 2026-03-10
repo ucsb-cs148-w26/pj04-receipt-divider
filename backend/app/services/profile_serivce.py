@@ -83,3 +83,10 @@ class ProfileService:
             raise Exception(f"Profile '{profile_id}' not found.")
         profile.username = username
         self.db.commit()
+
+    def update_color(self, profile_id: str, color: str) -> None:
+        profile = self.db.get(Profile, profile_id)
+        if profile is None:
+            raise Exception(f"Profile '{profile_id}' not found.")
+        profile.accent_color = color
+        self.db.commit()
