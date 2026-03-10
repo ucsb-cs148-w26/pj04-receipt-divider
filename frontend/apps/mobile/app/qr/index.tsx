@@ -1,7 +1,17 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Alert, ActivityIndicator, Share } from 'react-native';
-import { Button, DefaultButtons, sendSMS } from '@eezy-receipt/shared';
+import {
+  View,
+  Text,
+  Alert,
+  ActivityIndicator,
+  Share,
+  Pressable,
+  ScrollView,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { IconButton, sendSMS } from '@eezy-receipt/shared';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useReceiptItems } from '@/providers';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
@@ -115,51 +125,112 @@ export default function QRScreen() {
     }, 0);
 
     const message = `Subtotals:\n\n${lines.join('\n\n')}\n\n---------------\nTotal: $${grandTotal.toFixed(2)}`;
-    handleShareSubtotalSMS(message);
+    void sendSMS(message);
   }
 
-  async function handleShareSubtotalSMS(message: string) {
-    try {
-      await sendSMS(message);
-    } catch (error) {
-      console.error('SMS error:', error);
-    }
-  }
+  const actions: {
+    icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+    label: string;
+    onPress: () => void;
+  }[] = [
+    {
+      icon: 'qrcode',
+      label: 'Share QR Code',
+      onPress: () => void handleShareQRImage(),
+    },
+    {
+      icon: 'link-variant',
+      label: 'Share via Link',
+      onPress: handleShareJoinLink,
+    },
+    {
+      icon: 'receipt',
+      label: 'Share Subtotals',
+      onPress: handleShareSubtotals,
+    },
+  ];
 
   return (
-    <View className='flex-1 bg-background justify-center items-center gap-3'>
-      <View className='justify-center items-center'>
-        {qrData ? (
-          <QRCode
-            ref={qrRef}
-            value={qrData}
-            size={200}
-            backgroundColor='white'
-            color='black'
-            getRef={(c) => (qrRef.current = c)}
-          />
-        ) : (
-          <ActivityIndicator size='large' />
-        )}
-        <Text className='bg-surface-elevated text-foreground text-base mt-5'>
-          Room ID: {roomId}
+    <SafeAreaView className='flex-1 bg-background'>
+      {/* Header */}
+      <View className='flex-row items-center px-4 pb-3 pt-2 gap-3'>
+        <IconButton
+          icon='chevron-left'
+          bgClassName='bg-card shadow-md shadow-black/20'
+          iconClassName='text-accent-dark'
+          pressEffect='fade'
+          onPress={() => {
+            router.dismiss();
+            router.navigate(`/receipt-room?roomId=${roomId}`);
+          }}
+        />
+        <Text className='text-foreground text-xl font-bold flex-1'>
+          Invite to Room
         </Text>
       </View>
-      <Button variant='primary' onPress={handleShareQRImage}>
-        Share QR Code
-      </Button>
-      <Button variant='primary' onPress={handleShareJoinLink}>
-        Share via Link
-      </Button>
-      <Button variant='primary' onPress={handleShareSubtotals}>
-        Share Subtotals
-      </Button>
-      <DefaultButtons.Close
-        onPress={() => {
-          router.dismiss();
-          router.navigate(`/receipt-room?roomId=${roomId}`);
-        }}
-      />
-    </View>
+
+      <ScrollView
+        className='flex-1 px-4'
+        contentContainerClassName='pb-8 gap-4'
+        showsVerticalScrollIndicator={false}
+      >
+        {/* QR Code Card */}
+        <View className='bg-card rounded-2xl p-6 items-center gap-4'>
+          <View className='rounded-2xl overflow-hidden p-4 bg-white'>
+            {qrData ? (
+              <QRCode
+                ref={qrRef}
+                value={qrData}
+                size={200}
+                backgroundColor='white'
+                color='black'
+                getRef={(c) => (qrRef.current = c)}
+              />
+            ) : (
+              <View className='w-[200px] h-[200px] items-center justify-center'>
+                <ActivityIndicator size='large' color='#4999DF' />
+              </View>
+            )}
+          </View>
+          <View className='items-center gap-1'>
+            <Text className='text-foreground text-base font-semibold'>
+              Scan to join this room
+            </Text>
+            <Text className='text-muted-foreground text-xs'>
+              Room ID: {roomId}
+            </Text>
+          </View>
+        </View>
+
+        {/* Action rows */}
+        <View className='bg-card rounded-2xl overflow-hidden'>
+          {actions.map((action, index) => (
+            <View key={action.label}>
+              {index > 0 && <View className='h-px bg-border mx-4' />}
+              <Pressable
+                className='flex-row items-center gap-4 px-4 py-4 active:opacity-70'
+                onPress={action.onPress}
+              >
+                <View className='w-9 h-9 rounded-full bg-primary/10 items-center justify-center'>
+                  <MaterialCommunityIcons
+                    name={action.icon}
+                    size={20}
+                    color='#4999DF'
+                  />
+                </View>
+                <Text className='flex-1 text-foreground text-base font-medium'>
+                  {action.label}
+                </Text>
+                <MaterialCommunityIcons
+                  name='chevron-right'
+                  size={20}
+                  color='#888'
+                />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
