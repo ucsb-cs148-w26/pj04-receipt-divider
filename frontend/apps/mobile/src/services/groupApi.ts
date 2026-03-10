@@ -1,5 +1,4 @@
 import { apiFetch, apiUpload } from './api';
-import { supabase } from './supabase';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 /** Maximum pixels allowed on either side of an image before it is resized. */
@@ -19,6 +18,7 @@ export interface ProfileWithColor {
   profileId: string;
   username: string;
   accentColor: string;
+  isGuest?: boolean;
 }
 
 export interface GetProfilesResponse {
@@ -160,6 +160,17 @@ export async function deleteReceipt(receiptId: string): Promise<void> {
   });
 }
 
+/** DELETE /group/member — remove a guest participant from a group (host only) */
+export async function removeGroupMember(
+  groupId: string,
+  profileId: string,
+): Promise<void> {
+  return apiFetch<void>('/group/member', {
+    method: 'DELETE',
+    body: JSON.stringify({ groupId, profileId }),
+  });
+}
+
 // ─── Item claim endpoints ─────────────────────────────────────────────────────
 
 /** DELETE /group/item — delete an item from a group (any member) */
@@ -241,6 +252,8 @@ export interface GroupSummary {
   totalClaimed: number;
   totalUploaded: number;
   paidStatus: PaidStatus;
+  isFinished: boolean;
+  allMembersPaid: boolean;
 }
 
 export interface GetMyGroupsResponse {
@@ -260,18 +273,16 @@ export async function joinGroup(groupId: string): Promise<void> {
   });
 }
 
-/** Update the paid_status of a group member directly via Supabase. */
+/** Update the paid_status of a group member via the backend API. */
 export async function updatePaidStatus(
   groupId: string,
   profileId: string,
   status: 'verified' | 'pending' | 'requested' | 'unrequested',
 ): Promise<void> {
-  const { error } = await supabase
-    .from('group_members')
-    .update({ paid_status: status })
-    .eq('group_id', groupId)
-    .eq('profile_id', profileId);
-  if (error) throw new Error(error.message);
+  return apiFetch<void>('/group/paid-status', {
+    method: 'PATCH',
+    body: JSON.stringify({ groupId, profileId, paidStatus: status }),
+  });
 }
 
 /** PATCH /group/item — update an item's name and/or unit price (any group member) */
@@ -345,5 +356,13 @@ export async function updateReceiptTax(
   return apiFetch<void>('/group/receipt/tax', {
     method: 'PATCH',
     body: JSON.stringify({ receiptId, tax }),
+  });
+}
+
+/** PATCH /group/finish — mark a group as finished (host only) */
+export async function finishGroup(groupId: string): Promise<void> {
+  return apiFetch<void>('/group/finish', {
+    method: 'PATCH',
+    body: JSON.stringify({ groupId }),
   });
 }

@@ -5,6 +5,8 @@ import {
   DefaultButtons,
   useScrollToInput,
   ScrollableTextInput,
+  calculateParticipantShare,
+  calculateParticipantTotal,
 } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ReceiptItemData } from '@shared/types';
@@ -43,67 +45,31 @@ export default function YourItemScreen() {
     ? (JSON.parse(params.taxPerItem) as Record<string, number>)
     : {};
 
-  let totalSum = 0;
+  const { subtotal: totalSum, tax: totalTax } = calculateParticipantTotal(
+    participantId,
+    localItems,
+    taxPerItemMap,
+  );
 
-  function calculatePrices(items: ReceiptItemData[]) {
-    items.forEach((item) => {
-      const itemPrice = isNaN(parseFloat(item.price))
-        ? 0
-        : parseFloat(item.price);
-
-      if (item.userTags && item.userTags.length > 1) {
-        const currentPercentage = 100 / item.userTags.length;
-        let roundedPrice = Math.floor(itemPrice * currentPercentage) / 100;
-
-        const remainderTimes100 = Math.trunc(
-          (parseFloat(item.price) - roundedPrice * item.userTags.length) * 100,
-        );
-        console.log(
-          'Rounded Price: ' + roundedPrice,
-          'Item name: ' + item.name,
-          'Participant ID: ' + participantId,
-          'Remainder: ' + remainderTimes100,
-        );
-        if (participantId > item.userTags.length - remainderTimes100) {
-          roundedPrice += 0.01;
-        }
-
-        const currentDiscount =
-          (item.discount ? parseFloat(item.discount) : 0) *
-          currentPercentage *
-          0.01;
-        item.price = roundedPrice.toFixed(2);
-        item.discount = currentDiscount.toFixed(2);
-        totalSum += roundedPrice - currentDiscount;
-      } else {
-        const currentPrice = itemPrice;
-        const currentDiscount = item.discount ? parseFloat(item.discount) : 0;
-        item.price = currentPrice.toFixed(2);
-        item.discount = currentDiscount.toFixed(2);
-        totalSum += currentPrice - currentDiscount;
-      }
-    });
-  }
-
-  // Calculate on a copy so we don't mutate localItems state directly
-  const displayItems = localItems.map((item) => ({ ...item }));
-  calculatePrices(displayItems);
-
-  // Tax: for each item this participant has, add their share of the receipt-level tax.
-  // taxPerItem[receiptId] = receipt.tax / total items in that receipt (evenly split).
-  // The participant's share of that item's tax = taxPerItem * (1 / userTags.length).
-  let totalTax = 0;
-  for (const item of localItems) {
-    const rid = item.receiptId ?? null;
-    if (rid && taxPerItemMap[rid] != null) {
-      const share =
-        item.userTags && item.userTags.length > 1
-          ? 1 / item.userTags.length
-          : 1;
-      totalTax += taxPerItemMap[rid] * share;
-    }
-  }
-  totalTax = Math.round(totalTax * 100) / 100;
+  // Display copy: per-item prices adjusted to this participant's share (for rendering rows)
+  const displayItems = localItems.map((item) => {
+    const itemPrice = parseFloat(item.price) || 0;
+    const claimCount =
+      item.userTags && item.userTags.length > 1 ? item.userTags.length : 1;
+    const priceShare = calculateParticipantShare(
+      itemPrice,
+      claimCount,
+      participantId,
+    );
+    const discountFull = parseFloat(item.discount || '0') || 0;
+    const discountShare =
+      claimCount > 1 ? (discountFull * (100 / claimCount)) / 100 : discountFull;
+    return {
+      ...item,
+      price: priceShare.toFixed(2),
+      discount: discountShare.toFixed(2),
+    };
+  });
 
   // Percentage each item represents for this participant
   const percentages = Object.fromEntries(

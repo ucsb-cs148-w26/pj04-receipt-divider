@@ -1,12 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Alert, ActivityIndicator } from 'react-native';
-import {
-  Button,
-  DefaultButtons,
-  sendRoomInviteSMS,
-  sendSMS,
-} from '@eezy-receipt/shared';
+import { View, Text, Alert, ActivityIndicator, Share } from 'react-native';
+import { Button, DefaultButtons, sendSMS } from '@eezy-receipt/shared';
 import { useReceiptItems } from '@/providers';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
@@ -71,7 +66,10 @@ export default function QRScreen() {
   }
 
   function handleShareJoinLink() {
-    sendRoomInviteSMS(roomId);
+    const url =
+      qrData ??
+      `${process.env.EXPO_PUBLIC_FRONTEND_URL ?? 'http://localhost:5173'}/join?roomId=${roomId}`;
+    void Share.share({ message: url, url });
   }
 
   function handleShareSubtotals() {

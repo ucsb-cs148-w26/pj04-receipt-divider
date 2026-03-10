@@ -48,7 +48,10 @@ class ProfileService:
 
         profile_list = [
             PublicProfileData(
-                profile_id=p.id, accent_color=p.accent_color or "", username=p.username
+                profile_id=p.id,
+                accent_color=p.accent_color or "",
+                username=p.username,
+                is_guest=not p.email,
             )
             for p in profiles
         ]

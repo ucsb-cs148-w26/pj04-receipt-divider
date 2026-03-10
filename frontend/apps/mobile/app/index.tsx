@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -14,22 +14,32 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth, useGroupCache } from '@/providers';
 import { supabase } from '@/services/supabase';
 import { IconButton } from '@eezy-receipt/shared';
-import type { PaidStatus } from '@/services/groupApi';
+import type { GroupSummary } from '@/services/groupApi';
+
+type RoomStatus = 'completed' | 'in-progress' | 'payment-pending';
+
+const STATUS_LABELS: Record<RoomStatus, string> = {
+  completed: 'Completed',
+  'in-progress': 'In Progress',
+  'payment-pending': 'Payment Pending',
+};
+
+function getRoomStatus(g: GroupSummary): RoomStatus {
+  if (!g.isFinished) return 'in-progress';
+  if (g.allMembersPaid) return 'completed';
+  return 'payment-pending';
+}
 
 type HistoryItem = {
   id: string;
   name: string;
-  status: 'completed' | 'pending';
+  status: RoomStatus;
   amount: number;
   members: number;
 };
 
-function mapPaidStatus(ps: PaidStatus): 'completed' | 'pending' {
-  return ps === 'verified' ? 'completed' : 'pending';
-}
-
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const { myGroups, refetchMyGroups } = useGroupCache();
   const [activeTab, setActiveTab] = useState<'groups' | 'people'>('groups');
   const [showNewRoom, setShowNewRoom] = useState(false);
@@ -50,10 +60,22 @@ export default function HomeScreen() {
   }, [user?.id]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  // Timestamp (ms) of the last time the payment modal was shown; 0 = never shown.
+  const paymentModalLastShownRef = useRef(0);
+  const PAYMENT_MODAL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
   const fetchGroups = useCallback(() => {
+    if (!user) return;
     void refetchMyGroups();
-  }, [refetchMyGroups]);
+  }, [refetchMyGroups, user]);
+
+  // When the persisted session loads after a cold start, trigger an initial fetch.
+  useEffect(() => {
+    if (user && !isAuthLoading) {
+      void refetchMyGroups();
+    }
+  }, [user, isAuthLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -66,10 +88,29 @@ export default function HomeScreen() {
   const groups: HistoryItem[] = (myGroups ?? []).map((g) => ({
     id: g.groupId,
     name: g.name ?? 'Unnamed Group',
-    status: mapPaidStatus(g.paidStatus),
+    status: getRoomStatus(g),
     amount: g.totalUploaded - g.totalClaimed,
     members: g.memberCount,
   }));
+
+  // Groups where the host has requested payment from the current user and they owe money
+  const requestedGroups = (myGroups ?? []).filter(
+    (g) =>
+      g.paidStatus === 'requested' && g.totalUploaded - g.totalClaimed < -0.001,
+  );
+
+  // Show payment modal at most once every PAYMENT_MODAL_INTERVAL_MS when there are pending requests
+  useEffect(() => {
+    if (myGroups === null) return;
+    const now = Date.now();
+    if (
+      requestedGroups.length > 0 &&
+      now - paymentModalLastShownRef.current >= PAYMENT_MODAL_INTERVAL_MS
+    ) {
+      paymentModalLastShownRef.current = now;
+      setShowPaymentModal(true);
+    }
+  }, [myGroups]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const firstName = profileName.split(' ')[0] || 'there';
 
@@ -218,9 +259,8 @@ export default function HomeScreen() {
                     </Text>
                     <Text className='text-muted-foreground text-sm'>
                       {activeTab === 'groups'
-                        ? `${item.members} ${item.members === 1 ? 'member' : 'members'} · ${item.status.charAt(0).toUpperCase() + item.status.slice(1)}`
-                        : item.status.charAt(0).toUpperCase() +
-                          item.status.slice(1)}
+                        ? `${item.members} ${item.members === 1 ? 'member' : 'members'} · ${STATUS_LABELS[item.status]}`
+                        : STATUS_LABELS[item.status]}
                     </Text>
                   </View>
                   <Text
@@ -329,6 +369,82 @@ export default function HomeScreen() {
               </View>
             </Pressable>
           </View>
+        </Pressable>
+      </Modal>
+
+      {/* Payment Request Alert Modal */}
+      <Modal
+        transparent
+        animationType='fade'
+        visible={showPaymentModal}
+        onRequestClose={() => setShowPaymentModal(false)}
+      >
+        <Pressable
+          className='flex-1 bg-black/50 justify-center px-6'
+          onPress={() => setShowPaymentModal(false)}
+        >
+          <Pressable onPress={() => {}}>
+            <View className='bg-card rounded-2xl overflow-hidden shadow-xl shadow-black/40'>
+              {/* Header */}
+              <View className='px-5 pt-5 pb-3'>
+                <Text className='text-foreground text-xl font-bold mb-1'>
+                  💳 Payment Requested
+                </Text>
+                <Text className='text-muted-foreground text-sm'>
+                  The following rooms are requesting payment from you:
+                </Text>
+              </View>
+
+              <View className='h-px bg-border mx-5' />
+
+              {/* List of rooms */}
+              {requestedGroups.map((g, index) => (
+                <View key={g.groupId}>
+                  {index > 0 && <View className='h-px bg-border mx-5' />}
+                  <Pressable
+                    className='flex-row items-center justify-between px-5 py-4 active:opacity-70'
+                    onPress={() => {
+                      setShowPaymentModal(false);
+                      router.navigate({
+                        pathname: '/receipt-detail',
+                        params: {
+                          id: g.groupId,
+                          name: g.name ?? 'Unnamed Group',
+                          amount: (g.totalUploaded - g.totalClaimed).toString(),
+                        },
+                      });
+                    }}
+                  >
+                    <View className='flex-1 mr-3'>
+                      <Text
+                        className='text-foreground font-semibold text-base'
+                        numberOfLines={1}
+                      >
+                        {g.name ?? 'Unnamed Group'}
+                      </Text>
+                      <Text className='text-status-pending text-sm'>
+                        You owe $
+                        {Math.abs(g.totalUploaded - g.totalClaimed).toFixed(2)}
+                      </Text>
+                    </View>
+                    <Text className='text-primary font-medium text-sm'>
+                      View →
+                    </Text>
+                  </Pressable>
+                </View>
+              ))}
+
+              <View className='h-px bg-border mx-5' />
+
+              {/* Dismiss */}
+              <Pressable
+                className='py-4 items-center active:opacity-70'
+                onPress={() => setShowPaymentModal(false)}
+              >
+                <Text className='text-muted-foreground text-base'>Dismiss</Text>
+              </Pressable>
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </SafeAreaView>

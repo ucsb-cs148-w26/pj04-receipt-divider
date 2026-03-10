@@ -202,6 +202,22 @@ export default function ReceiptDetailScreen() {
     setSelectedPerson(null);
   };
 
+  const handleSelfPayToggle = async () => {
+    if (!selfPerson || selfPerson.status !== 'pending') return;
+    try {
+      // 'pending' in DB = 'waiting' in UI = "Claimed, Awaiting Verification"
+      await updatePaidStatus(id ?? '', currentUserId, 'pending');
+      setLocalStatusOverrides((prev) =>
+        new Map(prev).set(currentUserId, 'waiting'),
+      );
+    } catch (err) {
+      Alert.alert(
+        'Error',
+        err instanceof Error ? err.message : 'Failed to update status.',
+      );
+    }
+  };
+
   // All members with updated status, current user excluded from ordering/counts
   const allPeople = basePeople.map((p) => ({
     ...p,
@@ -223,16 +239,21 @@ export default function ReceiptDetailScreen() {
   // people shown in list: others first (sorted), self pinned to bottom
   const people = selfPerson ? [...otherPeople, selfPerson] : otherPeople;
 
-  // Counts / fractions exclude the current user
-  const completedCount = otherPeople.filter(
+  // Counts / fractions exclude the current user and members who don't owe anything
+  const relevantPeople = otherPeople.filter((p) => p.amount > 0);
+  const completedCount = relevantPeople.filter(
     (p) => p.status === 'completed',
   ).length;
-  const waitingCount = otherPeople.filter((p) => p.status === 'waiting').length;
-  const pendingCount = otherPeople.filter((p) => p.status === 'pending').length;
-  const unrequestedCount = otherPeople.filter(
+  const waitingCount = relevantPeople.filter(
+    (p) => p.status === 'waiting',
+  ).length;
+  const pendingCount = relevantPeople.filter(
+    (p) => p.status === 'pending',
+  ).length;
+  const unrequestedCount = relevantPeople.filter(
     (p) => p.status === 'unrequested',
   ).length;
-  const total = otherPeople.length;
+  const total = relevantPeople.length;
 
   const completedFraction = total > 0 ? completedCount / total : 0;
   const waitingFraction = total > 0 ? waitingCount / total : 0;
@@ -431,8 +452,14 @@ export default function ReceiptDetailScreen() {
           ) : (
             people.map((person, index) => {
               const isSelf = person.id === currentUserId;
+              const selfRequested = isSelf && person.status === 'pending';
+              const selfWaiting = isSelf && person.status === 'waiting';
               const borderColor = isSelf
-                ? 'border-border'
+                ? selfRequested
+                  ? 'border-status-pending'
+                  : selfWaiting
+                    ? 'border-status-waiting'
+                    : 'border-border'
                 : person.status === 'completed'
                   ? 'border-status-completed'
                   : person.status === 'waiting'
@@ -441,7 +468,9 @@ export default function ReceiptDetailScreen() {
                       ? 'border-status-pending'
                       : 'border-status-unrequested';
               const textColor = isSelf
-                ? 'text-muted-foreground'
+                ? selfRequested
+                  ? 'text-status-pending'
+                  : 'text-muted-foreground'
                 : person.status === 'completed'
                   ? 'text-muted-foreground line-through'
                   : person.status === 'waiting'
@@ -450,7 +479,11 @@ export default function ReceiptDetailScreen() {
                       ? 'text-status-pending'
                       : 'text-status-unrequested';
               const statusLabel = isSelf
-                ? 'You'
+                ? selfRequested
+                  ? 'Payment Requested — tap to mark as paid'
+                  : selfWaiting
+                    ? 'Marked as Paid — Awaiting Verification'
+                    : 'You'
                 : person.status === 'completed'
                   ? 'Paid & Verified'
                   : person.status === 'waiting'
@@ -473,11 +506,17 @@ export default function ReceiptDetailScreen() {
                       })
                     }
                   >
-                    {/* Checkbox — disabled for self */}
+                    {/* Checkbox — interactive for self when payment is requested */}
                     <Pressable
-                      onPress={() => !isSelf && handleCheckboxPress(person)}
+                      onPress={() => {
+                        if (selfRequested) {
+                          void handleSelfPayToggle();
+                        } else if (!isSelf) {
+                          handleCheckboxPress(person);
+                        }
+                      }}
                       hitSlop={8}
-                      disabled={isSelf}
+                      disabled={isSelf && !selfRequested}
                       className={`w-7 h-7 rounded-full border-2 items-center justify-center mr-3 ${borderColor}`}
                     >
                       {person.status === 'completed' && !isSelf && (
@@ -485,6 +524,13 @@ export default function ReceiptDetailScreen() {
                           name='check'
                           size={16}
                           className='text-status-completed'
+                        />
+                      )}
+                      {selfWaiting && (
+                        <MaterialCommunityIcons
+                          name='check'
+                          size={16}
+                          className='text-status-waiting'
                         />
                       )}
                     </Pressable>
@@ -505,12 +551,19 @@ export default function ReceiptDetailScreen() {
                       </Text>
                     </View>
 
-                    {/* Amount */}
+                    {/* Amount — shown for others, and for self when payment is requested/marked */}
                     {!isSelf && (
                       <Text className={`font-semibold mr-1 ${textColor}`}>
                         +${person.amount.toFixed(2)}
                       </Text>
                     )}
+                    {isSelf &&
+                      (selfRequested || selfWaiting) &&
+                      person.amount > 0 && (
+                        <Text className={`font-semibold mr-1 ${textColor}`}>
+                          ${person.amount.toFixed(2)}
+                        </Text>
+                      )}
 
                     <MaterialCommunityIcons
                       name='chevron-right'

@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.config import settings
 from app.models import Group, Item, Receipt, GroupMember, ItemClaim
+from app.models.profile import Profile
 from app.services.ocr_service import OCRService
 from app.services.receipt_parser.types import ReceiptConfidence
 
@@ -86,14 +87,81 @@ class UserService:
             self.db.delete(member)
             self.db.commit()
 
+    def remove_guest_member(
+        self, host_profile_id: str, group_id: str, target_profile_id: str
+    ) -> None:
+        if not self._is_host(host_profile_id, group_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the host can remove participants",
+            )
+        target = self.db.get(Profile, target_profile_id)
+        if target is None or target.email:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Can only remove guest participants",
+            )
+        member = self.db.get(
+            GroupMember, {"profile_id": target_profile_id, "group_id": group_id}
+        )
+        if member is not None:
+            self.db.delete(member)
+            self.db.commit()
+
     def get_all_groups(self, profile_id: str) -> list[Group]:
         stmt = (
             select(Group)
             .join(GroupMember, GroupMember.group_id == Group.id)
             .where(GroupMember.profile_id == profile_id)
         )
+        return list(self.db.execute(stmt).scalars().all())
 
-        return self.db.execute(stmt).scalars().all()
+    def update_paid_status(
+        self,
+        caller_profile_id: str,
+        group_id: str,
+        target_profile_id: str,
+        new_status: str,
+    ) -> None:
+        """Update a group member's paid_status.
+
+        Rules:
+        - 'requested': only the group host may set this (requesting payment from a member).
+        - 'pending': only the target member themselves may set this (self-reporting payment).
+        - 'verified' / 'unrequested': only the group host may set this.
+        """
+        _VALID = {"verified", "pending", "requested", "unrequested"}
+        if new_status not in _VALID:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"paid_status must be one of: {', '.join(sorted(_VALID))}",
+            )
+
+        if new_status == "pending":
+            # Only the member themselves can self-report payment
+            if caller_profile_id != target_profile_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the member themselves can mark their payment as pending",
+                )
+        else:
+            # All other transitions require host privileges
+            if not self._is_host(caller_profile_id, group_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the group host can update this paid status",
+                )
+
+        member = self.db.get(
+            GroupMember, {"profile_id": target_profile_id, "group_id": group_id}
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Member not found in group",
+            )
+        member.paid_status = new_status
+        self.db.commit()
 
     def delete_item(self, profile_id: str, item_id: str) -> None:
         item = self.db.get(Item, item_id)
@@ -169,9 +237,25 @@ class UserService:
         group.name = name
         self.db.commit()
 
+    def finish_group(self, profile_id: str, group_id: str) -> None:
+        """Mark a group as finished (host only)."""
+        if not self._is_host(profile_id, group_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the host can finish the group",
+            )
+        group = self.db.get(Group, group_id)
+        if group is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
+            )
+        group.is_finished = True
+        self.db.commit()
+
     def get_groups_summary(self, profile_id: str):
         """Return one row per group the user belongs to:
-        group id, name, member count, total claimed amount, and the user's paid_status.
+        group id, name, member count, total claimed amount, the user's paid_status,
+        whether the room is finished, and whether all outstanding payments are settled.
         """
         # Subquery: member count per group
         member_count_sq = (
@@ -211,6 +295,17 @@ class UserService:
             .subquery()
         )
 
+        # Subquery: count members with outstanding (requested/pending) payments per group
+        outstanding_sq = (
+            select(
+                GroupMember.group_id,
+                func.count(GroupMember.profile_id).label("outstanding_count"),
+            )
+            .where(GroupMember.paid_status.in_(["requested", "pending"]))
+            .group_by(GroupMember.group_id)
+            .subquery()
+        )
+
         stmt = (
             select(
                 Group.id,
@@ -223,11 +318,16 @@ class UserService:
                     "total_uploaded"
                 ),
                 GroupMember.paid_status,
+                Group.is_finished,
+                func.coalesce(outstanding_sq.c.outstanding_count, 0).label(
+                    "outstanding_count"
+                ),
             )
             .join(GroupMember, GroupMember.group_id == Group.id)
             .join(member_count_sq, member_count_sq.c.group_id == Group.id)
             .outerjoin(claimed_sum_sq, claimed_sum_sq.c.group_id == Group.id)
             .outerjoin(uploaded_sum_sq, uploaded_sum_sq.c.group_id == Group.id)
+            .outerjoin(outstanding_sq, outstanding_sq.c.group_id == Group.id)
             .where(GroupMember.profile_id == profile_id)
             .order_by(Group.id)
         )

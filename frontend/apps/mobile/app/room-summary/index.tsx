@@ -15,7 +15,12 @@ import {
 import { IconButton, sendSMS } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGroupData } from '@/hooks';
-import { updatePaidStatus, createInviteLink } from '@/services/groupApi';
+import { useAuth } from '@/providers';
+import {
+  updatePaidStatus,
+  createInviteLink,
+  finishGroup,
+} from '@/services/groupApi';
 import { supabase } from '@/services/supabase';
 import type {
   GroupMember as DbGroupMember,
@@ -40,6 +45,8 @@ export default function RoomSummaryScreen() {
   const insets = useSafeAreaInsets();
   const { roomId } = useLocalSearchParams<RoomSummaryParams>();
   const groupData = useGroupData(roomId ?? '');
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? '';
   const [groupName, setGroupName] = useState('');
   const [isSending, setIsSending] = useState(false);
 
@@ -126,15 +133,21 @@ export default function RoomSummaryScreen() {
     if (!roomId) return;
     setIsSending(true);
     try {
-      // 1. Mark every member as 'requested'
+      // Only request payment from members who actually owe money, excluding the host themselves
+      const owingSummaries = summaries.filter(
+        (s) => s.subtotal + s.tax > 0 && s.profileId !== currentUserId,
+      );
+
+      // 1. Mark owing members as 'requested' and finish the group
       await Promise.all(
-        summaries.map((s) =>
+        owingSummaries.map((s) =>
           updatePaidStatus(roomId, s.profileId, 'requested'),
         ),
       );
+      await finishGroup(roomId);
 
       // 2. Detect guest profiles (empty email = anonymous/guest user)
-      const profileIds = summaries.map((s) => s.profileId);
+      const profileIds = owingSummaries.map((s) => s.profileId);
       const { data: profileRows } = await supabase
         .from('profiles')
         .select('id, email')
@@ -154,8 +167,8 @@ export default function RoomSummaryScreen() {
         inviteUrl = process.env.EXPO_PUBLIC_FRONTEND_URL ?? '';
       }
 
-      // 4. Send SMS for each guest (sequential so native compose UI is one-at-a-time)
-      for (const s of summaries) {
+      // 4. Send SMS for each owing guest (sequential so native compose UI is one-at-a-time)
+      for (const s of owingSummaries) {
         if (!guestIds.has(s.profileId)) continue;
         const itemLines = s.items
           .map((i) => `  • ${i.name}: $${i.price}`)
