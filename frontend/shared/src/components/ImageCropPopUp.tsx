@@ -3,7 +3,6 @@
   useEffect,
   useCallback,
   useRef,
-  useMemo,
   forwardRef,
   useImperativeHandle,
 } from 'react';
@@ -11,7 +10,6 @@ import {
   View,
   Text,
   Modal,
-  StyleSheet,
   Image,
   TouchableOpacity,
   Pressable,
@@ -66,45 +64,12 @@ const SNAP_THRESHOLD = 2;
 const SVG_PAD = 120;
 
 // ---------------------------------------------------------------------------
-//  Theme colours
+//  Raw colours for SVG elements & component props that don't support className
 // ---------------------------------------------------------------------------
-type ThemeColors = typeof LIGHT_COLORS;
-
-const LIGHT_COLORS = {
-  background: '#f2f2f2',
-  foreground: '#0f172a',
-  surface: '#efefef',
-  surfaceElevated: '#f2f2f3',
-  card: '#f6f6f6',
-  primary: '#007aff',
-  primaryForeground: '#ffffff',
-  secondary: '#6c7d8c',
-  mutedForeground: '#393e44',
-  border: '#e2e5eb',
-  destructive: '#ef4444',
-  primaryTint: 'rgba(0, 122, 255, 0.10)',
-  overlay: 'rgba(0, 0, 0, 0.45)',
-  handleBg: 'rgba(255, 255, 255, 0.85)',
-  shadow: '#000',
-};
-
-const DARK_COLORS: ThemeColors = {
-  background: '#09090b',
-  foreground: '#ffffff',
-  surface: '#0e1116',
-  surfaceElevated: '#06080a',
-  card: '#18181b',
-  primary: '#007aff',
-  primaryForeground: '#ffffff',
-  secondary: '#747984',
-  mutedForeground: '#9ca3af',
-  border: '#131924',
-  destructive: '#ef4444',
-  primaryTint: 'rgba(0, 122, 255, 0.15)',
-  overlay: 'rgba(0, 0, 0, 0.65)',
-  handleBg: 'rgba(30, 30, 30, 0.85)',
-  shadow: '#000',
-};
+const RAW_PRIMARY = '#4999df';
+const RAW_PRIMARY_FG = '#ffffff';
+const OVERLAY_LIGHT = 'rgba(0, 0, 0, 0.45)';
+const OVERLAY_DARK = 'rgba(0, 0, 0, 0.65)';
 
 // ---------------------------------------------------------------------------
 //  Types & helpers
@@ -362,6 +327,7 @@ function ResizeHandle({
         }
         if (adjustsTop) {
           const bot = r.y + r.h;
+
           ny = clamp(r.y + lv.y, 0, bot - MIN_CROP_SIZE);
           nh = bot - ny;
         } else if (adjustsBottom) {
@@ -382,15 +348,13 @@ function ResizeHandle({
   if (isCorner) {
     return (
       <View
-        style={[
-          staticStyles.handleContainer,
-          {
-            left: sx - HANDLE_HIT_SLOP,
-            top: sy - HANDLE_HIT_SLOP,
-            width: HANDLE_HIT_SLOP * 2,
-            height: HANDLE_HIT_SLOP * 2,
-          },
-        ]}
+        className='absolute justify-center items-center z-10'
+        style={{
+          left: sx - HANDLE_HIT_SLOP,
+          top: sy - HANDLE_HIT_SLOP,
+          width: HANDLE_HIT_SLOP * 2,
+          height: HANDLE_HIT_SLOP * 2,
+        }}
         {...panResponder.panHandlers}
       />
     );
@@ -400,10 +364,13 @@ function ResizeHandle({
   const hitH = isVert ? Math.max(cropRect.h * 0.5, 30) : EDGE_HIT_THICKNESS;
   return (
     <View
-      style={[
-        staticStyles.edgeHitArea,
-        { left: sx - hitW / 2, top: sy - hitH / 2, width: hitW, height: hitH },
-      ]}
+      className='absolute z-[8]'
+      style={{
+        left: sx - hitW / 2,
+        top: sy - hitH / 2,
+        width: hitW,
+        height: hitH,
+      }}
       {...panResponder.panHandlers}
     />
   );
@@ -416,12 +383,10 @@ function MoveOriginHandle({
   cropRect,
   onUpdateRect,
   bounds,
-  colors,
 }: {
   cropRect: CropRect;
   onUpdateRect: (r: CropRect) => void;
   bounds: { width: number; height: number };
-  colors: ThemeColors;
 }) {
   const startRect = useRef<CropRect>({ x: 0, y: 0, w: 0, h: 0 });
   const cropRef = useLatest(cropRect);
@@ -455,24 +420,17 @@ function MoveOriginHandle({
     cy = cropRect.y + cropRect.h / 2;
   return (
     <View
-      style={[
-        staticStyles.moveOriginHitArea,
-        {
-          left: cx - HANDLE_HIT_SLOP,
-          top: cy - HANDLE_HIT_SLOP,
-          width: HANDLE_HIT_SLOP * 2,
-          height: HANDLE_HIT_SLOP * 2,
-        },
-      ]}
+      className='absolute justify-center items-center z-[15]'
+      style={{
+        left: cx - HANDLE_HIT_SLOP,
+        top: cy - HANDLE_HIT_SLOP,
+        width: HANDLE_HIT_SLOP * 2,
+        height: HANDLE_HIT_SLOP * 2,
+      }}
       {...panResponder.panHandlers}
     >
-      <View
-        style={[
-          staticStyles.moveOriginKnob,
-          { borderColor: colors.primary, backgroundColor: colors.handleBg },
-        ]}
-      >
-        <Text style={[staticStyles.moveOriginIcon, { color: colors.primary }]}>
+      <View className='w-[30px] h-[30px] rounded-full border-2 justify-center items-center shadow-sm border-primary bg-white/85 dark:bg-[rgba(30,30,30,0.85)]'>
+        <Text className='text-base font-bold leading-[18px] text-center text-primary'>
           {'\u271A'}
         </Text>
       </View>
@@ -488,13 +446,11 @@ function RotationHandle({
   rotation,
   onRotationChange,
   previewLayoutRef,
-  colors,
 }: {
   cropRect: CropRect;
   rotation: number;
   onRotationChange: (deg: number) => void;
   previewLayoutRef: React.MutableRefObject<{ x: number; y: number } | null>;
-  colors: ThemeColors;
 }) {
   const startAngle = useRef(0),
     startRot = useRef(0);
@@ -549,30 +505,15 @@ function RotationHandle({
   );
   return (
     <View
-      style={[
-        staticStyles.rotationHitArea,
-        {
-          left: cx + off.x - HANDLE_HIT_SLOP,
-          top: cy + off.y - HANDLE_HIT_SLOP,
-        },
-      ]}
+      className='absolute w-[60px] h-[60px] justify-center items-center z-20'
+      style={{
+        left: cx + off.x - HANDLE_HIT_SLOP,
+        top: cy + off.y - HANDLE_HIT_SLOP,
+      }}
       {...panResponder.panHandlers}
     >
-      <View
-        style={[
-          staticStyles.rotationKnob,
-          {
-            backgroundColor: colors.primary,
-            borderColor: colors.primaryForeground,
-          },
-        ]}
-      >
-        <Text
-          style={[
-            staticStyles.rotationKnobIcon,
-            { color: colors.primaryForeground },
-          ]}
-        >
+      <View className='w-[34px] h-[34px] rounded-full border-2 justify-center items-center shadow-md bg-primary border-primary-foreground'>
+        <Text className='text-lg font-bold leading-5 text-center text-primary-foreground'>
           {'\u21BB'}
         </Text>
       </View>
@@ -589,8 +530,7 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
     ref,
   ) {
     const colorScheme = useColorScheme();
-    const colors = colorScheme === 'dark' ? DARK_COLORS : LIGHT_COLORS;
-    const themed = useMemo(() => createThemedStyles(colors), [colorScheme]);
+    const overlayColor = colorScheme === 'dark' ? OVERLAY_DARK : OVERLAY_LIGHT;
 
     const [visible, setVisible] = useState(false);
     const onDismissRef = useRef<(() => void) | null>(null);
@@ -782,13 +722,17 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
     const renderContent = () => {
       if (!imageUri) {
         return (
-          <View style={themed.center}>
-            <Text style={themed.errorText}>No image provided.</Text>
+          <View className='flex-1 justify-center items-center bg-background'>
+            <Text className='text-base text-muted-foreground mb-5'>
+              No image provided.
+            </Text>
             <TouchableOpacity
-              style={themed.cancelBtn}
+              className='flex-1 py-[14px] rounded-[10px] border-[1.5px] border-primary items-center'
               onPress={handleCropCancel}
             >
-              <Text style={themed.cancelBtnText}>Go Back</Text>
+              <Text className='text-primary text-base font-semibold'>
+                Go Back
+              </Text>
             </TouchableOpacity>
           </View>
         );
@@ -796,9 +740,9 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
 
       if (imageLoading) {
         return (
-          <View style={themed.center}>
-            <ActivityIndicator size='large' color={colors.primary} />
-            <Text style={{ marginTop: 12, color: colors.mutedForeground }}>
+          <View className='flex-1 justify-center items-center bg-background'>
+            <ActivityIndicator size='large' color={RAW_PRIMARY} />
+            <Text className='mt-3 text-muted-foreground'>
               Loading image{'\u2026'}
             </Text>
           </View>
@@ -808,91 +752,100 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
       // --- Preview screen ---
       if (previewUri) {
         return (
-          <View style={themed.container}>
-            <Text style={themed.title}>Crop Preview</Text>
-            <Text style={themed.subtitle}>
+          <View className='flex-1 bg-background pt-[50px] items-center'>
+            <Text className='text-xl font-bold mb-1 text-foreground'>
+              Crop Preview
+            </Text>
+            <Text className='text-sm text-muted-foreground mb-4 text-center px-5'>
               Review the cropped result. Make sure the receipt looks properly
               aligned.
             </Text>
-            <Text style={themed.orientationGuide}>
+            <Text className='text-[13px] text-primary font-medium italic mb-3 text-center px-5'>
               Rotate the receipt so that it reads top to bottom.
             </Text>
 
-            <View style={themed.previewImageWrapper}>
+            <View
+              className='flex-1 rounded-xl overflow-hidden bg-surface items-center justify-center'
+              style={{
+                width: PREVIEW_MAX_WIDTH,
+                maxHeight: SCREEN_HEIGHT * 0.55,
+              }}
+            >
               <Image
                 source={{ uri: previewUri }}
-                style={[
-                  themed.previewImage,
-                  { transform: [{ rotate: `${previewRotation}deg` }] },
-                ]}
+                className='w-full h-full'
+                style={{ transform: [{ rotate: `${previewRotation}deg` }] }}
                 resizeMode='contain'
               />
             </View>
 
-            <View style={themed.rotateRow}>
+            <View className='flex-row items-center justify-center gap-5 mt-3 mb-1'>
               <TouchableOpacity
-                style={themed.rotateBtn}
+                className='flex-row items-center gap-1 py-2 px-[14px] rounded-lg bg-primary/10'
                 onPress={() => setPreviewRotation((r) => r - 90)}
               >
-                <Text style={themed.rotateBtnIcon}>{'\u21BA'}</Text>
-                <Text style={themed.rotateBtnLabel}>{'-90\u00B0'}</Text>
+                <Text className='text-lg text-primary'>{'\u21BA'}</Text>
+                <Text className='text-sm font-semibold text-primary'>
+                  {'-90\u00B0'}
+                </Text>
               </TouchableOpacity>
-              <Text style={themed.rotateReadout}>
+              <Text className='text-[15px] font-bold text-foreground min-w-[36px] text-center'>
                 {((previewRotation % 360) + 360) % 360}
                 {'\u00B0'}
               </Text>
               <TouchableOpacity
-                style={themed.rotateBtn}
+                className='flex-row items-center gap-1 py-2 px-[14px] rounded-lg bg-primary/10'
                 onPress={() => setPreviewRotation((r) => r + 90)}
               >
-                <Text style={themed.rotateBtnIcon}>{'\u21BB'}</Text>
-                <Text style={themed.rotateBtnLabel}>{'+90\u00B0'}</Text>
+                <Text className='text-lg text-primary'>{'\u21BB'}</Text>
+                <Text className='text-sm font-semibold text-primary'>
+                  {'+90\u00B0'}
+                </Text>
               </TouchableOpacity>
             </View>
 
-            <View style={themed.previewActions}>
-              <View style={themed.editCropRow}>
+            <View className='flex-row justify-between px-5 pb-[30px] pt-5 w-full gap-3 mt-auto'>
+              <View className='flex-1 flex-row rounded-[10px] border-[1.5px] border-primary overflow-hidden'>
                 <TouchableOpacity
-                  style={themed.editCropBtn}
+                  className='flex-1 py-[14px] items-center justify-center'
                   onPress={handleEditCrop}
                 >
-                  <Text style={themed.editCropBtnText}>Edit Crop</Text>
+                  <Text className='text-primary text-[15px] font-semibold'>
+                    Edit Crop
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={themed.editCropDropdownTrigger}
+                  className='px-3 justify-center items-center border-l-[1.5px] border-l-primary'
                   onPress={() => setDropdownOpen(!dropdownOpen)}
                 >
-                  <Text style={themed.dropdownArrow}>
+                  <Text className='text-primary text-[10px] font-bold'>
                     {dropdownOpen ? '\u25B2' : '\u25BC'}
                   </Text>
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
-                style={themed.confirmCropBtn}
+                className='flex-1 py-[14px] rounded-[10px] bg-primary items-center justify-center'
                 onPress={handleConfirmCrop}
               >
-                <Text style={themed.confirmCropBtnText}>Use This Crop</Text>
+                <Text className='text-primary-foreground text-[15px] font-semibold'>
+                  Use This Crop
+                </Text>
               </TouchableOpacity>
             </View>
 
             {dropdownOpen && (
               <>
                 <Pressable
-                  style={themed.dropdownBackdrop}
+                  className='absolute inset-0 z-50'
                   onPress={() => setDropdownOpen(false)}
                 />
-                <View style={themed.dropdownMenu}>
+                <View className='absolute bottom-[80px] left-5 w-[180px] bg-card rounded-[10px] shadow-lg z-[51] overflow-hidden'>
                   {onTakeNewPhoto && (
                     <TouchableOpacity
-                      style={themed.dropdownItem}
+                      className='py-[14px] px-4'
                       onPress={handleTakeNewPhoto}
                     >
-                      <Text
-                        style={[
-                          themed.dropdownItemText,
-                          { color: colors.destructive },
-                        ]}
-                      >
+                      <Text className='text-[15px] font-medium text-destructive'>
                         Take New Photo
                       </Text>
                     </TouchableOpacity>
@@ -925,18 +878,18 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
       };
 
       return (
-        <View style={themed.container}>
-          <Text style={themed.title}>Crop Receipt</Text>
-          <Text style={themed.subtitle}>
+        <View className='flex-1 bg-background pt-[50px] items-center'>
+          <Text className='text-xl font-bold mb-1 text-foreground'>
+            Crop Receipt
+          </Text>
+          <Text className='text-sm text-muted-foreground mb-4 text-center px-5'>
             Drag edges or corners to resize, crosshair to move, handle to rotate
           </Text>
 
           <View
             ref={previewRef}
-            style={[
-              themed.previewContainer,
-              { width: previewW, height: previewH },
-            ]}
+            className='overflow-visible rounded-lg bg-surface relative items-center'
+            style={{ width: previewW, height: previewH }}
             onLayout={() => {
               previewRef.current?.measureInWindow((x: number, y: number) => {
                 previewLayoutRef.current = { x, y };
@@ -975,13 +928,13 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
                 y='0'
                 width={previewW}
                 height={previewH}
-                fill={colors.overlay}
+                fill={overlayColor}
                 mask='url(#cropMask)'
               />
               <Polygon
                 points={polygonPoints}
                 fill='none'
-                stroke={colors.primary}
+                stroke={RAW_PRIMARY}
                 strokeWidth={2}
                 strokeDasharray='6,4'
               />
@@ -997,14 +950,14 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
                       y1={c.y}
                       x2={c.x + h.x}
                       y2={c.y + h.y}
-                      color={colors.primary}
+                      color={RAW_PRIMARY}
                     />
                     <StrokedLine
                       x1={c.x}
                       y1={c.y}
                       x2={c.x + v.x}
                       y2={c.y + v.y}
-                      color={colors.primary}
+                      color={RAW_PRIMARY}
                     />
                   </React.Fragment>
                 );
@@ -1023,7 +976,7 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
                     y1={m.y - d.y}
                     x2={m.x + d.x}
                     y2={m.y + d.y}
-                    color={colors.primary}
+                    color={RAW_PRIMARY}
                   />
                 );
               })}
@@ -1032,7 +985,7 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
                 y1={cy + lineStart.y}
                 x2={cx + lineEnd.x}
                 y2={cy + lineEnd.y}
-                stroke={colors.primary}
+                stroke={RAW_PRIMARY}
                 strokeWidth={2}
                 strokeDasharray='4,4'
               />
@@ -1052,44 +1005,43 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
               cropRect={cropRect}
               onUpdateRect={setCropRect}
               bounds={{ width: previewW, height: previewH }}
-              colors={colors}
             />
             <RotationHandle
               cropRect={cropRect}
               rotation={rotation}
               onRotationChange={setRotation}
               previewLayoutRef={previewLayoutRef}
-              colors={colors}
             />
           </View>
 
-          <View style={themed.rotationReadout}>
-            <Text style={themed.rotationText}>
+          <View className='mt-3 mb-1 px-3 py-1.5 rounded-full bg-primary/10'>
+            <Text className='text-sm font-semibold text-primary'>
               {Math.round(rotation)}
               {'\u00B0'}
             </Text>
           </View>
 
-          <View style={themed.actions}>
+          <View className='flex-row justify-between px-5 pb-[30px] pt-5 w-full gap-4 mt-auto'>
             <TouchableOpacity
-              style={themed.cancelBtn}
+              className='flex-1 py-[14px] rounded-[10px] border-[1.5px] border-primary items-center'
               onPress={handleCropCancel}
               disabled={loading}
             >
-              <Text style={themed.cancelBtnText}>Cancel</Text>
+              <Text className='text-primary text-base font-semibold'>
+                Cancel
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={themed.cropBtn}
+              className='flex-1 py-[14px] rounded-[10px] bg-primary items-center'
               onPress={handleUseCrop}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator
-                  color={colors.primaryForeground}
-                  size='small'
-                />
+                <ActivityIndicator color={RAW_PRIMARY_FG} size='small' />
               ) : (
-                <Text style={themed.cropBtnText}>Use Crop</Text>
+                <Text className='text-primary-foreground text-base font-semibold'>
+                  Use Crop
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1116,267 +1068,3 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
 );
 
 export default ImageCropPopUp;
-
-// ---------------------------------------------------------------------------
-//  Static styles (no colours)
-// ---------------------------------------------------------------------------
-const staticStyles = StyleSheet.create({
-  handleContainer: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  edgeHitArea: { position: 'absolute', zIndex: 8 },
-  moveOriginHitArea: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 15,
-  },
-  moveOriginKnob: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 4,
-  },
-  moveOriginIcon: {
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  rotationHitArea: {
-    position: 'absolute',
-    width: HANDLE_HIT_SLOP * 2,
-    height: HANDLE_HIT_SLOP * 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 20,
-  },
-  rotationKnob: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-  },
-  rotationKnobIcon: {
-    fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-});
-
-// ---------------------------------------------------------------------------
-//  Theme-aware styles
-// ---------------------------------------------------------------------------
-function createThemedStyles(c: ThemeColors) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: c.background,
-      paddingTop: 50,
-      alignItems: 'center',
-    },
-    center: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: c.background,
-    },
-    title: {
-      fontSize: 20,
-      fontWeight: '700',
-      marginBottom: 4,
-      color: c.foreground,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: c.mutedForeground,
-      marginBottom: 16,
-      textAlign: 'center',
-      paddingHorizontal: 20,
-    },
-    previewContainer: {
-      overflow: 'visible',
-      borderRadius: 8,
-      backgroundColor: c.surface,
-      position: 'relative',
-      alignItems: 'center',
-    },
-    actions: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingBottom: 30,
-      paddingTop: 20,
-      width: '100%',
-      gap: 16,
-      marginTop: 'auto',
-    },
-    cancelBtn: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 10,
-      borderWidth: 1.5,
-      borderColor: c.primary,
-      alignItems: 'center',
-    },
-    cancelBtnText: { color: c.primary, fontSize: 16, fontWeight: '600' },
-    cropBtn: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 10,
-      backgroundColor: c.primary,
-      alignItems: 'center',
-    },
-    cropBtnText: {
-      color: c.primaryForeground,
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    errorText: { fontSize: 16, color: c.mutedForeground, marginBottom: 20 },
-    rotationReadout: {
-      marginTop: 12,
-      marginBottom: 4,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 999,
-      backgroundColor: c.primaryTint,
-    },
-    rotationText: { fontSize: 14, fontWeight: '600', color: c.primary },
-    previewImageWrapper: {
-      flex: 1,
-      width: PREVIEW_MAX_WIDTH,
-      maxHeight: SCREEN_HEIGHT * 0.55,
-      borderRadius: 12,
-      overflow: 'hidden',
-      backgroundColor: c.surface,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    previewImage: { width: '100%', height: '100%' },
-    orientationGuide: {
-      fontSize: 13,
-      color: c.primary,
-      fontWeight: '500',
-      fontStyle: 'italic',
-      marginBottom: 12,
-      textAlign: 'center',
-      paddingHorizontal: 20,
-    },
-    rotateRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 20,
-      marginTop: 12,
-      marginBottom: 4,
-    },
-    rotateBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderRadius: 8,
-      backgroundColor: c.primaryTint,
-    },
-    rotateBtnIcon: { fontSize: 18, color: c.primary },
-    rotateBtnLabel: { fontSize: 14, fontWeight: '600', color: c.primary },
-    rotateReadout: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: c.foreground,
-      minWidth: 36,
-      textAlign: 'center',
-    },
-    previewActions: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingBottom: 30,
-      paddingTop: 20,
-      width: '100%',
-      gap: 12,
-      marginTop: 'auto',
-    },
-    editCropRow: {
-      flex: 1,
-      flexDirection: 'row',
-      borderRadius: 10,
-      borderWidth: 1.5,
-      borderColor: c.primary,
-      overflow: 'hidden',
-    },
-    editCropBtn: {
-      flex: 1,
-      paddingVertical: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    editCropBtnText: { color: c.primary, fontSize: 15, fontWeight: '600' },
-    editCropDropdownTrigger: {
-      paddingHorizontal: 12,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderLeftWidth: 1.5,
-      borderLeftColor: c.primary,
-    },
-    dropdownArrow: { color: c.primary, fontSize: 10, fontWeight: '700' },
-    confirmCropBtn: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 10,
-      backgroundColor: c.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    confirmCropBtnText: {
-      color: c.primaryForeground,
-      fontSize: 15,
-      fontWeight: '600',
-    },
-    dropdownBackdrop: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      zIndex: 50,
-    },
-    dropdownMenu: {
-      position: 'absolute',
-      bottom: 80,
-      left: 20,
-      width: 180,
-      backgroundColor: c.card,
-      borderRadius: 10,
-      shadowColor: c.shadow,
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: -2 },
-      elevation: 8,
-      zIndex: 51,
-      overflow: 'hidden',
-    },
-    dropdownItem: { paddingVertical: 14, paddingHorizontal: 16 },
-    dropdownItemText: { fontSize: 15, fontWeight: '500', color: c.foreground },
-    dropdownDivider: { height: 1, backgroundColor: c.border },
-  });
-}
