@@ -362,6 +362,17 @@ export default function ReceiptRoomScreen() {
   };
 
   const claimSelectedToParticipant = (participantId: number) => {
+    if (isGroupRoom && !isHost) {
+      const targetProfileId =
+        groupDisplay.participantIdToProfileId.get(participantId);
+      if (targetProfileId !== currentUserId) {
+        Alert.alert(
+          'Permission Denied',
+          'You can only claim items for yourself. Only the host can claim/unclaim items for other people.',
+        );
+        return;
+      }
+    }
     lastDropSuccessful.current = true;
     const itemsSnapshot = receiptItems.items;
     const selectedItems = itemsSnapshot.filter((item) =>
@@ -384,15 +395,18 @@ export default function ReceiptRoomScreen() {
         return { ...item, userTags: [...userTags, participantId] };
       }),
     );
-    // Fire backend assign call(s) when in a real group — bulk when >1 item selected
+    // Fire backend assign/unassign call(s) when in a real group — bulk when >1 item selected
     if (isGroupRoom) {
       const profileId =
         groupDisplay.participantIdToProfileId.get(participantId);
       if (profileId) {
         const ids = [...selectedItemIds];
         pendingClaimsRef.current++;
-        const req =
-          ids.length === 1
+        const req = allAlreadyClaimed
+          ? ids.length === 1
+            ? unassignItem(ids[0], profileId)
+            : unassignItems(ids, profileId)
+          : ids.length === 1
             ? assignItem(ids[0], profileId)
             : assignItems(ids, profileId);
         req
@@ -400,7 +414,7 @@ export default function ReceiptRoomScreen() {
             receiptItems.setItems(itemsSnapshot);
             Alert.alert(
               'Error',
-              'Failed to assign item. Changes have been reverted.',
+              `Failed to ${allAlreadyClaimed ? 'unassign' : 'assign'} item. Changes have been reverted.`,
             );
             console.error(err);
           })
@@ -940,6 +954,16 @@ export default function ReceiptRoomScreen() {
   };
 
   const removeItemFromUser = (itemId: string, userId: number) => {
+    if (isGroupRoom && !isHost) {
+      const targetProfileId = groupDisplay.participantIdToProfileId.get(userId);
+      if (targetProfileId !== currentUserId) {
+        Alert.alert(
+          'Permission Denied',
+          'You can only unclaim your own items. Only the host can claim/unclaim items for other people.',
+        );
+        return;
+      }
+    }
     receiptItems.setItems(
       receiptItems.items.map((item) => {
         if (item.id === itemId) {
@@ -1201,10 +1225,7 @@ export default function ReceiptRoomScreen() {
                 </React.Fragment>
               ),
             )}
-            <Animated.View
-              style={{ opacity: editModeAnim }}
-              pointerEvents={isEditMode ? 'auto' : 'none'}
-            >
+            {isEditMode && (
               <Pressable
                 className='bg-card rounded-2xl border border-border w-full py-4 items-center justify-center active:opacity-70 flex-row gap-2'
                 onPress={handleAddReceiptItem}
@@ -1218,7 +1239,7 @@ export default function ReceiptRoomScreen() {
                   Add Receipt Item
                 </Text>
               </Pressable>
-            </Animated.View>
+            )}
           </View>
         </Animated.ScrollView>
 
