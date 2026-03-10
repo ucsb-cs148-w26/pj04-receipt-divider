@@ -144,8 +144,17 @@ class UserService:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only the member themselves can mark their payment as pending",
                 )
+        elif new_status == "requested":
+            # Host can request payment from anyone; a member can undo their own self-report
+            if caller_profile_id != target_profile_id and not self._is_host(
+                caller_profile_id, group_id
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the group host can update this paid status",
+                )
         else:
-            # All other transitions require host privileges
+            # 'verified' / 'unrequested' require host privileges
             if not self._is_host(caller_profile_id, group_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,

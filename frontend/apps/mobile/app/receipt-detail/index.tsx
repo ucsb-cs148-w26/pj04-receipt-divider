@@ -203,17 +203,47 @@ export default function ReceiptDetailScreen() {
   };
 
   const handleSelfPayToggle = async () => {
-    if (!selfPerson || selfPerson.status !== 'pending') return;
-    try {
-      // 'pending' in DB = 'waiting' in UI = "Claimed, Awaiting Verification"
-      await updatePaidStatus(id ?? '', currentUserId, 'pending');
-      setLocalStatusOverrides((prev) =>
-        new Map(prev).set(currentUserId, 'waiting'),
-      );
-    } catch (err) {
+    if (!selfPerson) return;
+    if (selfPerson.status === 'pending') {
+      // 'requested' in DB → 'pending' in UI; mark as paid sets DB to 'pending' → UI 'waiting'
+      try {
+        await updatePaidStatus(id ?? '', currentUserId, 'pending');
+        setLocalStatusOverrides((prev) =>
+          new Map(prev).set(currentUserId, 'waiting'),
+        );
+      } catch (err) {
+        Alert.alert(
+          'Error',
+          err instanceof Error ? err.message : 'Failed to update status.',
+        );
+      }
+    } else if (selfPerson.status === 'waiting') {
+      // Already marked as paid — offer to unmark (sets back to 'requested' in DB → 'pending' in UI)
       Alert.alert(
-        'Error',
-        err instanceof Error ? err.message : 'Failed to update status.',
+        'Unmark as Paid?',
+        'This will set your payment status back to unpaid. The host will need to re-verify your payment.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Unmark',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await updatePaidStatus(id ?? '', currentUserId, 'requested');
+                setLocalStatusOverrides((prev) =>
+                  new Map(prev).set(currentUserId, 'pending'),
+                );
+              } catch (err) {
+                Alert.alert(
+                  'Error',
+                  err instanceof Error
+                    ? err.message
+                    : 'Failed to update status.',
+                );
+              }
+            },
+          },
+        ],
       );
     }
   };
@@ -498,6 +528,7 @@ export default function ReceiptDetailScreen() {
                     className='flex-row items-center px-4 py-3 active:opacity-70'
                     onPress={() =>
                       !isSelf &&
+                      person.amount > 0 &&
                       setSelectedPerson({
                         id: person.id,
                         name: person.name,
@@ -509,14 +540,14 @@ export default function ReceiptDetailScreen() {
                     {/* Checkbox — interactive for self when payment is requested */}
                     <Pressable
                       onPress={() => {
-                        if (selfRequested) {
+                        if (selfRequested || selfWaiting) {
                           void handleSelfPayToggle();
                         } else if (!isSelf) {
                           handleCheckboxPress(person);
                         }
                       }}
                       hitSlop={8}
-                      disabled={isSelf && !selfRequested}
+                      disabled={isSelf && !selfRequested && !selfWaiting}
                       className={`w-7 h-7 rounded-full border-2 items-center justify-center mr-3 ${borderColor}`}
                     >
                       {person.status === 'completed' && !isSelf && (
@@ -568,7 +599,11 @@ export default function ReceiptDetailScreen() {
                     <MaterialCommunityIcons
                       name='chevron-right'
                       size={18}
-                      className='text-accent-dark'
+                      className={
+                        !isSelf && person.amount <= 0
+                          ? 'text-transparent'
+                          : 'text-accent-dark'
+                      }
                     />
                   </Pressable>
                 </View>
