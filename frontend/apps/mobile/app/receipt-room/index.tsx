@@ -150,6 +150,8 @@ export default function ReceiptRoomScreen() {
   const dropdownOpacity = useRef(new Animated.Value(0)).current;
   const editModeAnim = useRef(new Animated.Value(0)).current;
   const [isEditAnimating, setIsEditAnimating] = useState(false);
+  const addItemBackdropAnim = useRef(new Animated.Value(0)).current;
+  const addItemSheetAnim = useRef(new Animated.Value(0)).current;
 
   /**---------------- Text Focus State ---------------- */
   const [isAnyTextFocused, setIsAnyTextFocused] = useState(false);
@@ -157,6 +159,11 @@ export default function ReceiptRoomScreen() {
   useEffect(() => {
     isAnyTextFocusedRef.current = isAnyTextFocused;
   }, [isAnyTextFocused]);
+
+  // Tracks the number of in-flight claim/unclaim API requests. The Supabase
+  // realtime sync is suppressed while this is > 0, so that intermediate
+  // refetches (triggered by unrelated events) don't overwrite optimistic state.
+  const pendingClaimsRef = useRef(0);
 
   /**---------------- Debounce timers for item updates ---------------- */
   const itemUpdateTimers = useRef<
@@ -355,6 +362,17 @@ export default function ReceiptRoomScreen() {
   };
 
   const claimSelectedToParticipant = (participantId: number) => {
+    if (isGroupRoom && !isHost) {
+      const targetProfileId =
+        groupDisplay.participantIdToProfileId.get(participantId);
+      if (targetProfileId !== currentUserId) {
+        Alert.alert(
+          'Permission Denied',
+          'You can only claim items for yourself. Only the host can claim/unclaim items for other people.',
+        );
+        return;
+      }
+    }
     lastDropSuccessful.current = true;
     const itemsSnapshot = receiptItems.items;
     const selectedItems = itemsSnapshot.filter((item) =>
@@ -377,24 +395,32 @@ export default function ReceiptRoomScreen() {
         return { ...item, userTags: [...userTags, participantId] };
       }),
     );
-    // Fire backend assign call(s) when in a real group — bulk when >1 item selected
+    // Fire backend assign/unassign call(s) when in a real group — bulk when >1 item selected
     if (isGroupRoom) {
       const profileId =
         groupDisplay.participantIdToProfileId.get(participantId);
       if (profileId) {
         const ids = [...selectedItemIds];
-        const req =
-          ids.length === 1
+        pendingClaimsRef.current++;
+        const req = allAlreadyClaimed
+          ? ids.length === 1
+            ? unassignItem(ids[0], profileId)
+            : unassignItems(ids, profileId)
+          : ids.length === 1
             ? assignItem(ids[0], profileId)
             : assignItems(ids, profileId);
-        req.catch((err) => {
-          receiptItems.setItems(itemsSnapshot);
-          Alert.alert(
-            'Error',
-            'Failed to assign item. Changes have been reverted.',
-          );
-          console.error(err);
-        });
+        req
+          .catch((err) => {
+            receiptItems.setItems(itemsSnapshot);
+            Alert.alert(
+              'Error',
+              `Failed to ${allAlreadyClaimed ? 'unassign' : 'assign'} item. Changes have been reverted.`,
+            );
+            console.error(err);
+          })
+          .finally(() => {
+            pendingClaimsRef.current--;
+          });
       }
     }
     setSelectedItemIds(new Set());
@@ -561,9 +587,15 @@ export default function ReceiptRoomScreen() {
   ]);
 
   // Keep receiptItems in sync with Supabase data for group rooms.
-  // Sync is paused while a TextInput is focused so in-progress edits are not overwritten.
+  // Sync is paused while a TextInput is focused or a claim/unclaim op is in-flight,
+  // so intermediate refetches don't overwrite optimistic state.
   useEffect(() => {
-    if (!isGroupRoom || isAnyTextFocusedRef.current) return;
+    if (
+      !isGroupRoom ||
+      isAnyTextFocusedRef.current ||
+      pendingClaimsRef.current > 0
+    )
+      return;
     receiptItems.setItems(groupDisplay.items);
   }, [groupDisplay.items]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -597,6 +629,14 @@ export default function ReceiptRoomScreen() {
     return m;
   }, [groupData.receipts, groupData.profiles, currentUserId]);
 
+  // Stable receipt numbers based on groupData.receipts order — used in both the
+  // room section headers and the add-item picker so they always match.
+  const receiptNumberMap = useMemo(() => {
+    const m = new Map<string, number>();
+    groupData.receipts.forEach((r, i) => m.set(r.id, i + 1));
+    return m;
+  }, [groupData.receipts]);
+
   // Map receipt id → tax amount (null/0 if not present)
   const receiptTaxMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -622,22 +662,25 @@ export default function ReceiptRoomScreen() {
     displayItems.length > 0 &&
     displayItems.every((item) => item.userTags && item.userTags.length > 0);
 
-  // Group display items by receipt id (preserves order)
+  // Group display items by receipt id, ordered by groupData.receipts (so
+  // Receipt #1 always renders before Receipt #2, etc.). Uncategorized items
+  // (null receiptId) are placed at the end.
   const itemSections = useMemo(() => {
     if (!isGroupRoom)
       return [{ receiptId: null as string | null, items: displayItems }];
-    const order: (string | null)[] = [];
     const map = new Map<string | null, ReceiptItemData[]>();
     for (const item of displayItems) {
       const rid = item.receiptId ?? null;
-      if (!map.has(rid)) {
-        order.push(rid);
-        map.set(rid, []);
-      }
+      if (!map.has(rid)) map.set(rid, []);
       map.get(rid)!.push(item);
     }
+    // Build order: receipts in their canonical order, then null (uncategorized)
+    const order: (string | null)[] = groupData.receipts
+      .map((r) => r.id)
+      .filter((id) => map.has(id));
+    if (map.has(null)) order.push(null);
     return order.map((rid) => ({ receiptId: rid, items: map.get(rid)! }));
-  }, [isGroupRoom, displayItems]);
+  }, [isGroupRoom, displayItems, groupData.receipts]);
 
   /**---------------- Quick Actions Functions ---------------- */
   const claimForAll = () => {
@@ -663,16 +706,21 @@ export default function ReceiptRoomScreen() {
       displayParticipants.forEach((p) => {
         const profileId = groupDisplay.participantIdToProfileId.get(p.id);
         if (!profileId) return;
+        pendingClaimsRef.current++;
         (ids.length === 1
           ? assignItem(ids[0], profileId)
           : assignItems(ids, profileId)
-        ).catch((err) => {
-          console.error(err);
-          if (!claimAlertShown) {
-            claimAlertShown = true;
-            Alert.alert('Error', 'Failed to claim items. Please try again.');
-          }
-        });
+        )
+          .catch((err) => {
+            console.error(err);
+            if (!claimAlertShown) {
+              claimAlertShown = true;
+              Alert.alert('Error', 'Failed to claim items. Please try again.');
+            }
+          })
+          .finally(() => {
+            pendingClaimsRef.current--;
+          });
       });
     }
   };
@@ -701,16 +749,24 @@ export default function ReceiptRoomScreen() {
       });
       let unclaimAlertShown = false;
       byProfile.forEach((ids, profileId) => {
+        pendingClaimsRef.current++;
         (ids.length === 1
           ? unassignItem(ids[0], profileId)
           : unassignItems(ids, profileId)
-        ).catch((err) => {
-          console.error(err);
-          if (!unclaimAlertShown) {
-            unclaimAlertShown = true;
-            Alert.alert('Error', 'Failed to unclaim items. Please try again.');
-          }
-        });
+        )
+          .catch((err) => {
+            console.error(err);
+            if (!unclaimAlertShown) {
+              unclaimAlertShown = true;
+              Alert.alert(
+                'Error',
+                'Failed to unclaim items. Please try again.',
+              );
+            }
+          })
+          .finally(() => {
+            pendingClaimsRef.current--;
+          });
       });
     }
   };
@@ -733,11 +789,39 @@ export default function ReceiptRoomScreen() {
     }
     setAddItemReceiptChoice(null);
     setAddItemTax('');
+    addItemBackdropAnim.setValue(0);
+    addItemSheetAnim.setValue(0);
     setShowAddItemSheet(true);
+    Animated.parallel([
+      Animated.timing(addItemBackdropAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(addItemSheetAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const dismissAddItemSheet = () => {
+    Animated.parallel([
+      Animated.timing(addItemBackdropAnim, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(addItemSheetAnim, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setShowAddItemSheet(false));
   };
 
   const confirmAddItem = async () => {
-    setShowAddItemSheet(false);
     setIsAddingItem(true);
     try {
       let finalReceiptId: string | null = null;
@@ -771,6 +855,7 @@ export default function ReceiptRoomScreen() {
           receiptId: finalReceiptId,
         },
       ]);
+      dismissAddItemSheet();
     } catch (err) {
       console.error('Failed to add item:', err);
       Alert.alert('Error', 'Failed to add item. Please try again.');
@@ -869,6 +954,16 @@ export default function ReceiptRoomScreen() {
   };
 
   const removeItemFromUser = (itemId: string, userId: number) => {
+    if (isGroupRoom && !isHost) {
+      const targetProfileId = groupDisplay.participantIdToProfileId.get(userId);
+      if (targetProfileId !== currentUserId) {
+        Alert.alert(
+          'Permission Denied',
+          'You can only unclaim your own items. Only the host can claim/unclaim items for other people.',
+        );
+        return;
+      }
+    }
     receiptItems.setItems(
       receiptItems.items.map((item) => {
         if (item.id === itemId) {
@@ -882,14 +977,20 @@ export default function ReceiptRoomScreen() {
     );
     if (isGroupRoom) {
       const profileId = groupDisplay.participantIdToProfileId.get(userId);
-      if (profileId)
-        unassignItem(itemId, profileId).catch((err) => {
-          console.error(err);
-          Alert.alert(
-            'Error',
-            'Failed to remove item assignment. Please refresh and try again.',
-          );
-        });
+      if (profileId) {
+        pendingClaimsRef.current++;
+        unassignItem(itemId, profileId)
+          .catch((err) => {
+            console.error(err);
+            Alert.alert(
+              'Error',
+              'Failed to remove item assignment. Please refresh and try again.',
+            );
+          })
+          .finally(() => {
+            pendingClaimsRef.current--;
+          });
+      }
     }
   };
 
@@ -1042,7 +1143,7 @@ export default function ReceiptRoomScreen() {
                               const byLine = r?.is_manual
                                 ? `Created by ${receiptUploaderMap.get(receiptId) ?? 'Unknown'}`
                                 : `Uploaded by ${receiptUploaderMap.get(receiptId) ?? 'Unknown'}`;
-                              return `Receipt #${sectionIndex + 1} · ${byLine}`;
+                              return `Receipt #${receiptNumberMap.get(receiptId) ?? sectionIndex + 1} · ${byLine}`;
                             })()
                           : 'No Receipt'}
                       </Text>
@@ -1124,10 +1225,7 @@ export default function ReceiptRoomScreen() {
                 </React.Fragment>
               ),
             )}
-            <Animated.View
-              style={{ opacity: editModeAnim }}
-              pointerEvents={isEditMode ? 'auto' : 'none'}
-            >
+            {isEditMode && (
               <Pressable
                 className='bg-card rounded-2xl border border-border w-full py-4 items-center justify-center active:opacity-70 flex-row gap-2'
                 onPress={handleAddReceiptItem}
@@ -1141,7 +1239,7 @@ export default function ReceiptRoomScreen() {
                   Add Receipt Item
                 </Text>
               </Pressable>
-            </Animated.View>
+            )}
           </View>
         </Animated.ScrollView>
 
@@ -1451,39 +1549,43 @@ export default function ReceiptRoomScreen() {
                   </Text>
                 </Pressable>
 
-                <Pressable
-                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                  onPress={() => {
-                    claimForAll();
-                    setShowQuickActions(false);
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name='download'
-                    size={22}
-                    className='text-accent-dark'
-                  />
-                  <Text className='text-foreground text-base font-medium'>
-                    Claim for All Selected Items
-                  </Text>
-                </Pressable>
+                {isHost && (
+                  <>
+                    <Pressable
+                      className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                      onPress={() => {
+                        claimForAll();
+                        setShowQuickActions(false);
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name='download'
+                        size={22}
+                        className='text-accent-dark'
+                      />
+                      <Text className='text-foreground text-base font-medium'>
+                        Claim Selected Items for All Participants
+                      </Text>
+                    </Pressable>
 
-                <Pressable
-                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                  onPress={() => {
-                    unclaimForAll();
-                    setShowQuickActions(false);
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name='upload'
-                    size={22}
-                    className='text-accent-dark'
-                  />
-                  <Text className='text-foreground text-base font-medium'>
-                    Unclaim for All Selected Items
-                  </Text>
-                </Pressable>
+                    <Pressable
+                      className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                      onPress={() => {
+                        unclaimForAll();
+                        setShowQuickActions(false);
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name='upload'
+                        size={22}
+                        className='text-accent-dark'
+                      />
+                      <Text className='text-foreground text-base font-medium'>
+                        Unclaim Selected Items for All Participants
+                      </Text>
+                    </Pressable>
+                  </>
+                )}
               </View>
             </Animated.View>
           </Pressable>
@@ -1582,20 +1684,37 @@ export default function ReceiptRoomScreen() {
       <Modal
         visible={showAddItemSheet}
         transparent
-        animationType='slide'
-        onRequestClose={() => setShowAddItemSheet(false)}
+        animationType='none'
+        onRequestClose={dismissAddItemSheet}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
-          <Pressable
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
-            onPress={() => setShowAddItemSheet(false)}
-          />
-          <View
+          <Animated.View
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.45)',
+              opacity: addItemBackdropAnim,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={dismissAddItemSheet} />
+          </Animated.View>
+          <Animated.View
             className='bg-background border-t border-border rounded-t-3xl'
-            style={{ paddingBottom: insets.bottom + 12 }}
+            style={[
+              { paddingBottom: insets.bottom + 12 },
+              {
+                transform: [
+                  {
+                    translateY: addItemSheetAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [600, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
           >
             <View className='items-center py-3'>
               <View className='w-10 h-1 rounded-full bg-border' />
@@ -1631,8 +1750,8 @@ export default function ReceiptRoomScreen() {
               </Pressable>
 
               {/* Existing receipts */}
-              {groupData.receipts.map((r, i) => {
-                const label = `Receipt #${i + 1}`;
+              {groupData.receipts.map((r) => {
+                const label = `Receipt #${receiptNumberMap.get(r.id) ?? '?'}`;
                 const byLine = r.is_manual
                   ? `Created by ${receiptUploaderMap.get(r.id) ?? 'Unknown'}`
                   : `Uploaded by ${receiptUploaderMap.get(r.id) ?? 'Unknown'}`;
@@ -1724,8 +1843,10 @@ export default function ReceiptRoomScreen() {
 
             <View className='flex-row gap-3 px-4 pt-4'>
               <Pressable
-                onPress={() => setShowAddItemSheet(false)}
+                onPress={dismissAddItemSheet}
+                disabled={isAddingItem}
                 className='flex-1 bg-card border border-border rounded-xl py-3 items-center active:opacity-70'
+                style={{ opacity: isAddingItem ? 0.4 : 1 }}
               >
                 <Text className='text-muted-foreground font-medium'>
                   Cancel
@@ -1736,12 +1857,16 @@ export default function ReceiptRoomScreen() {
                 disabled={isAddingItem}
                 className='flex-1 bg-primary rounded-xl py-3 items-center active:opacity-70'
               >
-                <Text className='text-primary-foreground font-medium'>
-                  {isAddingItem ? 'Adding…' : 'Add Item'}
-                </Text>
+                {isAddingItem ? (
+                  <ActivityIndicator size='small' color='#ffffff' />
+                ) : (
+                  <Text className='text-primary-foreground font-medium'>
+                    Add Item
+                  </Text>
+                )}
               </Pressable>
             </View>
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
