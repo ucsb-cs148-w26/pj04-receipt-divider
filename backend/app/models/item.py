@@ -33,5 +33,7 @@ class Item(Base):
     item_receipt: Mapped["Receipt"] = relationship(back_populates="receipt_items")
     item_receipt_group: Mapped["Group"] = relationship(back_populates="group_items")
     item_claims: Mapped[List["ItemClaim"]] = relationship(
-        back_populates="item_claim_item"
+        back_populates="item_claim_item",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )

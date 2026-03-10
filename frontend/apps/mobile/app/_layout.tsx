@@ -4,7 +4,12 @@ import { ActivityIndicator, View } from 'react-native';
 import { useEffect, useRef } from 'react';
 
 import '@styles/global.css';
-import { AuthProvider, ReceiptItemsProvider, useAuth } from '@/providers';
+import {
+  AuthProvider,
+  GroupCacheProvider,
+  ReceiptItemsProvider,
+  useAuth,
+} from '@/providers';
 
 function AuthGate() {
   const { session, isLoading } = useAuth();
@@ -58,9 +63,11 @@ export default function RootLayout() {
   return (
     <View className='flex-1 bg-background'>
       <AuthProvider>
-        <ReceiptItemsProvider>
-          <AuthGate />
-        </ReceiptItemsProvider>
+        <GroupCacheProvider>
+          <ReceiptItemsProvider>
+            <AuthGate />
+          </ReceiptItemsProvider>
+        </GroupCacheProvider>
       </AuthProvider>
     </View>
   );

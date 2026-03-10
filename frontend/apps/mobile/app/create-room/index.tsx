@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,13 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   IconButton,
   ReceiptPhotoPicker,
-  sendRoomInviteSMS,
-  AddParticipantSheet,
   AddParticipantManualModal,
 } from '@eezy-receipt/shared';
 import { USER_COLORS } from '@shared/constants';
-import QRCode from 'react-native-qrcode-svg';
-import { useAuth } from '@/providers';
+import { useAuth, useGroupCache } from '@/providers';
 import { createGroup } from '@/services/groupApi';
 
 interface User {
@@ -32,6 +29,7 @@ interface User {
 
 export default function CreateRoomScreen() {
   const { user } = useAuth();
+  const { myGroups } = useGroupCache();
   const hostName =
     user?.user_metadata?.full_name ??
     user?.user_metadata?.name ??
@@ -42,41 +40,36 @@ export default function CreateRoomScreen() {
     { id: 1, name: hostName, source: 'link' },
   ]);
   const [showAddUser, setShowAddUser] = useState(false);
-  const [showAddOptions, setShowAddOptions] = useState(false);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [groupName, setGroupName] = useState('');
+  const userEditedNameRef = useRef(false);
+  const getDefaultName = (count: number) => {
+    const date = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    return `Trip #${count}: ${date}`;
+  };
+  const [editingGroupName, setEditingGroupName] = useState(false);
+
+  useEffect(() => {
+    if (userEditedNameRef.current || myGroups === null) return;
+    setGroupName(getDefaultName(myGroups.length + 1));
+  }, [myGroups]);
+
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [editUserName, setEditUserName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
   // roomId is null until the backend creates the group
   const [roomId, setRoomId] = useState<string | null>(null);
-  const [showQRModal, setShowQRModal] = useState(false);
-  const qrData = roomId
-    ? `${process.env.EXPO_PUBLIC_FRONTEND_URL ?? 'http://localhost:5173'}/join?roomId=${roomId}`
-    : '';
-  const qrRef = useRef<QRCode>(null);
 
   const addUser = (name: string) => {
     setUsers((prev) => [
       ...prev,
       { id: prev.length + 1, name, source: 'manual' },
     ]);
-  };
-
-  const handleShareSMS = async () => {
-    try {
-      const result = await sendRoomInviteSMS(roomId ?? '');
-      if (result === 'sent') {
-        setShowAddOptions(false);
-      }
-    } catch (error) {
-      console.error('SMS error:', error);
-    }
-  };
-
-  const handleShowQR = () => {
-    setShowAddOptions(false);
-    setShowQRModal(true);
   };
 
   const handleAddManually = () => {
@@ -87,16 +80,14 @@ export default function CreateRoomScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Add Anyway',
-          onPress: () => {
-            setShowAddOptions(false);
-            setShowAddUser(true);
-          },
+          onPress: () => setShowAddUser(true),
         },
       ],
     );
   };
 
   const handleUserPress = (user: User) => {
+    if (user.source !== 'manual') return;
     setEditingUserId(user.id);
     setEditUserName(user.name);
   };
@@ -118,8 +109,8 @@ export default function CreateRoomScreen() {
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
-      {/* Back button */}
-      <View className='px-5 pt-2'>
+      {/* Back button + room name */}
+      <View className='flex-row items-center px-5 pt-2 gap-3'>
         <IconButton
           icon='chevron-left'
           bgClassName='bg-card shadow-md shadow-black/20'
@@ -127,6 +118,51 @@ export default function CreateRoomScreen() {
           pressEffect='fade'
           onPress={() => router.back()}
         />
+        <View className='flex-1'>
+          {editingGroupName ? (
+            <TextInput
+              value={groupName}
+              onChangeText={setGroupName}
+              autoFocus
+              returnKeyType='done'
+              onSubmitEditing={() => {
+                if (!groupName.trim()) {
+                  setGroupName(getDefaultName((myGroups?.length ?? 0) + 1));
+                } else {
+                  userEditedNameRef.current = true;
+                }
+                setEditingGroupName(false);
+              }}
+              onBlur={() => {
+                if (!groupName.trim()) {
+                  setGroupName(getDefaultName((myGroups?.length ?? 0) + 1));
+                } else {
+                  userEditedNameRef.current = true;
+                }
+                setEditingGroupName(false);
+              }}
+              className='text-foreground text-xl font-bold border-b border-border py-1'
+            />
+          ) : (
+            <Pressable
+              onPress={() => setEditingGroupName(true)}
+              className='flex-row items-center gap-2'
+              accessibilityLabel='Edit group name'
+            >
+              <Text
+                className='text-foreground text-xl font-bold'
+                numberOfLines={1}
+              >
+                {groupName}
+              </Text>
+              <MaterialCommunityIcons
+                name='pencil-outline'
+                size={18}
+                className='text-muted-foreground'
+              />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* Receipt section — grows to fill space */}
@@ -206,7 +242,7 @@ export default function CreateRoomScreen() {
           <Pressable
             className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10 items-center justify-center active:opacity-70'
             style={{ width: 100, minHeight: 68 }}
-            onPress={() => setShowAddOptions(true)}
+            onPress={handleAddManually}
           >
             <MaterialCommunityIcons
               name='plus'
@@ -236,8 +272,11 @@ export default function CreateRoomScreen() {
             }
             setIsCreating(true);
             try {
-              const { groupId } = await createGroup('New Room');
+              const { groupId } = await createGroup(
+                groupName.trim() || 'New Room',
+              );
               setRoomId(groupId);
+              router.dismissAll();
               router.navigate({
                 pathname: '/receipt-room',
                 params: {
@@ -267,19 +306,14 @@ export default function CreateRoomScreen() {
         </Pressable>
       </View>
 
-      <AddParticipantSheet
-        visible={showAddOptions}
-        onClose={() => setShowAddOptions(false)}
-        onShareSMS={handleShareSMS}
-        onShowQR={handleShowQR}
-        onAddManually={handleAddManually}
-      />
-
       <AddParticipantManualModal
         visible={showAddUser}
         onClose={() => setShowAddUser(false)}
         onAdd={addUser}
         addedParticipants={users}
+        lockedParticipantIds={users
+          .filter((u) => u.source !== 'manual')
+          .map((u) => u.id)}
       />
 
       {/* Edit User Name Modal */}
@@ -328,49 +362,6 @@ export default function CreateRoomScreen() {
             </View>
           </Pressable>
         </Pressable>
-      </Modal>
-
-      {/* QR Code Modal */}
-      <Modal
-        transparent={false}
-        animationType='slide'
-        visible={showQRModal}
-        onRequestClose={() => {
-          setShowQRModal(false);
-          setShowAddOptions(true);
-        }}
-      >
-        <SafeAreaView className='flex-1 bg-background'>
-          <View className='flex-1 items-center justify-center gap-8 px-6'>
-            <Text className='text-foreground text-2xl font-bold'>
-              Room QR Code
-            </Text>
-            <QRCode
-              ref={qrRef}
-              value={qrData}
-              size={220}
-              backgroundColor='white'
-              color='black'
-              getRef={(c) => (qrRef.current = c)}
-            />
-            <Text className='text-muted-foreground text-sm'>
-              Room ID: {roomId}
-            </Text>
-          </View>
-          <View className='px-5 pb-8'>
-            <Pressable
-              className='py-3 items-center active:opacity-70'
-              onPress={() => {
-                setShowQRModal(false);
-                setShowAddOptions(true);
-              }}
-            >
-              <Text className='text-accent-dark text-base font-medium'>
-                Close
-              </Text>
-            </Pressable>
-          </View>
-        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );

@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconButton } from '@eezy-receipt/shared';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { validateInvite } from '@/services/groupApi';
+import { validateInvite, joinGroup } from '@/services/groupApi';
 
 export default function JoinRoomScreen() {
   const [mode, setMode] = useState<'scan' | 'code'>('scan');
@@ -54,14 +54,15 @@ export default function JoinRoomScreen() {
     validateAndNavigate(roomId);
   };
 
-  /** Validate the invite then navigate to the receipt-room where the user will enter their name. */
+  /** Validate the invite, join the group as a registered user, then navigate to the receipt-room. */
   const validateAndNavigate = async (roomId: string) => {
     setIsJoining(true);
     try {
       await validateInvite(roomId);
+      await joinGroup(roomId);
       router.replace({
         pathname: '/receipt-room',
-        params: { roomId, items: '[]', participants: '[]', needsName: 'true' },
+        params: { roomId, items: '[]', participants: '[]' },
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';

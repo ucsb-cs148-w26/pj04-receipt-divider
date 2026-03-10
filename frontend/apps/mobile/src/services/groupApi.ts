@@ -1,4 +1,9 @@
 import { apiFetch, apiUpload } from './api';
+import { supabase } from './supabase';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+
+/** Maximum pixels allowed on either side of an image before it is resized. */
+const MAX_IMAGE_DIMENSION = 2048;
 
 // ─── Response types (all camelCase, mirroring backend schemas) ───────────────
 
@@ -12,11 +17,13 @@ export interface CreateInviteLinkResponse {
 
 export interface ProfileWithColor {
   profileId: string;
+  username: string;
   accentColor: string;
 }
 
 export interface GetProfilesResponse {
   profiles: ProfileWithColor[];
+  groupCreatedBy: string;
 }
 
 export interface CreateGuestProfileResponse {
@@ -28,6 +35,19 @@ export interface LoginAsResponse {
 }
 
 export interface AddReceiptResponse {
+  receiptId: string;
+  tax?: number | null;
+  ocrTotal?: number | null;
+  confidenceScore?: number | null;
+  warnings?: string[] | null;
+  notes?: string[] | null;
+}
+
+export interface AddItemResponse {
+  itemId: string;
+}
+
+export interface CreateManualReceiptResponse {
   receiptId: string;
 }
 
@@ -92,8 +112,6 @@ export async function createGuestProfile(
 
 // ─── Receipt endpoints ────────────────────────────────────────────────────────
 
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-
 /**
  * POST /group/receipt/add — upload a receipt image (multipart form).
  * @param groupId  The UUID of the group this receipt belongs to.
@@ -103,9 +121,23 @@ export async function addReceipt(
   groupId: string,
   imageUri: string,
 ): Promise<AddReceiptResponse> {
-  // Transcode to JPEG — ensures iOS HEIC and other formats become valid JPEG
-  // bytes that Google Vision API can process.
-  const jpeg = await manipulateAsync(imageUri, [], {
+  // Probe original dimensions (no compression yet — lossless format check)
+  const probe = await manipulateAsync(imageUri, []);
+  const { width, height } = probe;
+
+  // Build resize action if either dimension exceeds the limit
+  const resizeActions: Parameters<typeof manipulateAsync>[1] = [];
+  if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+    resizeActions.push(
+      width >= height
+        ? { resize: { width: MAX_IMAGE_DIMENSION } }
+        : { resize: { height: MAX_IMAGE_DIMENSION } },
+    );
+  }
+
+  // Transcode to JPEG (with optional resize) — ensures iOS HEIC and other
+  // formats become valid JPEG bytes that Google Vision API can process.
+  const jpeg = await manipulateAsync(imageUri, resizeActions, {
     compress: 0.85,
     format: SaveFormat.JPEG,
   });
@@ -129,6 +161,14 @@ export async function deleteReceipt(receiptId: string): Promise<void> {
 }
 
 // ─── Item claim endpoints ─────────────────────────────────────────────────────
+
+/** DELETE /group/item — delete an item from a group (any member) */
+export async function deleteItem(itemId: string): Promise<void> {
+  return apiFetch<void>('/group/item', {
+    method: 'DELETE',
+    body: JSON.stringify({ itemId }),
+  });
+}
 
 /** POST /group/item/claim — claim an item for the authenticated profile */
 export async function claimItem(itemId: string): Promise<void> {
@@ -157,6 +197,17 @@ export async function assignItem(
   });
 }
 
+/** POST /group/item/assign-bulk — host assigns multiple items to a specific guest in one request */
+export async function assignItems(
+  itemIds: string[],
+  guestProfileId: string,
+): Promise<void> {
+  return apiFetch<void>('/group/item/assign-bulk', {
+    method: 'POST',
+    body: JSON.stringify({ itemIds, guestProfileId }),
+  });
+}
+
 /** POST /group/item/unassign — host removes an item assignment from a guest */
 export async function unassignItem(
   itemId: string,
@@ -165,6 +216,17 @@ export async function unassignItem(
   return apiFetch<void>('/group/item/unassign', {
     method: 'POST',
     body: JSON.stringify({ itemId, guestProfileId }),
+  });
+}
+
+/** POST /group/item/unassign-bulk — host removes multiple item assignments from a guest in one request */
+export async function unassignItems(
+  itemIds: string[],
+  guestProfileId: string,
+): Promise<void> {
+  return apiFetch<void>('/group/item/unassign-bulk', {
+    method: 'POST',
+    body: JSON.stringify({ itemIds, guestProfileId }),
   });
 }
 
@@ -177,6 +239,7 @@ export interface GroupSummary {
   name: string | null;
   memberCount: number;
   totalClaimed: number;
+  totalUploaded: number;
   paidStatus: PaidStatus;
 }
 
@@ -187,4 +250,100 @@ export interface GetMyGroupsResponse {
 /** GET /group/my-groups — get all groups for the authenticated user with balances and paid_status */
 export async function getUserGroups(): Promise<GetMyGroupsResponse> {
   return apiFetch<GetMyGroupsResponse>('/group/my-groups');
+}
+
+/** POST /group/join — join an existing group as a registered (email) user */
+export async function joinGroup(groupId: string): Promise<void> {
+  return apiFetch<void>('/group/join', {
+    method: 'POST',
+    body: JSON.stringify({ groupId }),
+  });
+}
+
+/** Update the paid_status of a group member directly via Supabase. */
+export async function updatePaidStatus(
+  groupId: string,
+  profileId: string,
+  status: 'verified' | 'pending' | 'requested' | 'unrequested',
+): Promise<void> {
+  const { error } = await supabase
+    .from('group_members')
+    .update({ paid_status: status })
+    .eq('group_id', groupId)
+    .eq('profile_id', profileId);
+  if (error) throw new Error(error.message);
+}
+
+/** PATCH /group/item — update an item's name and/or unit price (any group member) */
+export async function updateItem(
+  itemId: string,
+  name?: string,
+  unitPrice?: number,
+): Promise<void> {
+  return apiFetch<void>('/group/item', {
+    method: 'PATCH',
+    body: JSON.stringify({ itemId, name, unitPrice }),
+  });
+}
+
+/** PATCH /group/name — rename a group (any member) */
+export async function updateGroupName(
+  groupId: string,
+  groupName: string,
+): Promise<void> {
+  return apiFetch<void>('/group/name', {
+    method: 'PATCH',
+    body: JSON.stringify({ groupId, groupName }),
+  });
+}
+
+/** PATCH /group/profile/username — update the current user's username */
+export async function updateUsername(username: string): Promise<void> {
+  return apiFetch<void>('/group/profile/username', {
+    method: 'PATCH',
+    body: JSON.stringify({ username }),
+  });
+}
+
+/** DELETE /group/delete — delete a group (host only) */
+export async function deleteGroup(groupId: string): Promise<void> {
+  return apiFetch<void>('/group/delete', {
+    method: 'DELETE',
+    body: JSON.stringify({ groupId }),
+  });
+}
+
+/** POST /group/item/add — manually add a new item to a group */
+export async function addItem(
+  groupId: string,
+  receiptId: string | null,
+  name = '',
+  unitPrice = 0,
+): Promise<AddItemResponse> {
+  return apiFetch<AddItemResponse>('/group/item/add', {
+    method: 'POST',
+    body: JSON.stringify({ groupId, receiptId, name, unitPrice }),
+  });
+}
+
+/** POST /group/receipt/manual — create a manual (no-image) receipt */
+export async function createManualReceipt(
+  groupId: string,
+  tax: number | null,
+): Promise<CreateManualReceiptResponse> {
+  return apiFetch<CreateManualReceiptResponse>('/group/receipt/manual', {
+    method: 'POST',
+    body: JSON.stringify({ groupId, tax }),
+  });
+}
+
+/** PATCH /group/receipt/tax — update the tax amount on a receipt */
+export async function updateReceiptTax(
+  receiptId: string,
+  tax: number | null,
+): Promise<void> {
+  return apiFetch<void>('/group/receipt/tax', {
+    method: 'PATCH',
+    body: JSON.stringify({ receiptId, tax }),
+  });
 }

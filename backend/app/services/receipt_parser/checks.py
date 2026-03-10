@@ -372,6 +372,94 @@ def _check_missing_summary_lines(ctx: CheckContext) -> list[CheckResult]:
     return results
 
 
+# ── User-friendly suggestions ────────────────────────────────────────────────
+
+
+def get_suggestion(chk: CheckResult) -> str:
+    """Return a user-friendly suggestion for a given check result.
+
+    For passing checks this is an assurance statement.
+    For warnings/errors this is actionable guidance.
+    """
+    cid = chk.id
+    sev = chk.severity
+    delta_str = f"${chk.delta:.2f}" if chk.delta is not None else "?"
+
+    if cid == "total_eq_subtotal_plus_tax":
+        if sev == "info":
+            return "The receipt total, subtotal, and tax are internally consistent — these OCR values can be trusted."
+        return "The receipt's own subtotal + tax doesn't equal the total. This usually means the OCR misread one of these three lines. Visually verify the subtotal, tax, and total on the receipt image."
+
+    if cid == "taxability_balance":
+        if sev == "info":
+            return "Taxed + untaxed item totals match the expected subtotal — item categorization looks correct."
+        if sev == "warn":
+            return "The taxed + untaxed item totals are slightly off from the expected subtotal. A small rounding difference or one misclassified item is likely. Review any items near the threshold."
+        return "The taxed + untaxed totals are significantly off. Some items may be misclassified as taxed/untaxed, or an item price was misread. Check items marked with [T] against the receipt."
+
+    if cid == "calc_subtotal_vs_ocr_subtotal":
+        if sev == "info":
+            return "All detected item prices add up to the receipt subtotal — no items appear to be missing or duplicated."
+        if sev == "warn":
+            return f"The items we found are {delta_str} off from the receipt subtotal. Check the receipt image for any items that may have been missed or misread by OCR."
+        return f"The items we found are {delta_str} off from the receipt subtotal — a significant discrepancy. There may be missing items, duplicated items, or OCR misreads. Compare the item list against the original receipt."
+
+    if cid == "calc_subtotal_vs_total_minus_tax":
+        if sev == "info":
+            return "Item prices match the total minus tax — this cross-check confirms the subtotal is accurate."
+        if sev == "warn":
+            return f"Items are {delta_str} off from total minus tax. If the subtotal check also failed, consider that an item or discount may have been missed."
+        return f"Items are {delta_str} off from total minus tax — a significant gap. Cross-reference the printed receipt to find the discrepancy."
+
+    if cid == "tax_consistency":
+        if sev == "info":
+            return "The tax amount matches what we'd expect from the tax rate and taxed items — tax calculations look correct."
+        if sev == "warn":
+            return f"The tax amount is off by {delta_str} from the expected value. This is often caused by per-line tax rounding vs. global rounding and is usually not an issue."
+        return "The tax amount is significantly off from the expected value. Either the tax rate, the taxable item classification, or the OCR'd tax amount may be wrong. Verify the tax line on the receipt."
+
+    if cid == "tax_rate_plausibility":
+        if sev == "info":
+            return "The inferred tax rate is within the normal US range (0-15%) — looks reasonable."
+        return "The inferred tax rate is outside the normal range. This probably means some items are misclassified as taxed/untaxed, or the tax line was misread. Check items with [T] flags."
+
+    if cid == "missing_item_estimate":
+        return f"The subtotal mismatch suggests we may be missing an item worth ~{delta_str}. Look for any item on the receipt that wasn't detected."
+
+    if cid == "missing_discount_estimate":
+        return f"The subtotal mismatch suggests an undetected discount of ~{delta_str}, or an extra item was incorrectly included. Check for coupon or promo lines."
+
+    if cid == "missing_subtotal":
+        return "No subtotal line was found, which limits our ability to cross-check item prices. The receipt may not print a subtotal, or it was cut off / unreadable."
+
+    if cid == "missing_tax":
+        return "No tax line was found. The receipt may be tax-exempt, or the tax line was cut off. Tax rate cannot be independently verified."
+
+    if cid == "missing_total":
+        return "No total line was found. The receipt may be cut off at the bottom. We cannot verify the final amount."
+
+    if cid == "tender_vs_total":
+        if sev == "info":
+            return "The payment amount matches the receipt total — this confirms the final charged amount."
+        return f"The payment amount differs from the total by {delta_str}. This may indicate a tip, split payment, or cash/change math error. Compare the payment section on the receipt."
+
+    # Per-code tax consistency checks (tax_consistency_A, tax_consistency_E, etc.)
+    if cid.startswith("tax_consistency_"):
+        if sev == "info":
+            return "Per-code tax amount matches the expected calculation — tax breakdown is accurate."
+        if sev == "warn":
+            return f"Per-code tax is off by {delta_str} — could be per-line rounding or a misclassified item."
+        return "Per-code tax is significantly off. Check that items are assigned the correct tax code."
+
+    # Per-code tax rate plausibility checks
+    if cid.startswith("tax_rate_plausibility_"):
+        if sev == "info":
+            return "The per-code tax rate is within the normal US range (0-15%) — looks reasonable."
+        return "The per-code tax rate is outside the normal range. Check that items are assigned the correct tax code."
+
+    return chk.message
+
+
 # ── Overall score ────────────────────────────────────────────────────────────
 
 
@@ -467,10 +555,6 @@ def check_confidence(
         ),
         checks=checks,
         overall_score=overall_score,
-        notes=[c.message for c in checks if c.severity == "info"],
-        warnings=[
-            f"[{c.severity.upper()}] {c.message}"
-            for c in checks
-            if c.severity in ("warn", "error")
-        ],
+        notes=[get_suggestion(c) for c in checks if c.severity == "info"],
+        warnings=[get_suggestion(c) for c in checks if c.severity in ("warn", "error")],
     )

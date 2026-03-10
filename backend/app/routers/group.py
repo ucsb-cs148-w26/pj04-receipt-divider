@@ -3,20 +3,32 @@ import uuid
 from fastapi import APIRouter, Depends, Form, HTTPException, status, UploadFile
 
 from app.schemas.group import (
+    AddItemRequest,
+    AddItemResponse,
     AddReceiptResponse,
     AssignItemRequest,
+    BulkAssignItemRequest,
     ClaimItemRequest,
+    CreateManualReceiptRequest,
+    CreateManualReceiptResponse,
+    DeleteItemRequest,
     CreateGroupRequest,
     CreateGroupResponse,
     CreateGuestProfileRequest,
     CreateGuestProfileResponse,
     CreateInviteLinkResponse,
+    DeleteGroupRequest,
     DeleteReceiptRequest,
     GetMyGroupsResponse,
     GetProfilesResponse,
     GroupSummary,
+    JoinGroupRequest,
     LoginAsRequest,
     LoginAsResponse,
+    UpdateItemRequest,
+    UpdateGroupNameRequest,
+    UpdateUsernameRequest,
+    UpdateReceiptTaxRequest,
 )
 from app.dependencies import (
     get_auth_service,
@@ -57,6 +69,7 @@ def get_my_groups(
             name=row.name,
             member_count=row.member_count,
             total_claimed=float(row.total_claimed),
+            total_uploaded=float(row.total_uploaded),
             paid_status=row.paid_status,
         )
         for row in rows
@@ -75,6 +88,16 @@ def create_invite_link(
     return CreateInviteLinkResponse(url=invite_url)
 
 
+@router.post("/join", status_code=200)
+def join_group(
+    payload: JoinGroupRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_registered_user()
+    user_service.join_group(profile_id, str(payload.group_id))
+
+
 @router.get("/validate-invite", status_code=200)
 def validate_invite(
     group_id: str, invite_service: InviteService = Depends(get_invite_service)
@@ -89,8 +112,8 @@ def validate_invite(
 def get_profiles(
     group_id: str, profile_service: ProfileService = Depends(get_profile_service)
 ):
-    profiles = profile_service.get_profiles_data_by_group(group_id)
-    return GetProfilesResponse(profiles=profiles)
+    profiles, group_created_by = profile_service.get_profiles_data_by_group(group_id)
+    return GetProfilesResponse(profiles=profiles, group_created_by=group_created_by)
 
 
 @router.post("/profile-login", response_model=LoginAsResponse)
@@ -137,11 +160,18 @@ async def add_receipt(
     filename = file.filename or ""
     image_ext = filename.rsplit(".", 1)[-1] if "." in filename else "jpg"
 
-    receipt_id = await user_service.add_receipt(
+    receipt_id, tax, ocr_total, confidence = await user_service.add_receipt(
         profile_id, str(group_id), image_bytes, image_ext
     )
 
-    return AddReceiptResponse(receipt_id=receipt_id)
+    return AddReceiptResponse(
+        receipt_id=receipt_id,
+        tax=tax,
+        ocr_total=ocr_total,
+        confidence_score=confidence.overall_score if confidence else None,
+        warnings=confidence.warnings if confidence else None,
+        notes=confidence.notes if confidence else None,
+    )
 
 
 @router.delete("/receipt")
@@ -152,6 +182,16 @@ def remove_receipt(
 ):
     profile_id = auth_service.authenticate_any_user()
     user_service.remove_receipt(profile_id, str(payload.receipt_id))
+
+
+@router.delete("/item")
+def delete_item(
+    payload: DeleteItemRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    user_service.delete_item(profile_id, str(payload.item_id))
 
 
 @router.post("/item/claim")
@@ -186,6 +226,20 @@ def assign_item(
     )
 
 
+@router.post("/item/assign-bulk")
+def assign_items_bulk(
+    payload: BulkAssignItemRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    host_profile_id = auth_service.authenticate_any_user()
+    user_service.assign_items(
+        host_profile_id,
+        str(payload.guest_profile_id),
+        [str(i) for i in payload.item_ids],
+    )
+
+
 @router.post("/item/unassign")
 def unassign_item(
     payload: AssignItemRequest,
@@ -196,3 +250,101 @@ def unassign_item(
     user_service.unassign_item(
         host_profile_id, str(payload.guest_profile_id), str(payload.item_id)
     )
+
+
+@router.post("/item/unassign-bulk")
+def unassign_items_bulk(
+    payload: BulkAssignItemRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    host_profile_id = auth_service.authenticate_any_user()
+    user_service.unassign_items(
+        host_profile_id,
+        str(payload.guest_profile_id),
+        [str(i) for i in payload.item_ids],
+    )
+
+
+@router.patch("/item")
+def update_item(
+    payload: UpdateItemRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    user_service.update_item(
+        profile_id, str(payload.item_id), payload.name, payload.unit_price
+    )
+
+
+@router.patch("/name")
+def update_group_name(
+    payload: UpdateGroupNameRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    user_service.update_group_name(
+        profile_id, str(payload.group_id), payload.group_name
+    )
+
+
+@router.patch("/profile/username")
+def update_username(
+    payload: UpdateUsernameRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    profile_service.update_username(profile_id, payload.username)
+
+
+@router.delete("/delete")
+def delete_group(
+    payload: DeleteGroupRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    user_service.delete_group(profile_id, str(payload.group_id))
+
+
+@router.post("/item/add", response_model=AddItemResponse)
+def add_item_manual(
+    payload: AddItemRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    item_id = user_service.add_item(
+        profile_id,
+        str(payload.group_id),
+        str(payload.receipt_id) if payload.receipt_id else None,
+        payload.name,
+        payload.unit_price,
+    )
+    return AddItemResponse(item_id=item_id)
+
+
+@router.post("/receipt/manual", response_model=CreateManualReceiptResponse)
+def create_manual_receipt(
+    payload: CreateManualReceiptRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    receipt_id = user_service.create_manual_receipt(
+        profile_id, str(payload.group_id), payload.tax
+    )
+    return CreateManualReceiptResponse(receipt_id=receipt_id)
+
+
+@router.patch("/receipt/tax")
+def update_receipt_tax(
+    payload: UpdateReceiptTaxRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    user_service.update_receipt_tax(profile_id, str(payload.receipt_id), payload.tax)

@@ -5,14 +5,16 @@ import {
   Image,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '@/providers';
+import { useAuth, useGroupCache } from '@/providers';
+import { supabase } from '@/services/supabase';
 import { IconButton } from '@eezy-receipt/shared';
-import { getUserGroups, PaidStatus } from '@/services/groupApi';
+import type { PaidStatus } from '@/services/groupApi';
 
 type HistoryItem = {
   id: string;
@@ -28,46 +30,46 @@ function mapPaidStatus(ps: PaidStatus): 'completed' | 'pending' {
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { myGroups, refetchMyGroups } = useGroupCache();
   const [activeTab, setActiveTab] = useState<'groups' | 'people'>('groups');
   const [showNewRoom, setShowNewRoom] = useState(false);
-  const [groups, setGroups] = useState<HistoryItem[]>([]);
-  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
-  const metaName =
-    (user?.user_metadata?.full_name as string | undefined) ?? user?.email;
 
-  const [profileName, setProfileName] = useState<string>(metaName ?? '');
+  const [profileName, setProfileName] = useState<string>('');
   useEffect(() => {
-    if (metaName) {
-      setProfileName(metaName);
-      return;
-    }
-    const timeout = setTimeout(() => {
-      setProfileName('there');
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [metaName]);
+    if (!user?.id) return;
+    void supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.username) setProfileName(data.username);
+      });
+  }, [user?.id]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchGroups = useCallback(() => {
-    setIsLoadingGroups(true);
-    getUserGroups()
-      .then(({ groups: fetched }) => {
-        setGroups(
-          fetched.map((g) => ({
-            id: g.groupId,
-            name: g.name ?? 'Unnamed Group',
-            status: mapPaidStatus(g.paidStatus),
-            amount: -g.totalClaimed,
-            members: g.memberCount,
-          })),
-        );
-      })
-      .catch(console.error)
-      .finally(() => setIsLoadingGroups(false));
-  }, []);
+    void refetchMyGroups();
+  }, [refetchMyGroups]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refetchMyGroups();
+    setIsRefreshing(false);
+  }, [refetchMyGroups]);
 
   useFocusEffect(fetchGroups);
+
+  const groups: HistoryItem[] = (myGroups ?? []).map((g) => ({
+    id: g.groupId,
+    name: g.name ?? 'Unnamed Group',
+    status: mapPaidStatus(g.paidStatus),
+    amount: g.totalUploaded - g.totalClaimed,
+    members: g.memberCount,
+  }));
 
   const firstName = profileName.split(' ')[0] || 'there';
 
@@ -77,6 +79,13 @@ export default function HomeScreen() {
     'U';
 
   const data: HistoryItem[] = activeTab === 'groups' ? groups : [];
+
+  const youAreOwed = groups
+    .filter((g) => g.amount > 0)
+    .reduce((sum, g) => sum + g.amount, 0);
+  const youOwe = groups
+    .filter((g) => g.amount < 0)
+    .reduce((sum, g) => sum + Math.abs(g.amount), 0);
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
@@ -110,6 +119,9 @@ export default function HomeScreen() {
         className='flex-1 px-5'
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+        }
       >
         {/* Finances */}
         <Text className='text-foreground text-2xl font-bold mb-3'>
@@ -119,7 +131,7 @@ export default function HomeScreen() {
           <View className='flex-1 bg-card rounded-2xl p-4'>
             <Text className='text-muted-foreground text-sm mb-1'>You Owe</Text>
             <Text className='text-amount-negative text-2xl font-bold'>
-              $64.91
+              ${youOwe.toFixed(2)}
             </Text>
           </View>
           <View className='flex-1 bg-card rounded-2xl p-4'>
@@ -127,7 +139,7 @@ export default function HomeScreen() {
               You Are Owed
             </Text>
             <Text className='text-amount-positive text-2xl font-bold'>
-              $105.62
+              ${youAreOwed.toFixed(2)}
             </Text>
           </View>
         </View>
@@ -168,7 +180,7 @@ export default function HomeScreen() {
         </View>
 
         {/* History list */}
-        {isLoadingGroups && activeTab === 'groups' ? (
+        {myGroups === null && activeTab === 'groups' ? (
           <View className='bg-card rounded-2xl p-8 items-center'>
             <ActivityIndicator />
           </View>

@@ -9,7 +9,6 @@ export type AddParticipantSheetProps = {
   visible: boolean;
   onClose: () => void;
   onShareSMS: () => void;
-  onShowQR: () => void;
   onAddManually: () => void;
 };
 
@@ -17,7 +16,6 @@ export function AddParticipantSheet({
   visible,
   onClose,
   onShareSMS,
-  onShowQR,
   onAddManually,
 }: AddParticipantSheetProps) {
   return (
@@ -44,16 +42,6 @@ export function AddParticipantSheet({
               />
               <Text className='text-foreground text-base'>
                 Share Link via SMS
-              </Text>
-            </Pressable>
-            <View className='h-px bg-border my-1' />
-            <Pressable
-              className='flex-row items-center gap-4 py-3 active:opacity-70'
-              onPress={onShowQR}
-            >
-              <MaterialCommunityIcons name='qrcode' size={24} color='#4999DF' />
-              <Text className='text-foreground text-base'>
-                Show Room QR Code
               </Text>
             </Pressable>
             <View className='h-px bg-border my-1' />
@@ -93,6 +81,8 @@ export type AddParticipantManualModalProps = {
   onAdd: (_name: string) => void;
   /** Optional list of already-added participants to display as tags. */
   addedParticipants?: { id: number; name: string }[];
+  /** Participant ids whose names cannot be edited (e.g. they have a real account). */
+  lockedParticipantIds?: number[];
   /** Called when a participant tag is renamed. */
   // eslint-disable-next-line no-unused-vars
   onRenameParticipant?: (_id: number, _newName: string) => void;
@@ -106,6 +96,7 @@ export function AddParticipantManualModal({
   onClose,
   onAdd,
   addedParticipants,
+  lockedParticipantIds,
   onRenameParticipant,
   onRemoveParticipant,
 }: AddParticipantManualModalProps) {
@@ -139,6 +130,14 @@ export function AddParticipantManualModal({
   };
 
   const handleParticipantPress = (p: { id: number; name: string }) => {
+    if (lockedParticipantIds?.includes(p.id)) {
+      Alert.alert(
+        p.name,
+        'This participant has a linked account and cannot be renamed or removed.',
+        [{ text: 'OK', style: 'cancel' }],
+      );
+      return;
+    }
     Alert.alert(p.name, undefined, [
       {
         text: 'Rename',

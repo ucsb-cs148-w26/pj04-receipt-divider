@@ -2,6 +2,7 @@ create table public.receipts (
   id uuid not null default gen_random_uuid (),
   image text not null,
   total real not null,
+  tax real null,
   created_by uuid not null,
   created_at timestamp with time zone null default now(),
   group_id uuid not null,

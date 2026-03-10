@@ -7,17 +7,28 @@ import {
   ScrollView,
   LayoutRectangle,
   Animated,
-  Modal,
   ActivityIndicator,
   Alert,
   Text,
-  TextInput,
   Pressable,
+  TextInput,
+  RefreshControl,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  cancelAnimation,
+  runOnJS,
+} from 'react-native-reanimated';
 import {
   IconButton,
   AddParticipantSheet,
@@ -25,19 +36,29 @@ import {
   sendRoomInviteSMS,
   useScrollToInput,
 } from '@eezy-receipt/shared';
+import { ReceiptConfidenceModal, type ConfidenceData } from '@/components';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
 import { Participant } from '@shared/components/Participant';
-import { useReceiptItems } from '@/providers';
+import { useReceiptItems, useAuth } from '@/providers';
 import { YourItemsRoomParams } from '@/app/items';
 import { randomUUID } from 'expo-crypto';
 import { useGroupData } from '@/hooks';
 import {
   addReceipt,
   assignItem,
+  assignItems,
   unassignItem,
-  createGuestProfile,
+  unassignItems,
+  updateItem,
+  deleteItem,
+  deleteReceipt,
+  addItem,
+  createManualReceipt,
+  updateReceiptTax,
+  updateGroupName,
+  updateUsername,
 } from '@/services/groupApi';
+import { supabase } from '@/services/supabase';
 import type {
   GroupMember as DbGroupMember,
   ItemClaim as DbItemClaim,
@@ -63,13 +84,18 @@ export type ReceiptRoomParams = {
   items: string;
   participants: string; // JSON stringified ParticipantType[]
   photos?: string; // JSON stringified string[] of URIs from create-room
-  needsName?: string; // 'true' when navigating from join-room
 };
 
 export default function ReceiptRoomScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<ReceiptRoomParams>();
   const receiptItems = useReceiptItems();
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? '';
+
+  /**---------------- Group Name State ---------------- */
+  const [groupName, setGroupName] = useState('');
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
 
   /**---------------- Mode State ---------------- */
   const [isEditMode, setIsEditMode] = useState(false);
@@ -102,32 +128,23 @@ export default function ReceiptRoomScreen() {
   });
   const dragPan = useRef(new Animated.ValueXY()).current;
 
-  const handleSubmitGuestName = async () => {
-    const name = guestName.trim();
-    if (!name || !roomId) return;
-    setIsSubmittingName(true);
-    try {
-      await createGuestProfile(roomId, name);
-      setShowNameModal(false);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to join';
-      Alert.alert('Could not join', message);
-    } finally {
-      setIsSubmittingName(false);
-    }
-  };
-
   /**---------------- Banner Animation State ---------------- */
-  const bannerLerpPan = useRef(new Animated.ValueXY()).current;
-  const bannerOpacity = useRef(new Animated.Value(1)).current;
-  const bannerScale = useRef(new Animated.Value(1)).current;
+  const bannerTranslation = useSharedValue({ x: 0, y: 0 });
+  const bannerOpacityS = useSharedValue(1);
+  const bannerScaleS = useSharedValue(1);
   const bannerVisible = useRef(false);
   const [bannerVisibleState, setBannerVisibleState] = useState(false);
   const bannerInitialPosRef = useRef<{ x: number; y: number } | null>(null);
   const bannerItemCountRef = useRef(0);
   const lastDropSuccessful = useRef(false);
-  const bannerIsExiting = useRef(false);
-  const exitAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const bannerAnimStyle = useAnimatedStyle(() => ({
+    opacity: bannerOpacityS.value,
+    transform: [
+      { translateX: bannerTranslation.value.x },
+      { translateY: bannerTranslation.value.y },
+      { scale: bannerScaleS.value },
+    ],
+  }));
   const dropToClaimAnim = useRef(new Animated.Value(40)).current;
   const dropToClaimOpacity = useRef(new Animated.Value(0)).current;
   const dropdownOpacity = useRef(new Animated.Value(0)).current;
@@ -136,6 +153,15 @@ export default function ReceiptRoomScreen() {
 
   /**---------------- Text Focus State ---------------- */
   const [isAnyTextFocused, setIsAnyTextFocused] = useState(false);
+  const isAnyTextFocusedRef = useRef(false);
+  useEffect(() => {
+    isAnyTextFocusedRef.current = isAnyTextFocused;
+  }, [isAnyTextFocused]);
+
+  /**---------------- Debounce timers for item updates ---------------- */
+  const itemUpdateTimers = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
 
   /**---------------- Quick Actions State ---------------- */
   const [showQuickActions, setShowQuickActions] = useState(false);
@@ -143,18 +169,32 @@ export default function ReceiptRoomScreen() {
   /**---------------- Add Participant State ---------------- */
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [showAddManual, setShowAddManual] = useState(false);
-  const [showQRModal, setShowQRModal] = useState(false);
 
-  /**---------------- Name Entry (guest join) State ---------------- */
-  const [showNameModal, setShowNameModal] = useState(
-    params.needsName === 'true',
-  );
-  const [guestName, setGuestName] = useState('');
-  const [isSubmittingName, setIsSubmittingName] = useState(false);
-  const nameInputRef = useRef<TextInput>(null);
+  /**---------------- Add Item Sheet State ---------------- */
+  const [showAddItemSheet, setShowAddItemSheet] = useState(false);
+  const [addItemReceiptChoice, setAddItemReceiptChoice] = useState<
+    string | null
+  >(null);
+  const [addItemTax, setAddItemTax] = useState('');
+
+  const [isAddingItem, setIsAddingItem] = useState(false);
 
   /**---------------- OCR on initial photos from create-room ---------------- */
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  /** Receipt IDs we're waiting to see appear in the realtime cache. */
+  const pendingReceiptIdsRef = useRef<Set<string>>(new Set());
+  /** Confidence data to show once items arrive. */
+  const [pendingConfidence, setPendingConfidence] =
+    useState<ConfidenceData | null>(null);
+  const [showConfidenceModal, setShowConfidenceModal] = useState(false);
+
+  const handleRefresh = async () => {
+    if (!isGroupRoom) return;
+    setIsRefreshing(true);
+    await groupData.refetch();
+    setIsRefreshing(false);
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -190,15 +230,47 @@ export default function ReceiptRoomScreen() {
     }
     if (!uris.length) return;
     setIsLoadingPhoto(true);
-    // Upload each photo to the backend; parsed items arrive via Supabase Realtime
-    Promise.all(uris.map((uri) => addReceipt(roomId, uri)))
+    // Upload each photo; items + receipts arrive via Supabase Realtime.
+    // We hold the loading indicator until those receipts appear in the cache.
+    const collectedConfidence: ConfidenceData[] = [];
+    Promise.all(
+      uris.map(async (uri) => {
+        const result = await addReceipt(roomId, uri);
+        pendingReceiptIdsRef.current.add(result.receiptId);
+        if (result.confidenceScore != null) {
+          collectedConfidence.push({
+            confidenceScore: result.confidenceScore,
+            warnings: result.warnings,
+            notes: result.notes,
+            tax: result.tax,
+            ocrTotal: result.ocrTotal,
+          });
+        }
+      }),
+    )
+      .then(() => {
+        // Store aggregated confidence (use first receipt's score for simplicity)
+        if (collectedConfidence.length > 0) {
+          setPendingConfidence(collectedConfidence[0]);
+        }
+        // Loading is cleared by the groupData watcher below once receipts arrive.
+      })
       .catch((err) => {
         Alert.alert(
           'Upload Failed',
           err instanceof Error ? err.message : 'Could not process receipt.',
         );
-      })
-      .finally(() => setIsLoadingPhoto(false));
+        setIsLoadingPhoto(false);
+      });
+
+    // Fallback: stop loading after 20 seconds regardless
+    const fallback = setTimeout(() => {
+      if (pendingReceiptIdsRef.current.size > 0) {
+        pendingReceiptIdsRef.current = new Set();
+        setIsLoadingPhoto(false);
+      }
+    }, 20_000);
+    return () => clearTimeout(fallback);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**---------------- Participants Functions ---------------- */
@@ -218,12 +290,11 @@ export default function ReceiptRoomScreen() {
       }
     } catch (error) {
       console.error('SMS error:', error);
+      Alert.alert(
+        'Failed to Send',
+        'Could not send the invite SMS. Please try again.',
+      );
     }
-  };
-
-  const handleShowQR = () => {
-    setShowAddOptions(false);
-    setShowQRModal(true);
   };
 
   const handleAddManually = () => {
@@ -285,7 +356,8 @@ export default function ReceiptRoomScreen() {
 
   const claimSelectedToParticipant = (participantId: number) => {
     lastDropSuccessful.current = true;
-    const selectedItems = receiptItems.items.filter((item) =>
+    const itemsSnapshot = receiptItems.items;
+    const selectedItems = itemsSnapshot.filter((item) =>
       selectedItemIds.has(item.id),
     );
     const allAlreadyClaimed = selectedItems.every((item) =>
@@ -305,13 +377,23 @@ export default function ReceiptRoomScreen() {
         return { ...item, userTags: [...userTags, participantId] };
       }),
     );
-    // Fire backend assign calls for each selected item when in a real group
+    // Fire backend assign call(s) when in a real group — bulk when >1 item selected
     if (isGroupRoom) {
       const profileId =
         groupDisplay.participantIdToProfileId.get(participantId);
       if (profileId) {
-        [...selectedItemIds].forEach((itemId) => {
-          assignItem(itemId, profileId).catch(console.error);
+        const ids = [...selectedItemIds];
+        const req =
+          ids.length === 1
+            ? assignItem(ids[0], profileId)
+            : assignItems(ids, profileId);
+        req.catch((err) => {
+          receiptItems.setItems(itemsSnapshot);
+          Alert.alert(
+            'Error',
+            'Failed to assign item. Changes have been reverted.',
+          );
+          console.error(err);
         });
       }
     }
@@ -333,12 +415,13 @@ export default function ReceiptRoomScreen() {
       setSelectedItemIds(effectiveIds);
     }
 
-    // Stop any in-progress exit animation and reset banner state
-    exitAnimRef.current?.stop();
-    bannerIsExiting.current = false;
-    bannerLerpPan.setValue({ x: 0, y: 0 });
-    bannerOpacity.setValue(1);
-    bannerScale.setValue(1);
+    // Cancel any in-progress exit animations and reset banner state
+    cancelAnimation(bannerTranslation);
+    cancelAnimation(bannerOpacityS);
+    cancelAnimation(bannerScaleS);
+    bannerTranslation.value = { x: 0, y: 0 };
+    bannerOpacityS.value = 1;
+    bannerScaleS.value = 1;
     bannerInitialPosRef.current = initialPosition || null;
     bannerItemCountRef.current = effectiveIds.size;
     bannerVisible.current = true;
@@ -353,16 +436,9 @@ export default function ReceiptRoomScreen() {
     dragPan.setValue({ x: 0, y: 0 });
   };
 
-  const handleItemDragMove = (translation: { x: number; y: number }) => {
-    if (bannerIsExiting.current) return;
-    // setValue is instant — no competing spring animations, no per-frame jitter.
-    bannerLerpPan.setValue(translation);
-  };
-
   const handleItemDragEnd = () => {
     const success = lastDropSuccessful.current;
     lastDropSuccessful.current = false;
-    bannerIsExiting.current = true;
 
     setDragState({
       isDragging: false,
@@ -376,51 +452,28 @@ export default function ReceiptRoomScreen() {
     }).start();
 
     if (success) {
-      // Scale up and fade out at the drop position
-      const anim = Animated.parallel([
-        Animated.spring(bannerScale, {
-          toValue: 1.4,
-          useNativeDriver: true,
-          tension: 200,
-          friction: 8,
-        }),
-        Animated.timing(bannerOpacity, {
-          toValue: 0,
-          duration: 280,
-          useNativeDriver: true,
-        }),
-      ]);
-      exitAnimRef.current = anim;
-      anim.start(() => {
-        setBannerVisibleState(false);
-        bannerVisible.current = false;
-        bannerIsExiting.current = false;
-        // Defer value resets to next frame so React can unmount the component
-        // first — resetting synchronously causes a one-frame flash at origin.
-        setTimeout(() => {
-          bannerLerpPan.setValue({ x: 0, y: 0 });
-          bannerScale.setValue(1);
-          bannerOpacity.setValue(1);
-        }, 0);
+      // Scale up and fade out at the drop position — runs entirely on the UI thread
+      bannerScaleS.value = withSpring(1.4, {
+        mass: 1,
+        stiffness: 200,
+        damping: 8,
+      });
+      bannerOpacityS.value = withTiming(0, { duration: 280 }, (finished) => {
+        'worklet';
+        if (finished) {
+          runOnJS(setBannerVisibleState)(false);
+          // Values reset at the top of the next handleItemDragStart
+        }
       });
     } else {
-      // Fade out at current position (no spring-back needed since we follow finger exactly)
-      bannerLerpPan.setValue({ x: 0, y: 0 });
-      const anim = Animated.timing(bannerOpacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      });
-      exitAnimRef.current = anim;
-      anim.start(() => {
-        setBannerVisibleState(false);
-        bannerVisible.current = false;
-        bannerIsExiting.current = false;
-        bannerLerpPan.setValue({ x: 0, y: 0 });
-        // Do NOT reset bannerOpacity here — it was already animated to 0 and the
-        // component is now unmounted. Resetting it synchronously before the unmount
-        // re-render causes a one-frame flash back to full opacity.
-        // It gets reset to 1 at the top of handleItemDragStart for next use.
+      // Fade out at current position
+      bannerTranslation.value = { x: 0, y: 0 };
+      bannerOpacityS.value = withTiming(0, { duration: 300 }, (finished) => {
+        'worklet';
+        if (finished) {
+          runOnJS(setBannerVisibleState)(false);
+          // Values reset at the top of the next handleItemDragStart
+        }
       });
     }
   };
@@ -442,6 +495,24 @@ export default function ReceiptRoomScreen() {
   const isGroupRoom =
     !!params.roomId && roomId.length >= 32 && /^[0-9a-f-]{36}$/i.test(roomId);
   const groupData = useGroupData(isGroupRoom ? roomId : '');
+  const isHost =
+    isGroupRoom &&
+    !!groupData.createdBy &&
+    groupData.createdBy === currentUserId;
+
+  // Fetch group name from Supabase when entering a real group room
+  useEffect(() => {
+    if (!isGroupRoom || !currentUserId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('groups')
+        .select('name')
+        .eq('id', roomId)
+        .single();
+      setGroupName(data?.name ?? '');
+    })();
+  }, [roomId, isGroupRoom, currentUserId]);
+
   const groupDisplay = useMemo(() => {
     if (!isGroupRoom || !groupData.members.length) {
       return {
@@ -457,9 +528,9 @@ export default function ReceiptRoomScreen() {
       profileIdToParticipantId.set(m.profile_id, i + 1);
       participantIdToProfileId.set(i + 1, m.profile_id);
     });
-    const participants: ParticipantType[] = members.map((_m, i) => ({
+    const participants: ParticipantType[] = members.map((m, i) => ({
       id: i + 1,
-      name: `Member ${i + 1}`,
+      name: groupData.profiles[m.profile_id]?.username ?? `Member ${i + 1}`,
     }));
     const claims = groupData.claims as DbItemClaim[];
     const items = (groupData.items as DbItem[]).map((item) => {
@@ -475,17 +546,98 @@ export default function ReceiptRoomScreen() {
       return {
         id: item.id,
         name: item.name ?? '',
-        price: String(unitPrice * amount),
+        price: (unitPrice * amount).toFixed(2),
         userTags,
+        receiptId: item.receipt_id ?? null,
       } as ReceiptItemData;
     });
     return { items, participants, participantIdToProfileId };
-  }, [isGroupRoom, groupData.members, groupData.items, groupData.claims]);
+  }, [
+    isGroupRoom,
+    groupData.members,
+    groupData.items,
+    groupData.claims,
+    groupData.profiles,
+  ]);
 
-  const displayItems = isGroupRoom ? groupDisplay.items : receiptItems.items;
+  // Keep receiptItems in sync with Supabase data for group rooms.
+  // Sync is paused while a TextInput is focused so in-progress edits are not overwritten.
+  useEffect(() => {
+    if (!isGroupRoom || isAnyTextFocusedRef.current) return;
+    receiptItems.setItems(groupDisplay.items);
+  }, [groupDisplay.items]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stop the loading overlay once all uploaded receipts have arrived in the cache.
+  useEffect(() => {
+    if (!isLoadingPhoto || pendingReceiptIdsRef.current.size === 0) return;
+    const allArrived = [...pendingReceiptIdsRef.current].every((rid) =>
+      groupData.receipts.some((r) => r.id === rid),
+    );
+    if (allArrived) {
+      pendingReceiptIdsRef.current = new Set();
+      setIsLoadingPhoto(false);
+      if (pendingConfidence) {
+        setShowConfidenceModal(true);
+      }
+    }
+  }, [groupData.receipts, isLoadingPhoto, pendingConfidence]);
+
+  const displayItems = receiptItems.items;
   const displayParticipants = isGroupRoom
     ? groupDisplay.participants
     : participants;
+
+  // Map receipt id → uploader display name (only meaningful in group rooms)
+  const receiptUploaderMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of groupData.receipts) {
+      const name = groupData.profiles[r.created_by]?.username ?? 'Someone';
+      m.set(r.id, r.created_by === currentUserId ? 'You' : name);
+    }
+    return m;
+  }, [groupData.receipts, groupData.profiles, currentUserId]);
+
+  // Map receipt id → tax amount (null/0 if not present)
+  const receiptTaxMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of groupData.receipts) {
+      if (r.tax != null && r.tax > 0) m.set(r.id, r.tax);
+    }
+    return m;
+  }, [groupData.receipts]);
+
+  // Map receipt id → tax per item (receipt.tax / itemCount), for participant totals
+  const taxPerItemMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const [rid, tax] of receiptTaxMap.entries()) {
+      const count = displayItems.filter((i) => i.receiptId === rid).length;
+      if (count > 0) m.set(rid, tax / count);
+    }
+    return m;
+  }, [receiptTaxMap, displayItems]);
+
+  // Show the Complete button when every item in a group room has at least one claimant
+  const allItemsAssigned =
+    isGroupRoom &&
+    displayItems.length > 0 &&
+    displayItems.every((item) => item.userTags && item.userTags.length > 0);
+
+  // Group display items by receipt id (preserves order)
+  const itemSections = useMemo(() => {
+    if (!isGroupRoom)
+      return [{ receiptId: null as string | null, items: displayItems }];
+    const order: (string | null)[] = [];
+    const map = new Map<string | null, ReceiptItemData[]>();
+    for (const item of displayItems) {
+      const rid = item.receiptId ?? null;
+      if (!map.has(rid)) {
+        order.push(rid);
+        map.set(rid, []);
+      }
+      map.get(rid)!.push(item);
+    }
+    return order.map((rid) => ({ receiptId: rid, items: map.get(rid)! }));
+  }, [isGroupRoom, displayItems]);
 
   /**---------------- Quick Actions Functions ---------------- */
   const claimForAll = () => {
@@ -504,12 +656,22 @@ export default function ReceiptRoomScreen() {
         };
       }),
     );
-    // Fire backend assign calls for each selected item × each participant
+    // Fire backend assign calls — one bulk request per participant
     if (isGroupRoom) {
-      [...selectedItemIds].forEach((itemId) => {
-        displayParticipants.forEach((p) => {
-          const profileId = groupDisplay.participantIdToProfileId.get(p.id);
-          if (profileId) assignItem(itemId, profileId).catch(console.error);
+      const ids = [...selectedItemIds];
+      let claimAlertShown = false;
+      displayParticipants.forEach((p) => {
+        const profileId = groupDisplay.participantIdToProfileId.get(p.id);
+        if (!profileId) return;
+        (ids.length === 1
+          ? assignItem(ids[0], profileId)
+          : assignItems(ids, profileId)
+        ).catch((err) => {
+          console.error(err);
+          if (!claimAlertShown) {
+            claimAlertShown = true;
+            Alert.alert('Error', 'Failed to claim items. Please try again.');
+          }
         });
       });
     }
@@ -523,13 +685,31 @@ export default function ReceiptRoomScreen() {
         return { ...item, userTags: [] };
       }),
     );
-    // Fire backend unassign calls for each item × each participant that had it
+    // Fire backend unassign calls — group items by participant then bulk-unassign
     if (isGroupRoom) {
+      const byProfile = new Map<string, string[]>();
       [...selectedItemIds].forEach((itemId) => {
         const item = displayItems.find((i) => i.id === itemId);
         (item?.userTags ?? []).forEach((pId) => {
           const profileId = groupDisplay.participantIdToProfileId.get(pId);
-          if (profileId) unassignItem(itemId, profileId).catch(console.error);
+          if (profileId) {
+            const arr = byProfile.get(profileId) ?? [];
+            arr.push(itemId);
+            byProfile.set(profileId, arr);
+          }
+        });
+      });
+      let unclaimAlertShown = false;
+      byProfile.forEach((ids, profileId) => {
+        (ids.length === 1
+          ? unassignItem(ids[0], profileId)
+          : unassignItems(ids, profileId)
+        ).catch((err) => {
+          console.error(err);
+          if (!unclaimAlertShown) {
+            unclaimAlertShown = true;
+            Alert.alert('Error', 'Failed to unclaim items. Please try again.');
+          }
         });
       });
     }
@@ -546,12 +726,95 @@ export default function ReceiptRoomScreen() {
     receiptItems.setItems([...receiptItems.items, newItem]);
   };
 
+  const handleAddReceiptItem = () => {
+    if (!isGroupRoom) {
+      addReceiptItem();
+      return;
+    }
+    setAddItemReceiptChoice(null);
+    setAddItemTax('');
+    setShowAddItemSheet(true);
+  };
+
+  const confirmAddItem = async () => {
+    setShowAddItemSheet(false);
+    setIsAddingItem(true);
+    try {
+      let finalReceiptId: string | null = null;
+      const taxValue = parseFloat(addItemTax);
+      if (addItemReceiptChoice === 'new') {
+        const { receiptId } = await createManualReceipt(
+          roomId,
+          isNaN(taxValue) ? null : taxValue,
+        );
+        finalReceiptId = receiptId;
+      } else if (addItemReceiptChoice !== null) {
+        finalReceiptId = addItemReceiptChoice;
+        if (!isNaN(taxValue)) {
+          updateReceiptTax(finalReceiptId, taxValue).catch((err) => {
+            console.error(err);
+            Alert.alert(
+              'Tax Update Failed',
+              'The item was added but the tax could not be saved. Please try again.',
+            );
+          });
+        }
+      }
+      const { itemId } = await addItem(roomId, finalReceiptId);
+      receiptItems.setItems((prev) => [
+        ...prev,
+        {
+          id: itemId,
+          name: '',
+          price: '0.00',
+          userTags: [],
+          receiptId: finalReceiptId,
+        },
+      ]);
+    } catch (err) {
+      console.error('Failed to add item:', err);
+      Alert.alert('Error', 'Failed to add item. Please try again.');
+    } finally {
+      setIsAddingItem(false);
+    }
+  };
+
   const updateReceiptItem = (id: string, updates: Partial<ReceiptItemData>) => {
     receiptItems.setItems((prevItems) =>
       prevItems.map((item) =>
         item.id === id ? { ...item, ...updates } : item,
       ),
     );
+    // Persist name/price changes to the database for real group rooms (debounced)
+    if (
+      isGroupRoom &&
+      (updates.name !== undefined || updates.price !== undefined)
+    ) {
+      clearTimeout(itemUpdateTimers.current[id]);
+      itemUpdateTimers.current[id] = setTimeout(() => {
+        receiptItems.setItems((latestItems) => {
+          const latest = latestItems.find((i) => i.id === id);
+          if (!latest) return latestItems;
+          const nameToSave =
+            updates.name !== undefined ? updates.name : latest.name;
+          const priceStr =
+            updates.price !== undefined ? updates.price : latest.price;
+          const unitPrice = parseFloat(priceStr || '0');
+          updateItem(
+            id,
+            nameToSave,
+            isNaN(unitPrice) ? undefined : unitPrice,
+          ).catch((err) => {
+            console.error(err);
+            Alert.alert(
+              'Save Failed',
+              'Could not save item changes. Please try again.',
+            );
+          });
+          return latestItems; // no state change, just reading
+        });
+      }, 600);
+    }
   };
 
   const deleteReceiptItem = (id: string) => {
@@ -561,6 +824,48 @@ export default function ReceiptRoomScreen() {
       next.delete(id);
       return next;
     });
+    if (isGroupRoom)
+      deleteItem(id).catch((err) => {
+        console.error(err);
+        Alert.alert(
+          'Delete Failed',
+          'Could not delete the item. Please refresh and try again.',
+        );
+      });
+  };
+
+  const handleDeleteReceipt = (receiptId: string, sectionItemIds: string[]) => {
+    const count = sectionItemIds.length;
+    Alert.alert(
+      'Delete Receipt',
+      `Delete this receipt and its ${count} item${count !== 1 ? 's' : ''}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const idSet = new Set(sectionItemIds);
+            receiptItems.setItems((prev) =>
+              prev.filter((item) => !idSet.has(item.id)),
+            );
+            setSelectedItemIds((prev) => {
+              const next = new Set(prev);
+              idSet.forEach((id) => next.delete(id));
+              return next;
+            });
+            if (isGroupRoom)
+              deleteReceipt(receiptId).catch((err) => {
+                console.error(err);
+                Alert.alert(
+                  'Delete Failed',
+                  'Could not delete the receipt. Please refresh and try again.',
+                );
+              });
+          },
+        },
+      ],
+    );
   };
 
   const removeItemFromUser = (itemId: string, userId: number) => {
@@ -577,7 +882,14 @@ export default function ReceiptRoomScreen() {
     );
     if (isGroupRoom) {
       const profileId = groupDisplay.participantIdToProfileId.get(userId);
-      if (profileId) unassignItem(itemId, profileId).catch(console.error);
+      if (profileId)
+        unassignItem(itemId, profileId).catch((err) => {
+          console.error(err);
+          Alert.alert(
+            'Error',
+            'Failed to remove item assignment. Please refresh and try again.',
+          );
+        });
     }
   };
 
@@ -589,14 +901,22 @@ export default function ReceiptRoomScreen() {
   };
 
   const getParticipantTotal = (participantId: number) => {
-    const total = receiptItems.items
-      .filter((item) => item.userTags?.includes(participantId))
-      .reduce((sum, item) => {
-        const price = parseFloat(item.price || '0');
-        const discount = parseFloat(item.discount || '0');
-        const claimCount = item.userTags?.length || 1;
-        return sum + (price - discount) / claimCount;
-      }, 0);
+    const participantItems = receiptItems.items.filter((item) =>
+      item.userTags?.includes(participantId),
+    );
+    const subtotal = participantItems.reduce((sum, item) => {
+      const price = parseFloat(item.price || '0');
+      const discount = parseFloat(item.discount || '0');
+      const claimCount = item.userTags?.length || 1;
+      return sum + (price - discount) / claimCount;
+    }, 0);
+    const tax = participantItems.reduce((sum, item) => {
+      const rid = item.receiptId ?? null;
+      if (!rid || !taxPerItemMap.has(rid)) return sum;
+      const claimCount = item.userTags?.length || 1;
+      return sum + taxPerItemMap.get(rid)! / claimCount;
+    }, 0);
+    const total = subtotal + tax;
     if (total > 100000) {
       return '100,000.00+';
     }
@@ -628,6 +948,64 @@ export default function ReceiptRoomScreen() {
         <View className='w-[14vw] h-[2vh]' />
       </View>
 
+      {/* ── Group name (group rooms only) ── */}
+      {isGroupRoom && (
+        <View className='items-center px-16 pb-1' pointerEvents='box-none'>
+          {isEditingGroupName ? (
+            <TextInput
+              value={groupName}
+              onChangeText={setGroupName}
+              autoFocus
+              returnKeyType='done'
+              onSubmitEditing={() => {
+                setIsEditingGroupName(false);
+                const trimmed = groupName.trim();
+                if (trimmed)
+                  updateGroupName(roomId, trimmed).catch((err) => {
+                    console.error(err);
+                    Alert.alert(
+                      'Save Failed',
+                      'Could not save the group name. Please try again.',
+                    );
+                  });
+              }}
+              onBlur={() => {
+                setIsEditingGroupName(false);
+                const trimmed = groupName.trim();
+                if (trimmed)
+                  updateGroupName(roomId, trimmed).catch((err) => {
+                    console.error(err);
+                    Alert.alert(
+                      'Save Failed',
+                      'Could not save the group name. Please try again.',
+                    );
+                  });
+              }}
+              className='text-foreground text-base font-bold text-center border-b border-border'
+              style={{ minWidth: 80 }}
+              numberOfLines={1}
+            />
+          ) : (
+            <Pressable
+              className='flex-row items-center gap-1'
+              onPress={() => setIsEditingGroupName(true)}
+            >
+              <Text
+                className='text-foreground text-base font-bold'
+                numberOfLines={1}
+              >
+                {groupName || 'Group'}
+              </Text>
+              <MaterialCommunityIcons
+                name='pencil-outline'
+                size={14}
+                className='text-muted-foreground'
+              />
+            </Pressable>
+          )}
+        </View>
+      )}
+
       {/* ── Body content ── */}
       <View className='flex-1'>
         {/* Middle part - scrollable receipt items */}
@@ -640,53 +1018,119 @@ export default function ReceiptRoomScreen() {
           scrollEventThrottle={16}
           onContentSizeChange={scrollCtx.onContentSizeChange}
           contentContainerStyle={{ paddingBottom: scrollCtx.bottomPadding }}
+          refreshControl={
+            isGroupRoom ? (
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+              />
+            ) : undefined
+          }
         >
           <View className='gap-2'>
-            {displayItems.map((item) => (
-              <ReceiptItem
-                key={item.id}
-                item={item}
-                onUpdate={(updates) => updateReceiptItem(item.id, updates)}
-                onDelete={() => deleteReceiptItem(item.id)}
-                onRemoveFromUser={(userId) =>
-                  removeItemFromUser(item.id, userId)
-                }
-                participantLayouts={participantLayouts.current}
-                scrollOffset={scrollOffset}
-                onDragStart={(_itemId, initialPosition) =>
-                  handleItemDragStart(item.id, initialPosition)
-                }
-                onDragEnd={handleItemDragEnd}
-                onDragMove={handleItemDragMove}
-                onDropOnParticipant={claimSelectedToParticipant}
-                isDragging={
-                  dragState.selectedItemIds.includes(item.id) &&
-                  dragState.isDragging
-                }
-                dragPan={dragPan}
-                onParticipantBoundsChange={handleParticipantBoundsChange}
-                isInParticipantBoundsProp={false}
-                getCurrentItemData={() =>
-                  displayItems.find((i) => i.id === item.id)!
-                }
-                isAnyTextFocused={isAnyTextFocused}
-                onTextFocusChange={setIsAnyTextFocused}
-                isEditMode={isEditMode}
-                editModeAnim={editModeAnim}
-                isSelected={selectedItemIds.has(item.id)}
-                onToggleSelect={() => toggleItemSelection(item.id)}
-                scrollContext={scrollCtx}
-              />
-            ))}
-
-            {/* Add Receipt Item button - fades in/out with edit mode */}
+            {itemSections.map(
+              ({ receiptId, items: sectionItems }, sectionIndex) => (
+                <React.Fragment key={receiptId ?? '__no_receipt__'}>
+                  {isGroupRoom && (
+                    <View className='flex-row items-center justify-between px-1 pt-1'>
+                      <Text className='text-muted-foreground text-xs font-semibold uppercase tracking-wide'>
+                        {receiptId
+                          ? (() => {
+                              const r = groupData.receipts.find(
+                                (rec) => rec.id === receiptId,
+                              );
+                              const byLine = r?.is_manual
+                                ? `Created by ${receiptUploaderMap.get(receiptId) ?? 'Unknown'}`
+                                : `Uploaded by ${receiptUploaderMap.get(receiptId) ?? 'Unknown'}`;
+                              return `Receipt #${sectionIndex + 1} · ${byLine}`;
+                            })()
+                          : 'No Receipt'}
+                      </Text>
+                      {isEditMode && receiptId && (
+                        <Pressable
+                          onPress={() =>
+                            handleDeleteReceipt(
+                              receiptId,
+                              sectionItems.map((i) => i.id),
+                            )
+                          }
+                          className='active:opacity-50 p-1'
+                        >
+                          <MaterialCommunityIcons
+                            name='trash-can-outline'
+                            size={16}
+                            color='#ef4444'
+                          />
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
+                  {sectionItems.map((item) => (
+                    <ReceiptItem
+                      key={item.id}
+                      item={item}
+                      onUpdate={(updates) =>
+                        updateReceiptItem(item.id, updates)
+                      }
+                      onDelete={() => deleteReceiptItem(item.id)}
+                      onRemoveFromUser={(userId) =>
+                        removeItemFromUser(item.id, userId)
+                      }
+                      participantLayouts={participantLayouts.current}
+                      scrollOffset={scrollOffset}
+                      onDragStart={(_itemId, initialPosition) =>
+                        handleItemDragStart(item.id, initialPosition)
+                      }
+                      onDragEnd={handleItemDragEnd}
+                      bannerTranslation={bannerTranslation}
+                      onDropOnParticipant={claimSelectedToParticipant}
+                      isDragging={
+                        dragState.selectedItemIds.includes(item.id) &&
+                        dragState.isDragging
+                      }
+                      dragPan={dragPan}
+                      onParticipantBoundsChange={handleParticipantBoundsChange}
+                      isInParticipantBoundsProp={false}
+                      getCurrentItemData={() =>
+                        displayItems.find((i) => i.id === item.id)!
+                      }
+                      isAnyTextFocused={isAnyTextFocused}
+                      onTextFocusChange={setIsAnyTextFocused}
+                      isEditMode={isEditMode}
+                      editModeAnim={editModeAnim}
+                      isSelected={selectedItemIds.has(item.id)}
+                      onToggleSelect={() => toggleItemSelection(item.id)}
+                      scrollContext={scrollCtx}
+                    />
+                  ))}
+                  {/* Tax row — displayed at the bottom of each receipt section */}
+                  {isGroupRoom && receiptId && receiptTaxMap.has(receiptId) && (
+                    <View className='flex-row items-center justify-between bg-card rounded-2xl px-4 py-3 border border-border opacity-70'>
+                      <View className='flex-row items-center gap-2'>
+                        <MaterialCommunityIcons
+                          name='percent-outline'
+                          size={16}
+                          color='#6b7280'
+                        />
+                        <Text className='text-muted-foreground text-sm font-medium'>
+                          Tax
+                        </Text>
+                      </View>
+                      <Text className='text-muted-foreground text-sm font-semibold'>
+                        ${receiptTaxMap.get(receiptId)!.toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+                </React.Fragment>
+              ),
+            )}
             <Animated.View
               style={{ opacity: editModeAnim }}
               pointerEvents={isEditMode ? 'auto' : 'none'}
             >
               <Pressable
                 className='bg-card rounded-2xl border border-border w-full py-4 items-center justify-center active:opacity-70 flex-row gap-2'
-                onPress={addReceiptItem}
+                onPress={handleAddReceiptItem}
               >
                 <MaterialCommunityIcons
                   name='plus'
@@ -741,6 +1185,7 @@ export default function ReceiptRoomScreen() {
                     router.push({
                       pathname: '../items',
                       params: {
+                        roomId,
                         items: JSON.stringify(
                           displayItems.filter((item) =>
                             item.userTags?.includes(participant.id),
@@ -748,11 +1193,36 @@ export default function ReceiptRoomScreen() {
                         ),
                         participantId: participant.id.toString(),
                         participantName: participant.name,
+                        profileId:
+                          groupDisplay.participantIdToProfileId.get(
+                            participant.id,
+                          ) ?? '',
+                        taxPerItem: JSON.stringify(
+                          Object.fromEntries(taxPerItemMap),
+                        ),
                       } as YourItemsRoomParams,
                     });
                   }
                 }}
                 isEditMode={isEditMode}
+                onRename={
+                  isGroupRoom
+                    ? // In a group room: only the current user can rename themselves
+                      groupDisplay.participantIdToProfileId.get(
+                        participant.id,
+                      ) === currentUserId
+                      ? (newName) =>
+                          updateUsername(newName).catch((err) => {
+                            console.error(err);
+                            Alert.alert(
+                              'Save Failed',
+                              'Could not update your username. Please try again.',
+                            );
+                          })
+                      : undefined
+                    : // In a local room: anyone can be renamed
+                      (newName) => renameParticipant(participant.id, newName)
+                }
               />
             ))}
 
@@ -867,174 +1337,189 @@ export default function ReceiptRoomScreen() {
 
       {/* ── Layer 3 (z:30): Right button + dropdown — always above the overlay ── */}
       <View
-        className='absolute right-4'
+        className='absolute right-4 flex-row items-center gap-2'
         style={{ zIndex: 30, top: insets.top + 8 }}
       >
-        <Pressable
-          className='absolute top-0 right-0'
-          style={{ width: 280, zIndex: 1 }}
-          pointerEvents={showQuickActions ? 'auto' : 'none'}
-        >
-          <Animated.View style={{ opacity: dropdownOpacity }}>
-            <View className='bg-card border border-border rounded-[25px] shadow-lg shadow-black/30 overflow-hidden'>
-              {/* Top row of icon buttons */}
-              <View className='flex-row items-center justify-around py-3 px-4'>
+        {/* Complete button — visible only when all items are assigned */}
+        {allItemsAssigned && !showQuickActions && (
+          <Pressable
+            className='bg-primary px-3 h-[14vw] rounded-2xl items-center justify-center shadow-md shadow-black/20 active:opacity-70'
+            onPress={() =>
+              router.push({ pathname: '/room-summary', params: { roomId } })
+            }
+          >
+            <Text className='text-primary-foreground font-semibold text-sm'>
+              Complete
+            </Text>
+          </Pressable>
+        )}
+
+        {/* Three-dots button + dropdown */}
+        <View>
+          <Pressable
+            className='absolute top-0 right-0'
+            style={{ width: 280, zIndex: 1 }}
+            pointerEvents={showQuickActions ? 'auto' : 'none'}
+          >
+            <Animated.View style={{ opacity: dropdownOpacity }}>
+              <View className='bg-card border border-border rounded-[25px] shadow-lg shadow-black/30 overflow-hidden'>
+                {/* Top row of icon buttons */}
+                <View className='flex-row items-center justify-around py-3 px-4'>
+                  <Pressable
+                    className='items-center gap-1'
+                    onPress={() => {
+                      setShowQuickActions(false);
+                      router.push({
+                        pathname: '/add-receipt',
+                        params: { groupId: roomId },
+                      });
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name='receipt-text-plus-outline'
+                      size={24}
+                      className='text-accent-dark'
+                    />
+                    <Text className='text-foreground text-xs'>Add Receipt</Text>
+                  </Pressable>
+                  <Pressable
+                    className='items-center gap-1'
+                    onPress={() => {
+                      setShowQuickActions(false);
+                      router.push(
+                        `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
+                      );
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name='account-multiple-plus-outline'
+                      size={24}
+                      className='text-accent-dark'
+                    />
+                    <Text className='text-foreground text-xs'>Share</Text>
+                  </Pressable>
+                  <Pressable
+                    className='items-center gap-1'
+                    onPress={() => {
+                      setShowQuickActions(false);
+                      router.navigate('/setting');
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name='cog-outline'
+                      size={24}
+                      className='text-accent-dark'
+                    />
+                    <Text className='text-foreground text-xs'>Settings</Text>
+                  </Pressable>
+                </View>
+
+                <View className='h-px bg-border' />
+
+                {/* Menu items */}
                 <Pressable
-                  className='items-center gap-1'
+                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
                   onPress={() => {
+                    selectAllItems();
                     setShowQuickActions(false);
-                    router.push({
-                      pathname: '/add-receipt',
-                      params: { groupId: roomId },
-                    });
                   }}
                 >
                   <MaterialCommunityIcons
-                    name='receipt-text-plus-outline'
-                    size={24}
+                    name='checkbox-multiple-marked-outline'
+                    size={22}
                     className='text-accent-dark'
                   />
-                  <Text className='text-foreground text-xs'>Add Receipt</Text>
+                  <Text className='text-foreground text-base font-medium'>
+                    Select All Items
+                  </Text>
                 </Pressable>
+
                 <Pressable
-                  className='items-center gap-1'
+                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
                   onPress={() => {
+                    deselectAllItems();
                     setShowQuickActions(false);
-                    router.push(
-                      `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
-                    );
                   }}
                 >
                   <MaterialCommunityIcons
-                    name='account-multiple-plus-outline'
-                    size={24}
+                    name='checkbox-multiple-blank-outline'
+                    size={22}
                     className='text-accent-dark'
                   />
-                  <Text className='text-foreground text-xs'>Share</Text>
+                  <Text className='text-foreground text-base font-medium'>
+                    Deselect All Items
+                  </Text>
                 </Pressable>
+
                 <Pressable
-                  className='items-center gap-1'
+                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
                   onPress={() => {
+                    claimForAll();
                     setShowQuickActions(false);
-                    router.navigate('/setting');
                   }}
                 >
                   <MaterialCommunityIcons
-                    name='cog-outline'
-                    size={24}
+                    name='download'
+                    size={22}
                     className='text-accent-dark'
                   />
-                  <Text className='text-foreground text-xs'>Settings</Text>
+                  <Text className='text-foreground text-base font-medium'>
+                    Claim for All Selected Items
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                  onPress={() => {
+                    unclaimForAll();
+                    setShowQuickActions(false);
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name='upload'
+                    size={22}
+                    className='text-accent-dark'
+                  />
+                  <Text className='text-foreground text-base font-medium'>
+                    Unclaim for All Selected Items
+                  </Text>
                 </Pressable>
               </View>
-
-              <View className='h-px bg-border' />
-
-              {/* Menu items */}
-              <Pressable
-                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                onPress={() => {
-                  selectAllItems();
-                  setShowQuickActions(false);
-                }}
-              >
-                <MaterialCommunityIcons
-                  name='checkbox-multiple-marked-outline'
-                  size={22}
-                  className='text-accent-dark'
-                />
-                <Text className='text-foreground text-base font-medium'>
-                  Select All Items
-                </Text>
-              </Pressable>
-
-              <Pressable
-                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                onPress={() => {
-                  deselectAllItems();
-                  setShowQuickActions(false);
-                }}
-              >
-                <MaterialCommunityIcons
-                  name='checkbox-multiple-blank-outline'
-                  size={22}
-                  className='text-accent-dark'
-                />
-                <Text className='text-foreground text-base font-medium'>
-                  Deselect All Items
-                </Text>
-              </Pressable>
-
-              <Pressable
-                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                onPress={() => {
-                  claimForAll();
-                  setShowQuickActions(false);
-                }}
-              >
-                <MaterialCommunityIcons
-                  name='download'
-                  size={22}
-                  className='text-accent-dark'
-                />
-                <Text className='text-foreground text-base font-medium'>
-                  Claim for All Selected
-                </Text>
-              </Pressable>
-
-              <Pressable
-                className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                onPress={() => {
-                  unclaimForAll();
-                  setShowQuickActions(false);
-                }}
-              >
-                <MaterialCommunityIcons
-                  name='upload'
-                  size={22}
-                  className='text-accent-dark'
-                />
-                <Text className='text-foreground text-base font-medium'>
-                  Unclaim for All Selected
-                </Text>
-              </Pressable>
-            </View>
+            </Animated.View>
+          </Pressable>
+          <Animated.View
+            style={{
+              opacity: dropdownOpacity.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0],
+              }),
+            }}
+            pointerEvents='box-none'
+          >
+            <IconButton
+              icon='dots-horizontal'
+              bgClassName='bg-card shadow-md shadow-black/20'
+              iconClassName='text-accent-dark'
+              pressEffect='fade'
+              onPress={() => setShowQuickActions((prev) => !prev)}
+            />
           </Animated.View>
-        </Pressable>
-        <Animated.View
-          style={{
-            opacity: dropdownOpacity.interpolate({
-              inputRange: [0, 1],
-              outputRange: [1, 0],
-            }),
-          }}
-          pointerEvents='box-none'
-        >
-          <IconButton
-            icon='dots-horizontal'
-            bgClassName='bg-card shadow-md shadow-black/20'
-            iconClassName='text-accent-dark'
-            pressEffect='fade'
-            onPress={() => setShowQuickActions((prev) => !prev)}
-          />
-        </Animated.View>
+        </View>
       </View>
 
       {/* Drag overlay - "Claim N items" indicator */}
       {bannerVisibleState && bannerInitialPosRef.current && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            zIndex: 9999,
-            elevation: 9999,
-            top: bannerInitialPosRef.current.y - 40,
-            left: bannerInitialPosRef.current.x - 20,
-            opacity: bannerOpacity,
-            transform: [
-              ...bannerLerpPan.getTranslateTransform(),
-              { scale: bannerScale },
-            ],
-          }}
+        <Reanimated.View
+          style={[
+            {
+              position: 'absolute',
+              zIndex: 9999,
+              elevation: 9999,
+              top: bannerInitialPosRef.current.y - 40,
+              left: bannerInitialPosRef.current.x - 20,
+            },
+            bannerAnimStyle,
+          ]}
           pointerEvents='none'
         >
           <View className='bg-primary rounded-2xl px-4 py-4 h-[6vh] w-[45vw] shadow-lg shadow-black/30'>
@@ -1043,14 +1528,13 @@ export default function ReceiptRoomScreen() {
               {bannerItemCountRef.current === 1 ? 'item' : 'items'}
             </Text>
           </View>
-        </Animated.View>
+        </Reanimated.View>
       )}
 
       <AddParticipantSheet
         visible={showAddOptions}
         onClose={() => setShowAddOptions(false)}
         onShareSMS={handleShareSMS}
-        onShowQR={handleShowQR}
         onAddManually={handleAddManually}
       />
 
@@ -1058,51 +1542,15 @@ export default function ReceiptRoomScreen() {
         visible={showAddManual}
         onClose={() => setShowAddManual(false)}
         onAdd={(name) => addParticipant(name)}
-        addedParticipants={participants}
-        onRenameParticipant={renameParticipant}
-        onRemoveParticipant={removeParticipant}
+        addedParticipants={
+          isGroupRoom ? groupDisplay.participants : participants
+        }
+        lockedParticipantIds={
+          isGroupRoom ? groupDisplay.participants.map((p) => p.id) : []
+        }
+        onRenameParticipant={isGroupRoom ? undefined : renameParticipant}
+        onRemoveParticipant={isGroupRoom ? undefined : removeParticipant}
       />
-
-      {/* QR Code Modal */}
-      <Modal
-        transparent={false}
-        animationType='slide'
-        visible={showQRModal}
-        onRequestClose={() => {
-          setShowQRModal(false);
-          setShowAddOptions(true);
-        }}
-      >
-        <SafeAreaView className='flex-1 bg-background'>
-          <View className='flex-1 items-center justify-center gap-8 px-6'>
-            <Text className='text-foreground text-2xl font-bold'>
-              Room QR Code
-            </Text>
-            <QRCode
-              value={`${process.env.EXPO_PUBLIC_FRONTEND_URL ?? 'http://localhost:5173'}/join?roomId=${roomId}`}
-              size={220}
-              backgroundColor='white'
-              color='black'
-            />
-            <Text className='text-muted-foreground text-sm'>
-              Room ID: {roomId}
-            </Text>
-          </View>
-          <View className='px-5 pb-8'>
-            <Pressable
-              className='py-3 items-center active:opacity-70'
-              onPress={() => {
-                setShowQRModal(false);
-                setShowAddOptions(true);
-              }}
-            >
-              <Text className='text-accent-dark text-base font-medium'>
-                Close
-              </Text>
-            </Pressable>
-          </View>
-        </SafeAreaView>
-      </Modal>
 
       {isLoadingPhoto && (
         <View
@@ -1119,51 +1567,182 @@ export default function ReceiptRoomScreen() {
         </View>
       )}
 
-      {/* Guest Name Entry Modal (shown when navigating from join-room) */}
+      {pendingConfidence && (
+        <ReceiptConfidenceModal
+          visible={showConfidenceModal}
+          onClose={() => {
+            setShowConfidenceModal(false);
+            setPendingConfidence(null);
+          }}
+          data={pendingConfidence}
+        />
+      )}
+
+      {/* Add Item Receipt Picker Sheet */}
       <Modal
+        visible={showAddItemSheet}
         transparent
-        animationType='fade'
-        visible={showNameModal}
-        onRequestClose={() => {}}
+        animationType='slide'
+        onRequestClose={() => setShowAddItemSheet(false)}
       >
-        <View className='flex-1 bg-black/50 items-center justify-center px-6'>
-          <View className='bg-card rounded-3xl p-6 w-full max-w-sm'>
-            <Text className='text-foreground text-xl font-bold mb-1'>
-              What&apos;s your name?
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <Pressable
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
+            onPress={() => setShowAddItemSheet(false)}
+          />
+          <View
+            className='bg-background border-t border-border rounded-t-3xl'
+            style={{ paddingBottom: insets.bottom + 12 }}
+          >
+            <View className='items-center py-3'>
+              <View className='w-10 h-1 rounded-full bg-border' />
+            </View>
+            <Text className='text-foreground text-base font-bold px-4 pb-3'>
+              Add to Receipt
             </Text>
-            <Text className='text-muted-foreground text-sm mb-5'>
-              This is how other participants will see you.
-            </Text>
-            <TextInput
-              ref={nameInputRef}
-              value={guestName}
-              onChangeText={setGuestName}
-              placeholder='Your name…'
-              placeholderTextColor='#8fa4ce'
-              autoFocus
-              returnKeyType='done'
-              onSubmitEditing={handleSubmitGuestName}
-              className='bg-background rounded-xl px-4 py-3 text-foreground text-base border border-border mb-4'
-            />
-            <Pressable
-              onPress={handleSubmitGuestName}
-              disabled={!guestName.trim() || isSubmittingName}
-              className={`rounded-2xl py-3 items-center ${
-                guestName.trim() && !isSubmittingName
-                  ? 'bg-primary active:opacity-80'
-                  : 'bg-card opacity-50'
-              }`}
+            <ScrollView
+              style={{ maxHeight: 320 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps='handled'
             >
-              {isSubmittingName ? (
-                <ActivityIndicator size='small' color='#ffffff' />
-              ) : (
-                <Text className='text-primary-foreground font-semibold text-base'>
-                  Join Room
+              {/* No receipt option */}
+              <Pressable
+                onPress={() => {
+                  setAddItemReceiptChoice(null);
+                  setAddItemTax('');
+                }}
+                className='flex-row items-center gap-3 px-4 py-3 border-b border-border active:opacity-70'
+              >
+                <MaterialCommunityIcons
+                  name={
+                    addItemReceiptChoice === null
+                      ? 'radiobox-marked'
+                      : 'radiobox-blank'
+                  }
+                  size={20}
+                  color={addItemReceiptChoice === null ? '#4999DF' : '#9ca3af'}
+                />
+                <Text className='text-foreground flex-1'>
+                  No receipt (uncategorized)
                 </Text>
+              </Pressable>
+
+              {/* Existing receipts */}
+              {groupData.receipts.map((r, i) => {
+                const label = `Receipt #${i + 1}`;
+                const byLine = r.is_manual
+                  ? `Created by ${receiptUploaderMap.get(r.id) ?? 'Unknown'}`
+                  : `Uploaded by ${receiptUploaderMap.get(r.id) ?? 'Unknown'}`;
+                const isSelected = addItemReceiptChoice === r.id;
+                return (
+                  <View key={r.id} className='border-b border-border'>
+                    <Pressable
+                      onPress={() => {
+                        setAddItemReceiptChoice(r.id);
+                        setAddItemTax(r.tax != null ? String(r.tax) : '');
+                      }}
+                      className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                    >
+                      <MaterialCommunityIcons
+                        name={isSelected ? 'radiobox-marked' : 'radiobox-blank'}
+                        size={20}
+                        color={isSelected ? '#4999DF' : '#9ca3af'}
+                      />
+                      <View className='flex-1'>
+                        <Text className='text-foreground font-medium'>
+                          {label}
+                        </Text>
+                        <Text className='text-muted-foreground text-xs'>
+                          {byLine}
+                        </Text>
+                      </View>
+                      {r.tax != null && !isSelected && (
+                        <Text className='text-muted-foreground text-xs'>
+                          Tax: ${r.tax.toFixed(2)}
+                        </Text>
+                      )}
+                    </Pressable>
+                    {isSelected && (
+                      <View className='flex-row items-center gap-2 pl-12 pr-4 pb-3'>
+                        <Text className='text-muted-foreground text-sm'>
+                          Tax ($):
+                        </Text>
+                        <TextInput
+                          value={addItemTax}
+                          onChangeText={setAddItemTax}
+                          placeholder='0.00'
+                          keyboardType='decimal-pad'
+                          className='border border-border rounded-lg px-3 py-1 text-foreground text-sm w-24'
+                        />
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+
+              {/* New manual receipt option */}
+              <Pressable
+                onPress={() => {
+                  setAddItemReceiptChoice('new');
+                  setAddItemTax('');
+                }}
+                className='flex-row items-center gap-3 px-4 py-3 border-b border-border active:opacity-70'
+              >
+                <MaterialCommunityIcons
+                  name={
+                    addItemReceiptChoice === 'new'
+                      ? 'radiobox-marked'
+                      : 'radiobox-blank'
+                  }
+                  size={20}
+                  color={addItemReceiptChoice === 'new' ? '#4999DF' : '#9ca3af'}
+                />
+                <Text className='text-foreground flex-1'>
+                  + New manual receipt
+                </Text>
+              </Pressable>
+              {addItemReceiptChoice === 'new' && (
+                <View className='gap-3 px-4 py-3 ml-8'>
+                  <View className='flex-row items-center gap-2'>
+                    <Text className='text-muted-foreground text-sm'>
+                      Tax ($):
+                    </Text>
+                    <TextInput
+                      value={addItemTax}
+                      onChangeText={setAddItemTax}
+                      placeholder='0.00'
+                      keyboardType='decimal-pad'
+                      className='border border-border rounded-lg px-3 py-1 text-foreground text-sm w-24'
+                    />
+                  </View>
+                </View>
               )}
-            </Pressable>
+            </ScrollView>
+
+            <View className='flex-row gap-3 px-4 pt-4'>
+              <Pressable
+                onPress={() => setShowAddItemSheet(false)}
+                className='flex-1 bg-card border border-border rounded-xl py-3 items-center active:opacity-70'
+              >
+                <Text className='text-muted-foreground font-medium'>
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmAddItem}
+                disabled={isAddingItem}
+                className='flex-1 bg-primary rounded-xl py-3 items-center active:opacity-70'
+              >
+                <Text className='text-primary-foreground font-medium'>
+                  {isAddingItem ? 'Adding…' : 'Add Item'}
+                </Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

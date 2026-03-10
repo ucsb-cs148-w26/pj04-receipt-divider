@@ -39,6 +39,7 @@ const colorExtentions = {
   'status-pending': 'var(--color-status-pending)',
   'status-completed': 'var(--color-status-completed)',
   'status-waiting': 'var(--color-status-waiting)',
+  'status-unrequested': 'var(--color-status-unrequested)',
 
   // App-specific
   'amount-positive': 'var(--color-amount-positive)',

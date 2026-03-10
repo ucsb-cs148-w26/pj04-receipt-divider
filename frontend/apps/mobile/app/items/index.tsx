@@ -10,17 +10,24 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ReceiptItemData } from '@shared/types';
 import { DisplayItems } from '@shared/components/DisplayItems';
 import { useReceiptItems } from '@/providers';
+import { unassignItem } from '@/services/groupApi';
 
 export type YourItemsRoomParams = {
   roomId: string;
   items: string;
   participantId: string;
   participantName: string;
+  /** Supabase profile_id for this participant (group rooms only) */
+  profileId: string;
+  /** JSON: Record<receiptId, taxPerItem> — evenly split tax per item in that receipt */
+  taxPerItem?: string;
 };
 
 export default function YourItemScreen() {
   const params = useLocalSearchParams<YourItemsRoomParams>();
   const participantId = parseInt(params.participantId);
+  const profileId = params.profileId ?? '';
+  const isGroupRoom = !!params.roomId && /^[0-9a-f-]{36}$/i.test(params.roomId);
   const receiptItemsContext = useReceiptItems();
 
   const scrollCtx = useScrollToInput({ resetOnBlur: true });
@@ -30,6 +37,11 @@ export default function YourItemScreen() {
   );
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(params.participantName ?? '');
+
+  // taxPerItem: receiptId → tax per item in that receipt (evenly split)
+  const taxPerItemMap: Record<string, number> = params.taxPerItem
+    ? (JSON.parse(params.taxPerItem) as Record<string, number>)
+    : {};
 
   let totalSum = 0;
 
@@ -77,6 +89,22 @@ export default function YourItemScreen() {
   const displayItems = localItems.map((item) => ({ ...item }));
   calculatePrices(displayItems);
 
+  // Tax: for each item this participant has, add their share of the receipt-level tax.
+  // taxPerItem[receiptId] = receipt.tax / total items in that receipt (evenly split).
+  // The participant's share of that item's tax = taxPerItem * (1 / userTags.length).
+  let totalTax = 0;
+  for (const item of localItems) {
+    const rid = item.receiptId ?? null;
+    if (rid && taxPerItemMap[rid] != null) {
+      const share =
+        item.userTags && item.userTags.length > 1
+          ? 1 / item.userTags.length
+          : 1;
+      totalTax += taxPerItemMap[rid] * share;
+    }
+  }
+  totalTax = Math.round(totalTax * 100) / 100;
+
   // Percentage each item represents for this participant
   const percentages = Object.fromEntries(
     localItems.map((item) => [
@@ -99,6 +127,14 @@ export default function YourItemScreen() {
       ),
     );
     setLocalItems((prev) => prev.filter((item) => item.id !== itemId));
+    if (isGroupRoom && profileId)
+      unassignItem(itemId, profileId).catch((err) => {
+        console.error(err);
+        Alert.alert(
+          'Error',
+          'Failed to remove the item. Please refresh and try again.',
+        );
+      });
   };
 
   const confirmRemoveItem = (item: ReceiptItemData) => {
@@ -180,11 +216,29 @@ export default function YourItemScreen() {
           ))}
         </Animated.ScrollView>
 
-        <View className='border-t border-border w-full h-[14vh] flex-row justify-between items-center px-5 pb-[5vh] mt-2'>
-          <Text className='text-foreground text-xl font-bold'>Subtotal</Text>
-          <Text className='text-foreground text-xl font-bold'>
-            ${totalSum.toFixed(2)}
-          </Text>
+        <View className='border-t border-border w-full px-5 pb-[5vh] mt-2 pt-3 gap-1'>
+          <View className='flex-row justify-between items-center'>
+            <Text className='text-muted-foreground text-base'>Subtotal</Text>
+            <Text className='text-muted-foreground text-base'>
+              ${totalSum.toFixed(2)}
+            </Text>
+          </View>
+          {totalTax > 0 && (
+            <View className='flex-row justify-between items-center'>
+              <Text className='text-muted-foreground text-base'>Tax</Text>
+              <Text className='text-muted-foreground text-base'>
+                ${totalTax.toFixed(2)}
+              </Text>
+            </View>
+          )}
+          <View className='flex-row justify-between items-center mt-1'>
+            <Text className='text-foreground text-xl font-bold'>
+              {totalTax > 0 ? 'Total' : 'Subtotal'}
+            </Text>
+            <Text className='text-foreground text-xl font-bold'>
+              ${(totalSum + totalTax).toFixed(2)}
+            </Text>
+          </View>
         </View>
       </View>
       <DefaultButtons.Close onPress={() => router.back()} />
