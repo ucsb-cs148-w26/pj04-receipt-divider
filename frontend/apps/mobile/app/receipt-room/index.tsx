@@ -15,9 +15,8 @@ import {
   TextInput,
   RefreshControl,
   Modal,
-  KeyboardAvoidingView,
-  Platform,
   Image,
+  Keyboard,
 } from 'react-native';
 import {
   SafeAreaView,
@@ -35,6 +34,7 @@ import {
   IconButton,
   AddParticipantSheet,
   AddParticipantManualModal,
+  PriceInput,
   getRoomInviteMessage,
   useScrollToInput,
   calculateParticipantTotal,
@@ -192,19 +192,32 @@ export default function ReceiptRoomScreen() {
   const [viewingReceiptImage, setViewingReceiptImage] = useState<string | null>(
     null,
   );
+  /** Separate state for viewing a receipt image from within the add-item sheet,
+   *  displayed as an overlay inside the same Modal to avoid nested-Modal issues. */
+  const [addItemSheetViewingImage, setAddItemSheetViewingImage] = useState<
+    string | null
+  >(null);
 
   /**---------------- Add Item Sheet State ---------------- */
   const [showAddItemSheet, setShowAddItemSheet] = useState(false);
   const [addItemReceiptChoice, setAddItemReceiptChoice] = useState<
     string | null
   >(null);
-  const [addItemTax, setAddItemTax] = useState('');
+  const [addItemTax, setAddItemTax] = useState('0.00');
+  const [addItemName, setAddItemName] = useState('');
+  const [addItemPrice, setAddItemPrice] = useState('0.00');
 
   const [isAddingItem, setIsAddingItem] = useState(false);
 
   // Tracks the tax amount (in $) last saved to the receipt for each item,
   // so repeated price edits correctly update rather than accumulate.
   const itemSavedTaxRef = useRef<Record<string, number>>({});
+
+  // Optimistic local overrides for receipt tax amounts — updated immediately when
+  // updateReceiptTax is called so the UI reflects changes before Supabase resyncs.
+  const [localReceiptTaxOverrides, setLocalReceiptTaxOverrides] = useState<
+    Map<string, number>
+  >(new Map());
 
   /**---------------- OCR on initial photos from create-room ---------------- */
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
@@ -712,14 +725,19 @@ export default function ReceiptRoomScreen() {
     return m;
   }, [groupData.receipts]);
 
-  // Map receipt id → tax amount (null/0 if not present)
+  // Map receipt id → tax amount (null/0 if not present), with local optimistic overrides applied
   const receiptTaxMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of groupData.receipts) {
       if (r.tax != null && r.tax > 0) m.set(r.id, r.tax);
     }
+    // Apply optimistic overrides from local state (set before Supabase resyncs)
+    for (const [rid, tax] of localReceiptTaxOverrides.entries()) {
+      if (tax > 0) m.set(rid, tax);
+      else m.delete(rid);
+    }
     return m;
-  }, [groupData.receipts]);
+  }, [groupData.receipts, localReceiptTaxOverrides]);
 
   // Map receipt id → tax per item (receipt.tax / itemCount), for participant totals
   const taxPerItemMap = useMemo(() => {
@@ -862,8 +880,12 @@ export default function ReceiptRoomScreen() {
       addReceiptItem();
       return;
     }
-    setAddItemReceiptChoice(null);
-    setAddItemTax('');
+    setAddItemName('');
+    setAddItemPrice('0.00');
+    setAddItemTax('0.00');
+    setAddItemReceiptChoice(
+      groupData.receipts.length > 0 ? groupData.receipts[0].id : 'new',
+    );
     addItemBackdropAnim.setValue(0);
     addItemSheetAnim.setValue(0);
     setShowAddItemSheet(true);
@@ -893,7 +915,10 @@ export default function ReceiptRoomScreen() {
         duration: 220,
         useNativeDriver: true,
       }),
-    ]).start(() => setShowAddItemSheet(false));
+    ]).start(() => {
+      setShowAddItemSheet(false);
+      setAddItemSheetViewingImage(null);
+    });
   };
 
   const confirmAddItem = async () => {
@@ -904,22 +929,43 @@ export default function ReceiptRoomScreen() {
       const taxPctValue = parseFloat(addItemTax);
       const hasTaxPct = !isNaN(taxPctValue) && taxPctValue > 0;
       if (addItemReceiptChoice === 'new') {
-        // Create the receipt with no tax amount yet; tax will be added
-        // when the item's price is set (via updateReceiptItem).
         const { receiptId } = await createManualReceipt(roomId, null);
         finalReceiptId = receiptId;
       } else if (addItemReceiptChoice !== null) {
         finalReceiptId = addItemReceiptChoice;
-        // Don't update receipt tax here — item price is 0 at creation.
-        // Tax will be computed and saved when the user sets the item price.
       }
-      const { itemId } = await addItem(roomId, finalReceiptId);
+      const parsedPrice = parseFloat(addItemPrice) || 0;
+      const { itemId } = await addItem(
+        roomId,
+        finalReceiptId,
+        addItemName,
+        parsedPrice,
+      );
+      // If the item has a price and a tax rate, update the receipt's tax amount now.
+      if (hasTaxPct && parsedPrice > 0 && finalReceiptId) {
+        const newItemTax =
+          Math.round(parsedPrice * (taxPctValue / 100) * 100) / 100;
+        const receiptCurrentTax = receiptTaxMap.get(finalReceiptId) ?? 0;
+        const updatedReceiptTax =
+          Math.round((receiptCurrentTax + newItemTax) * 100) / 100;
+        itemSavedTaxRef.current[itemId] = newItemTax;
+        setLocalReceiptTaxOverrides((prev) => {
+          const next = new Map(prev);
+          next.set(finalReceiptId!, updatedReceiptTax);
+          return next;
+        });
+        await updateReceiptTax(finalReceiptId, updatedReceiptTax).catch(
+          (err) => {
+            console.error('Failed to update receipt tax:', err);
+          },
+        );
+      }
       receiptItems.setItems((prev) => [
         ...prev,
         {
           id: itemId,
-          name: '',
-          price: '0.00',
+          name: addItemName,
+          price: parsedPrice > 0 ? parsedPrice.toFixed(2) : '0.00',
           userTags: [],
           receiptId: finalReceiptId,
           taxPct: hasTaxPct ? taxPctValue : undefined,
@@ -982,6 +1028,11 @@ export default function ReceiptRoomScreen() {
               Math.round((receiptCurrentTax - prevItemTax + newItemTax) * 100) /
               100;
             itemSavedTaxRef.current[id] = newItemTax;
+            setLocalReceiptTaxOverrides((prev) => {
+              const next = new Map(prev);
+              next.set(latest.receiptId!, updatedReceiptTax);
+              return next;
+            });
             updateReceiptTax(latest.receiptId, updatedReceiptTax).catch(
               (err) => {
                 console.error(err);
@@ -1216,7 +1267,7 @@ export default function ReceiptRoomScreen() {
             {itemSections.map(
               ({ receiptId, items: sectionItems }, sectionIndex) => (
                 <React.Fragment key={receiptId ?? '__no_receipt__'}>
-                  {isGroupRoom && (
+                  {isGroupRoom && receiptId && (
                     <View className='flex-row items-center justify-between px-1 pt-1'>
                       <Text className='text-muted-foreground text-xs font-semibold uppercase tracking-wide'>
                         {receiptId
@@ -1862,12 +1913,11 @@ export default function ReceiptRoomScreen() {
         visible={showAddItemSheet}
         transparent
         animationType='none'
-        onRequestClose={dismissAddItemSheet}
+        onRequestClose={() => {
+          /* prevent hardware back from closing */
+        }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
+        <View style={{ flex: 1 }}>
           <Animated.View
             style={{
               flex: 1,
@@ -1875,12 +1925,17 @@ export default function ReceiptRoomScreen() {
               opacity: addItemBackdropAnim,
             }}
           >
-            <Pressable style={{ flex: 1 }} onPress={dismissAddItemSheet} />
+            <Pressable style={{ flex: 1 }} onPress={() => Keyboard.dismiss()} />
           </Animated.View>
           <Animated.View
             className='bg-background border-t border-border rounded-t-3xl'
+            // Dismiss keyboard on tap anywhere in the sheet that isn't a TextInput
+            onStartShouldSetResponder={() => {
+              Keyboard.dismiss();
+              return false;
+            }}
             style={[
-              { paddingBottom: insets.bottom + 12 },
+              { paddingBottom: insets.bottom + 64 },
               {
                 transform: [
                   {
@@ -1899,33 +1954,79 @@ export default function ReceiptRoomScreen() {
             <Text className='text-foreground text-base font-bold px-4 pb-3'>
               Add to Receipt
             </Text>
+
+            {/* Item name, price, and tax rate — styled like edit-mode item card */}
+            <View className='mx-4 mb-3 bg-card rounded-2xl p-4'>
+              <View className='flex-row items-center'>
+                <TextInput
+                  value={addItemName}
+                  onChangeText={setAddItemName}
+                  placeholder='Item name'
+                  placeholderTextColor='#9ca3af'
+                  className='text-foreground font-extrabold text-xl flex-1'
+                  style={{
+                    padding: 0,
+                    includeFontPadding: false,
+                    lineHeight: 20,
+                  }}
+                  numberOfLines={1}
+                  returnKeyType='next'
+                />
+                <View className='flex-row items-center ml-2'>
+                  <Text className='text-foreground font-extrabold text-xl'>
+                    $
+                  </Text>
+                  <PriceInput
+                    value={addItemPrice}
+                    onValueChange={setAddItemPrice}
+                    placeholder='0.00'
+                    placeholderTextColor='#9ca3af'
+                    className='text-foreground font-extrabold text-xl'
+                    style={{
+                      padding: 0,
+                      includeFontPadding: false,
+                      lineHeight: 20,
+                      minWidth: 20,
+                    }}
+                  />
+                </View>
+              </View>
+              <View className='flex-row items-center mt-3 pt-3 border-t border-border'>
+                <Text className='text-muted-foreground font-extrabold text-xl flex-1'>
+                  Tax rate
+                </Text>
+                <View className='flex-row items-center'>
+                  <PriceInput
+                    value={addItemTax}
+                    onValueChange={setAddItemTax}
+                    max={100}
+                    placeholder='0.00'
+                    placeholderTextColor='#9ca3af'
+                    className='text-foreground font-extrabold text-xl'
+                    style={{
+                      padding: 0,
+                      includeFontPadding: false,
+                      lineHeight: 20,
+                      minWidth: 20,
+                    }}
+                  />
+                  <Text className='text-foreground font-extrabold text-xl ml-1'>
+                    %
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View className='h-px bg-border mx-4 mb-1' />
+            <Text className='text-muted-foreground text-xs font-semibold px-4 pb-2 pt-2'>
+              Receipt
+            </Text>
+
             <ScrollView
-              style={{ maxHeight: 320 }}
+              style={{ maxHeight: 260 }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps='handled'
             >
-              {/* No receipt option */}
-              <Pressable
-                onPress={() => {
-                  setAddItemReceiptChoice(null);
-                  setAddItemTax('');
-                }}
-                className='flex-row items-center gap-3 px-4 py-3 border-b border-border active:opacity-70'
-              >
-                <MaterialCommunityIcons
-                  name={
-                    addItemReceiptChoice === null
-                      ? 'radiobox-marked'
-                      : 'radiobox-blank'
-                  }
-                  size={20}
-                  color={addItemReceiptChoice === null ? '#4999DF' : '#9ca3af'}
-                />
-                <Text className='text-foreground flex-1'>
-                  No receipt (uncategorized)
-                </Text>
-              </Pressable>
-
               {/* Existing receipts */}
               {groupData.receipts.map((r) => {
                 const label = `Receipt #${receiptNumberMap.get(r.id) ?? '?'}`;
@@ -1938,7 +2039,6 @@ export default function ReceiptRoomScreen() {
                     <Pressable
                       onPress={() => {
                         setAddItemReceiptChoice(r.id);
-                        setAddItemTax('');
                       }}
                       className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
                     >
@@ -1955,26 +2055,35 @@ export default function ReceiptRoomScreen() {
                           {byLine}
                         </Text>
                       </View>
-                      {r.tax != null && !isSelected && (
-                        <Text className='text-muted-foreground text-xs'>
-                          Tax: ${r.tax.toFixed(2)}
-                        </Text>
-                      )}
-                    </Pressable>
-                    {isSelected && (
-                      <View className='flex-row items-center gap-2 pl-12 pr-4 pb-3'>
-                        <Text className='text-muted-foreground text-sm'>
-                          Item Tax Rate:
-                        </Text>
-                        <TextInput
-                          value={addItemTax}
-                          onChangeText={setAddItemTax}
-                          placeholder='0'
-                          keyboardType='decimal-pad'
-                          className='border border-border rounded-lg px-3 py-1 text-foreground text-sm w-24'
-                        />
+                      <View className='items-end gap-0.5'>
+                        {r.total != null && r.total > 0 && (
+                          <Text className='text-foreground text-xs font-semibold'>
+                            ${r.total.toFixed(2)}
+                          </Text>
+                        )}
+                        {r.tax != null && r.tax > 0 && (
+                          <Text className='text-muted-foreground text-xs'>
+                            Tax ${r.tax.toFixed(2)}
+                          </Text>
+                        )}
                       </View>
-                    )}
+                      {r.image ? (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setAddItemSheetViewingImage(r.image);
+                          }}
+                          className='active:opacity-50 p-1 ml-1'
+                          hitSlop={8}
+                        >
+                          <MaterialCommunityIcons
+                            name='image-outline'
+                            size={18}
+                            color='#4999DF'
+                          />
+                        </Pressable>
+                      ) : null}
+                    </Pressable>
                   </View>
                 );
               })}
@@ -1983,7 +2092,6 @@ export default function ReceiptRoomScreen() {
               <Pressable
                 onPress={() => {
                   setAddItemReceiptChoice('new');
-                  setAddItemTax('');
                 }}
                 className='flex-row items-center gap-3 px-4 py-3 border-b border-border active:opacity-70'
               >
@@ -2000,22 +2108,6 @@ export default function ReceiptRoomScreen() {
                   + New manual receipt
                 </Text>
               </Pressable>
-              {addItemReceiptChoice === 'new' && (
-                <View className='gap-3 px-4 py-3 ml-8'>
-                  <View className='flex-row items-center gap-2'>
-                    <Text className='text-muted-foreground text-sm'>
-                      Item Tax Rate:
-                    </Text>
-                    <TextInput
-                      value={addItemTax}
-                      onChangeText={setAddItemTax}
-                      placeholder='0'
-                      keyboardType='decimal-pad'
-                      className='border border-border rounded-lg px-3 py-1 text-foreground text-sm w-24'
-                    />
-                  </View>
-                </View>
-              )}
             </ScrollView>
 
             <View className='flex-row gap-3 px-4 pt-4'>
@@ -2044,7 +2136,42 @@ export default function ReceiptRoomScreen() {
               </Pressable>
             </View>
           </Animated.View>
-        </KeyboardAvoidingView>
+
+          {/* In-sheet image viewer — absolute overlay inside this Modal to avoid nested-Modal issues */}
+          {addItemSheetViewingImage ? (
+            <View
+              style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundColor: 'rgba(0,0,0,0.92)',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Pressable
+                onPress={() => setAddItemSheetViewingImage(null)}
+                style={{
+                  position: 'absolute',
+                  top: insets.top + 12,
+                  right: 16,
+                  zIndex: 10,
+                  padding: 8,
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='close'
+                  size={28}
+                  color='#ffffff'
+                />
+              </Pressable>
+              <Image
+                source={{ uri: addItemSheetViewingImage }}
+                style={{ width: '100%', height: '85%' }}
+                resizeMode='contain'
+              />
+            </View>
+          ) : null}
+        </View>
       </Modal>
     </SafeAreaView>
   );

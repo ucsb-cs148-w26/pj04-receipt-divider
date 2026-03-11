@@ -17,3 +17,5 @@ export type {
 } from './AddParticipantModals';
 export { default as ImageCropPopUp } from './ImageCropPopUp';
 export type { ImageCropPopUpProps, ImageCropPopUpRef } from './ImageCropPopUp';
+export { DecimalInput } from './DecimalInput';
+export { PriceInput } from './PriceInput';

@@ -1,6 +1,6 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -327,6 +327,13 @@ export default function ReceiptDetailScreen() {
   const [roomName, setRoomName] = useState(name ?? '');
   const [editingName, setEditingName] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsNavigating(false);
+    }, []),
+  );
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -608,15 +615,17 @@ export default function ReceiptDetailScreen() {
                         </Text>
                       )}
 
-                    <MaterialCommunityIcons
-                      name='chevron-right'
-                      size={18}
-                      className={
-                        !isSelf && person.amount <= 0
-                          ? 'text-transparent'
-                          : 'text-accent-dark'
-                      }
-                    />
+                    {!isSelf && (
+                      <MaterialCommunityIcons
+                        name='chevron-right'
+                        size={18}
+                        className={
+                          !isSelf && person.amount <= 0
+                            ? 'text-transparent'
+                            : 'text-accent-dark'
+                        }
+                      />
+                    )}
                   </Pressable>
                 </View>
               );
@@ -629,12 +638,14 @@ export default function ReceiptDetailScreen() {
           variant='outlined'
           size='large'
           className='mt-12 rounded-2xl w-full'
-          onPress={() =>
+          disabled={isNavigating}
+          onPress={() => {
+            setIsNavigating(true);
             router.push({
               pathname: '/receipt-room',
               params: { roomId: id, items: '[]', participants: '[]' },
-            })
-          }
+            });
+          }}
         >
           View Receipt Room
         </Button>

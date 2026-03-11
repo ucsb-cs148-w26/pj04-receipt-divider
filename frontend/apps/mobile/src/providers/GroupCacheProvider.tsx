@@ -95,7 +95,11 @@ async function doFetchGroup(
     const [itemsRes, membersRes, receiptsRes, groupRes] = await Promise.all([
       supabase.from('items').select('*').eq('group_id', groupId),
       supabase.from('group_members').select('*').eq('group_id', groupId),
-      supabase.from('receipts').select('*').eq('group_id', groupId),
+      supabase
+        .from('receipts')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: true }),
       supabase
         .from('groups')
         .select('name, created_by')
@@ -206,9 +210,7 @@ export function GroupCacheProvider({
 
   // ── My Groups ──────────────────────────────────────────────────────────────
 
-  async function fetchMyGroupsMetadata(
-    profileId: string,
-  ): Promise<
+  async function fetchMyGroupsMetadata(profileId: string): Promise<
     Map<
       string,
       {

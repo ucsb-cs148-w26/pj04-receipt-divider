@@ -35,6 +35,7 @@ import * as Haptics from 'expo-haptics';
 import { ReceiptItemData } from '@shared/types';
 import { UserTag } from '@shared/components/UserTag';
 import { ScrollableTextInput } from '@shared/components/ScrollableTextInput';
+import { PriceInput } from '@shared/components/PriceInput';
 import type { ScrollToInputContext } from '@shared/hooks/useScrollToInput';
 
 // Stable styles for TextInputs — prevents formatters from stripping inline objects
@@ -467,17 +468,6 @@ export function ReceiptItem({
     isAnyTextFocusedS,
   ]);
 
-  /** ---------------- Input Handlers ---------------- */
-  const handlePriceChange = (value: string) => {
-    const numericValue = value.replace(/[^\d.]/g, '');
-    const parsed = parseFloat(numericValue);
-    if (!isNaN(parsed) && parsed > 99999.99) {
-      onUpdate?.({ price: '99999.99' });
-    } else {
-      onUpdate?.({ price: numericValue });
-    }
-  };
-
   /** ---------------- Delete with Warning ---------------- */
   const confirmDelete = () => {
     Alert.alert(
@@ -507,10 +497,11 @@ export function ReceiptItem({
 
   /** ---------------- Render ---------------- */
 
-  // Single merged render: edit view is the always-visible base layer;
-  // claim view sits on top as an absolute overlay that fades in/out.
-  // This lets the incoming view already be visible beneath the outgoing
-  // one instead of both fading simultaneously.
+  // Both layers crossfade simultaneously: editAnim drives the edit card opacity
+  // while claimAnim (= 1 - editAnim) drives the claim card opacity.
+  // Because opacity_edit + opacity_claim = 1 at all times, the background
+  // always appears fully opaque and the content smoothly morphs without any
+  // sub-pixel layout shift between the two card variants.
   return (
     <GestureHandlerRootView>
       <GestureDetector gesture={panGesture}>
@@ -534,8 +525,11 @@ export function ReceiptItem({
         >
           {/* Wrapper: constant paddingBottom reserves space for the straddling tags */}
           <View style={{ paddingBottom: 11 }}>
-            {/* ── Base layer: Edit mode card (opacity 1, always underneath) ── */}
-            <View pointerEvents={isEditMode ? 'auto' : 'none'}>
+            {/* ── Base layer: Edit mode card (fades in with editAnim) ── */}
+            <Animated.View
+              pointerEvents={isEditMode ? 'auto' : 'none'}
+              style={{ opacity: editAnim }}
+            >
               <View className='w-full bg-card rounded-2xl p-4'>
                 <View className='flex-row items-center'>
                   {/* Delete button */}
@@ -568,29 +562,21 @@ export function ReceiptItem({
                     <Text className='text-foreground font-extrabold text-xl'>
                       $
                     </Text>
-                    <ScrollableTextInput
+                    <PriceInput
                       scrollContext={scrollContext}
                       name='item-price'
                       value={item.price}
-                      onChangeText={handlePriceChange}
+                      onValueChange={(v) => onUpdate?.({ price: v })}
                       placeholder='0.00'
                       className='text-foreground font-extrabold text-xl placeholder:text-muted-foreground'
                       style={inputStyles.price}
-                      keyboardType='numeric'
-                      numberOfLines={1}
                       onFocus={() => onTextFocusChange?.(true)}
-                      onBlur={() => {
-                        const parsed = parseFloat(item.price || '0');
-                        onUpdate?.({
-                          price: isNaN(parsed) ? '0.00' : parsed.toFixed(2),
-                        });
-                        onTextFocusChange?.(false);
-                      }}
+                      onBlur={() => onTextFocusChange?.(false)}
                     />
                   </View>
                 </View>
               </View>
-            </View>
+            </Animated.View>
 
             {/* ── Top layer: Claim mode card (fades out when entering edit, in when leaving) ── */}
             <Animated.View
