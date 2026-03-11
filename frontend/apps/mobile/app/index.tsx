@@ -87,13 +87,21 @@ export default function HomeScreen() {
 
   useFocusEffect(fetchGroups);
 
-  const groups: HistoryItem[] = (myGroups ?? []).map((g) => ({
-    id: g.groupId,
-    name: g.name ?? 'Unnamed Group',
-    status: getRoomStatus(g),
-    amount: g.totalUploaded - g.totalClaimed,
-    members: g.memberCount,
-  }));
+  const groups: HistoryItem[] = (myGroups ?? [])
+    .slice()
+    .sort((a, b) => {
+      if (!a.createdAt && !b.createdAt) return 0;
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
+      return b.createdAt.localeCompare(a.createdAt);
+    })
+    .map((g) => ({
+      id: g.groupId,
+      name: g.name ?? 'Unnamed Group',
+      status: getRoomStatus(g),
+      amount: g.totalUploaded - g.totalClaimed,
+      members: g.memberCount,
+    }));
 
   // Groups where the host has requested payment from the current user and they owe money
   const requestedGroups = (myGroups ?? []).filter(
@@ -274,7 +282,7 @@ export default function HomeScreen() {
                           : 'text-amount-negative'
                     }`}
                   >
-                    {item.amount >= 0 ? '+' : ''}$
+                    {item.amount >= 0 ? '+' : '-'}$
                     {Math.abs(item.amount).toFixed(2)}
                   </Text>
                   <View pointerEvents='none'>

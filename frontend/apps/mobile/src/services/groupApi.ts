@@ -254,6 +254,7 @@ export interface GroupSummary {
   paidStatus: PaidStatus;
   isFinished: boolean;
   allMembersPaid: boolean;
+  createdAt?: string;
 }
 
 /** POST /group/join — join an existing group as a registered (email) user */

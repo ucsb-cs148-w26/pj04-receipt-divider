@@ -9,6 +9,7 @@ import {
   Animated,
   ActivityIndicator,
   Alert,
+  Share,
   Text,
   Pressable,
   TextInput,
@@ -33,7 +34,7 @@ import {
   IconButton,
   AddParticipantSheet,
   AddParticipantManualModal,
-  sendRoomInviteSMS,
+  getRoomInviteMessage,
   useScrollToInput,
   calculateParticipantTotal,
 } from '@eezy-receipt/shared';
@@ -59,6 +60,7 @@ import {
   updateGroupName,
   createGuestProfile,
   removeGroupMember,
+  createInviteLink,
 } from '@/services/groupApi';
 import { supabase } from '@/services/supabase';
 import type {
@@ -194,6 +196,10 @@ export default function ReceiptRoomScreen() {
 
   const [isAddingItem, setIsAddingItem] = useState(false);
 
+  // Tracks the tax amount (in $) last saved to the receipt for each item,
+  // so repeated price edits correctly update rather than accumulate.
+  const itemSavedTaxRef = useRef<Record<string, number>>({});
+
   /**---------------- OCR on initial photos from create-room ---------------- */
   const [isLoadingPhoto, setIsLoadingPhoto] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -319,16 +325,18 @@ export default function ReceiptRoomScreen() {
 
   const handleShareSMS = async () => {
     try {
-      const result = await sendRoomInviteSMS(roomId);
-      if (result === 'sent') {
-        setShowAddOptions(false);
+      let inviteUrl = '';
+      try {
+        const { url } = await createInviteLink(roomId);
+        inviteUrl = url;
+      } catch {
+        inviteUrl = `${process.env.EXPO_PUBLIC_FRONTEND_URL ?? 'https://receipt-divider.vercel.app'}/join?roomId=${roomId}`;
       }
+      const message = getRoomInviteMessage(roomId, groupName, inviteUrl);
+      await Share.share({ message });
+      setShowAddOptions(false);
     } catch (error) {
-      console.error('SMS error:', error);
-      Alert.alert(
-        'Failed to Send',
-        'Could not send the invite SMS. Please try again.',
-      );
+      console.error('Share error:', error);
     }
   };
 
@@ -673,6 +681,13 @@ export default function ReceiptRoomScreen() {
     ? groupDisplay.participants
     : participants;
 
+  // Numeric participant ID for the current user (used when navigating to QR page)
+  const currentParticipantId = isGroupRoom
+    ? ([...groupDisplay.participantIdToProfileId.entries()].find(
+        ([, pid]) => pid === currentUserId,
+      )?.[0] ?? 0)
+    : 0;
+
   // Map receipt id → uploader display name (only meaningful in group rooms)
   const receiptUploaderMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -879,24 +894,18 @@ export default function ReceiptRoomScreen() {
     setIsAddingItem(true);
     try {
       let finalReceiptId: string | null = null;
-      const taxValue = parseFloat(addItemTax);
+      // taxValue is a percentage (e.g. 8.5 means 8.5%)
+      const taxPctValue = parseFloat(addItemTax);
+      const hasTaxPct = !isNaN(taxPctValue) && taxPctValue > 0;
       if (addItemReceiptChoice === 'new') {
-        const { receiptId } = await createManualReceipt(
-          roomId,
-          isNaN(taxValue) ? null : taxValue,
-        );
+        // Create the receipt with no tax amount yet; tax will be added
+        // when the item's price is set (via updateReceiptItem).
+        const { receiptId } = await createManualReceipt(roomId, null);
         finalReceiptId = receiptId;
       } else if (addItemReceiptChoice !== null) {
         finalReceiptId = addItemReceiptChoice;
-        if (!isNaN(taxValue)) {
-          updateReceiptTax(finalReceiptId, taxValue).catch((err) => {
-            console.error(err);
-            Alert.alert(
-              'Tax Update Failed',
-              'The item was added but the tax could not be saved. Please try again.',
-            );
-          });
-        }
+        // Don't update receipt tax here — item price is 0 at creation.
+        // Tax will be computed and saved when the user sets the item price.
       }
       const { itemId } = await addItem(roomId, finalReceiptId);
       receiptItems.setItems((prev) => [
@@ -907,6 +916,7 @@ export default function ReceiptRoomScreen() {
           price: '0.00',
           userTags: [],
           receiptId: finalReceiptId,
+          taxPct: hasTaxPct ? taxPctValue : undefined,
         },
       ]);
       dismissAddItemSheet();
@@ -950,6 +960,28 @@ export default function ReceiptRoomScreen() {
               'Could not save item changes. Please try again.',
             );
           });
+          // If this item has a tax percentage and a receipt, update the receipt's
+          // tax amount: remove the old contribution and add the new one.
+          if (
+            updates.price !== undefined &&
+            latest.taxPct != null &&
+            latest.taxPct > 0 &&
+            latest.receiptId
+          ) {
+            const newItemTax =
+              Math.round(unitPrice * (latest.taxPct / 100) * 100) / 100;
+            const prevItemTax = itemSavedTaxRef.current[id] ?? 0;
+            const receiptCurrentTax = receiptTaxMap.get(latest.receiptId) ?? 0;
+            const updatedReceiptTax =
+              Math.round((receiptCurrentTax - prevItemTax + newItemTax) * 100) /
+              100;
+            itemSavedTaxRef.current[id] = newItemTax;
+            updateReceiptTax(latest.receiptId, updatedReceiptTax).catch(
+              (err) => {
+                console.error(err);
+              },
+            );
+          }
           return latestItems; // no state change, just reading
         });
       }, 600);
@@ -1497,7 +1529,7 @@ export default function ReceiptRoomScreen() {
             <Animated.View style={{ opacity: dropdownOpacity }}>
               <View className='bg-card border border-border rounded-[25px] shadow-lg shadow-black/30 overflow-hidden'>
                 {/* Top row of icon buttons */}
-                <View className='flex-row items-center justify-around py-3 px-4'>
+                <View className='flex-row items-center justify-around py-5 px-4'>
                   {/* Complete Room — host only; navigate to review screen */}
                   {isHost && (
                     <Pressable
@@ -1524,12 +1556,12 @@ export default function ReceiptRoomScreen() {
                         color={allItemsAssigned ? '#22c55e' : '#9ca3af'}
                       />
                       <Text
-                        className='text-xs'
+                        className='text-xs items-center text-center'
                         style={{
                           color: allItemsAssigned ? '#22c55e' : '#9ca3af',
                         }}
                       >
-                        Complete Room
+                        Complete{'\n'}Room
                       </Text>
                     </Pressable>
                   )}
@@ -1548,14 +1580,16 @@ export default function ReceiptRoomScreen() {
                       size={24}
                       className='text-accent-dark'
                     />
-                    <Text className='text-foreground text-xs'>Add Receipt</Text>
+                    <Text className='text-foreground text-xs'>
+                      Add Receipt{'\n'}
+                    </Text>
                   </Pressable>
                   <Pressable
                     className='items-center gap-1'
                     onPress={() => {
                       setShowQuickActions(false);
                       router.push(
-                        `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(participants))}`,
+                        `/qr?roomId=${roomId}&groupName=${encodeURIComponent(groupName)}&currentParticipantId=${currentParticipantId}&participants=${encodeURIComponent(JSON.stringify(displayParticipants))}`,
                       );
                     }}
                   >
@@ -1564,7 +1598,7 @@ export default function ReceiptRoomScreen() {
                       size={24}
                       className='text-accent-dark'
                     />
-                    <Text className='text-foreground text-xs'>Share</Text>
+                    <Text className='text-foreground text-xs'>Share{'\n'}</Text>
                   </Pressable>
                   <Pressable
                     className='items-center gap-1'
@@ -1578,7 +1612,9 @@ export default function ReceiptRoomScreen() {
                       size={24}
                       className='text-accent-dark'
                     />
-                    <Text className='text-foreground text-xs'>Settings</Text>
+                    <Text className='text-foreground text-xs'>
+                      Settings{'\n'}
+                    </Text>
                   </Pressable>
                 </View>
 
@@ -1710,7 +1746,7 @@ export default function ReceiptRoomScreen() {
         onShareQR={() => {
           setShowAddOptions(false);
           router.push(
-            `/qr?roomId=${roomId}&participants=${encodeURIComponent(JSON.stringify(isGroupRoom ? groupDisplay.participants : participants))}`,
+            `/qr?roomId=${roomId}&groupName=${encodeURIComponent(groupName)}&currentParticipantId=${currentParticipantId}&participants=${encodeURIComponent(JSON.stringify(isGroupRoom ? groupDisplay.participants : participants))}`,
           );
         }}
         onAddManually={handleAddManually}
@@ -1840,7 +1876,7 @@ export default function ReceiptRoomScreen() {
                     <Pressable
                       onPress={() => {
                         setAddItemReceiptChoice(r.id);
-                        setAddItemTax(r.tax != null ? String(r.tax) : '');
+                        setAddItemTax('');
                       }}
                       className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
                     >
@@ -1866,12 +1902,12 @@ export default function ReceiptRoomScreen() {
                     {isSelected && (
                       <View className='flex-row items-center gap-2 pl-12 pr-4 pb-3'>
                         <Text className='text-muted-foreground text-sm'>
-                          Tax ($):
+                          Item Tax Rate:
                         </Text>
                         <TextInput
                           value={addItemTax}
                           onChangeText={setAddItemTax}
-                          placeholder='0.00'
+                          placeholder='0'
                           keyboardType='decimal-pad'
                           className='border border-border rounded-lg px-3 py-1 text-foreground text-sm w-24'
                         />
@@ -1906,12 +1942,12 @@ export default function ReceiptRoomScreen() {
                 <View className='gap-3 px-4 py-3 ml-8'>
                   <View className='flex-row items-center gap-2'>
                     <Text className='text-muted-foreground text-sm'>
-                      Tax ($):
+                      Item Tax Rate:
                     </Text>
                     <TextInput
                       value={addItemTax}
                       onChangeText={setAddItemTax}
-                      placeholder='0.00'
+                      placeholder='0'
                       keyboardType='decimal-pad'
                       className='border border-border rounded-lg px-3 py-1 text-foreground text-sm w-24'
                     />

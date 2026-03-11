@@ -19,7 +19,7 @@ class InviteService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Profile is not a member of this group",
             )
-        return f"{self.frontend_url}/join?roomId={group_id}"
+        return f"https://{self.frontend_url}/join?roomId={group_id}"
 
     def validate_invite(self, group_id: str) -> bool:
         group = self.db.get(Group, group_id)

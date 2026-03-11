@@ -208,7 +208,17 @@ export function GroupCacheProvider({
 
   async function fetchMyGroupsMetadata(
     profileId: string,
-  ): Promise<Map<string, { name: string | null; paidStatus: string }>> {
+  ): Promise<
+    Map<
+      string,
+      {
+        name: string | null;
+        paidStatus: string;
+        createdAt: string | null;
+        isFinished: boolean;
+      }
+    >
+  > {
     const { data: groupMembers, error: gmError } = await supabase
       .from('group_members')
       .select('group_id, paid_status')
@@ -221,20 +231,28 @@ export function GroupCacheProvider({
 
     const { data: groups, error: groupsError } = await supabase
       .from('groups')
-      .select('id, name')
+      .select('id, name, created_at, is_finished')
       .in('id', groupIds);
 
     const metadata = new Map<
       string,
-      { name: string | null; paidStatus: string }
+      {
+        name: string | null;
+        paidStatus: string;
+        createdAt: string | null;
+        isFinished: boolean;
+      }
     >();
 
     if (!groupsError && groups) {
-      const groupNameMap = new Map(groups.map((g) => [g.id, g.name]));
+      const groupDataMap = new Map(groups.map((g) => [g.id, g]));
       for (const gm of groupMembers) {
+        const g = groupDataMap.get(gm.group_id);
         metadata.set(gm.group_id, {
-          name: groupNameMap.get(gm.group_id) ?? null,
+          name: g?.name ?? null,
           paidStatus: gm.paid_status,
+          createdAt: g?.created_at ?? null,
+          isFinished: g?.is_finished ?? false,
         });
       }
     }
@@ -244,7 +262,15 @@ export function GroupCacheProvider({
 
   function computeMyGroupsFromEntries(
     entries: Record<string, GroupEntry>,
-    metadata: Map<string, { name: string | null; paidStatus: string }>,
+    metadata: Map<
+      string,
+      {
+        name: string | null;
+        paidStatus: string;
+        createdAt: string | null;
+        isFinished: boolean;
+      }
+    >,
     profileId: string,
   ): GroupSummary[] {
     const summaries: GroupSummary[] = [];
@@ -281,6 +307,10 @@ export function GroupCacheProvider({
         }
       }
 
+      const allMembersPaid = entry.members.every(
+        (m) => m.paid_status !== 'requested' && m.paid_status !== 'pending',
+      );
+
       summaries.push({
         groupId,
         name,
@@ -288,6 +318,9 @@ export function GroupCacheProvider({
         totalClaimed,
         totalUploaded,
         paidStatus,
+        isFinished: meta.isFinished ?? false,
+        allMembersPaid,
+        createdAt: meta.createdAt ?? undefined,
       });
     }
 

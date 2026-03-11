@@ -10,9 +10,15 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconButton, sendSMS } from '@eezy-receipt/shared';
+import {
+  IconButton,
+  sendSMS,
+  getRoomInviteMessage,
+  calculateParticipantTotal,
+} from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useReceiptItems } from '@/providers';
+import { useGroupData } from '@/hooks';
 import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -22,11 +28,20 @@ export default function QRScreen() {
   // Receive room ID from Receipt_Room_Page
   const params = useLocalSearchParams();
   const roomId = typeof params.roomId === 'string' ? params.roomId : 'unknown';
+  const groupName =
+    typeof params.groupName === 'string'
+      ? decodeURIComponent(params.groupName)
+      : '';
+  const currentParticipantId =
+    typeof params.currentParticipantId === 'string'
+      ? parseInt(params.currentParticipantId, 10)
+      : 0;
   const participants: { id: number; name?: string }[] =
     typeof params.participants === 'string'
       ? JSON.parse(decodeURIComponent(params.participants))
       : [];
   const { items } = useReceiptItems();
+  const groupData = useGroupData(roomId !== 'unknown' ? roomId : '');
   const qrRef = useRef<QRCode>(null);
 
   const [qrData, setQrData] = useState<string | null>(null);
@@ -79,7 +94,8 @@ export default function QRScreen() {
     const url =
       qrData ??
       `${process.env.EXPO_PUBLIC_FRONTEND_URL ?? 'http://localhost:5173'}/join?roomId=${roomId}`;
-    void Share.share({ message: url, url });
+    const message = getRoomInviteMessage(roomId, groupName, url);
+    void Share.share({ message });
   }
 
   function handleShareSubtotals() {
@@ -95,36 +111,57 @@ export default function QRScreen() {
       return;
     }
 
-    const lines = participants.map((p) => {
+    // Exclude the current user, only share other guests' subtotals
+    const otherParticipants = participants.filter(
+      (p) => p.id !== currentParticipantId,
+    );
+
+    if (otherParticipants.length === 0) {
+      Alert.alert(
+        'No Other Guests',
+        'There are no other guests to share subtotals with.',
+      );
+      return;
+    }
+
+    // Build taxPerItemMap: receiptId → tax ÷ item-count for that receipt
+    const taxPerItemMap = new Map<string, number>();
+    for (const receipt of groupData.receipts) {
+      if (receipt.tax == null || receipt.tax <= 0) continue;
+      const count = items.filter((i) => i.receiptId === receipt.id).length;
+      if (count > 0) taxPerItemMap.set(receipt.id, receipt.tax / count);
+    }
+
+    const sections = otherParticipants.map((p) => {
       const name = p.name || `Person ${p.id}`;
-      let total = 0;
-      const itemLines = items
-        .filter((item) => item.userTags?.includes(p.id))
+      const participantItems = items.filter((item) =>
+        item.userTags?.includes(p.id),
+      );
+      const { subtotal, tax, total } = calculateParticipantTotal(
+        p.id,
+        participantItems,
+        taxPerItemMap,
+      );
+
+      const itemLines = participantItems
         .map((item) => {
-          const price = isNaN(parseFloat(item.price.replace(/[^\d.]/g, '')))
-            ? 0
-            : parseFloat(item.price.replace(/[^\d.]/g, ''));
-          const discount = item.discount
-            ? parseFloat(item.discount.replace(/[^\d.]/g, ''))
-            : 0;
-          const share = (price - discount) / item.userTags!.length;
-          total += share;
-          return `  • ${item.name}: $${share.toFixed(2)}`;
-        });
-      return `${name}:\n${itemLines.join('\n')}\n  Subtotal: $${total.toFixed(2)}`;
+          const fullPrice = parseFloat(item.price) || 0;
+          const claimCount = item.userTags?.length || 1;
+          const share = claimCount > 1 ? fullPrice / claimCount : fullPrice;
+          return `  • ${item.name || 'Item'}: $${share.toFixed(2)}`;
+        })
+        .join('\n');
+
+      let section = `${name}:\n${itemLines}\n  Subtotal: $${subtotal.toFixed(2)}`;
+      if (tax > 0) {
+        section += `\n  Tax:      $${tax.toFixed(2)}`;
+      }
+      section += `\n  Total:    $${total.toFixed(2)}`;
+      return section;
     });
 
-    const grandTotal = items.reduce((sum, item) => {
-      const price = isNaN(parseFloat(item.price.replace(/[^\d.]/g, '')))
-        ? 0
-        : parseFloat(item.price.replace(/[^\d.]/g, ''));
-      const discount = item.discount
-        ? parseFloat(item.discount.replace(/[^\d.]/g, ''))
-        : 0;
-      return sum + price - discount;
-    }, 0);
-
-    const message = `Subtotals:\n\n${lines.join('\n\n')}\n\n---------------\nTotal: $${grandTotal.toFixed(2)}`;
+    const header = groupName ? `${groupName} — Subtotals` : 'Subtotals';
+    const message = `${header}\n\n${sections.join('\n\n')}`;
     void sendSMS(message);
   }
 

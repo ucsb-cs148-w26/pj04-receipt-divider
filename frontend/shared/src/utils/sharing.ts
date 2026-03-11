@@ -26,19 +26,24 @@ export async function sendSMS(
 }
 
 /**
- * Generate a room invite message with the given room ID.
+ * Generate a room invite message with the given room ID, group name, and invite URL.
  */
-export function getRoomInviteMessage(roomId: string): string {
-  return `Join my Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nOr tap this link to join: https://example.com/join?roomId=${roomId}`;
+export function getRoomInviteMessage(
+  roomId: string,
+  groupName: string,
+  url: string,
+): string {
+  const roomLabel = groupName ? `"${groupName}"` : 'my';
+  return `Join the ${roomLabel} Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nTap to join:\n${url}`;
 }
 
 /**
- * Send a room invite SMS for the given room ID.
+ * Send a room invite SMS for the given room ID, group name, and invite URL.
  */
 export async function sendRoomInviteSMS(
   roomId: string,
+  groupName: string,
+  url: string,
 ): Promise<'sent' | 'cancelled' | 'unknown' | 'unavailable'> {
-  return sendSMS(
-    `Join my Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nOr tap this link to join: https://example.com/join?roomId=${roomId}`,
-  );
+  return sendSMS(getRoomInviteMessage(roomId, groupName, url));
 }
