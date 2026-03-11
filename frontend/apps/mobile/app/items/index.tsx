@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
-import { View, Text, Pressable, Animated, Alert } from 'react-native';
+import { View, Text, Pressable, Animated } from 'react-native';
 import {
   DefaultButtons,
   useScrollToInput,
@@ -23,6 +23,8 @@ export type YourItemsRoomParams = {
   profileId: string;
   /** JSON: Record<receiptId, taxPerItem> — evenly split tax per item in that receipt */
   taxPerItem?: string;
+  /** When true, the remove-item button is hidden (used when viewing another participant's items) */
+  isReadOnly?: string;
 };
 
 export default function YourItemScreen() {
@@ -30,6 +32,7 @@ export default function YourItemScreen() {
   const participantId = parseInt(params.participantId);
   const profileId = params.profileId ?? '';
   const isGroupRoom = !!params.roomId && /^[0-9a-f-]{36}$/i.test(params.roomId);
+  const isReadOnly = params.isReadOnly === 'true';
   const receiptItemsContext = useReceiptItems();
 
   const scrollCtx = useScrollToInput({ resetOnBlur: true });
@@ -96,26 +99,7 @@ export default function YourItemScreen() {
     if (isGroupRoom && profileId)
       unassignItem(itemId, profileId).catch((err) => {
         console.error(err);
-        Alert.alert(
-          'Error',
-          'Failed to remove the item. Please refresh and try again.',
-        );
       });
-  };
-
-  const confirmRemoveItem = (item: ReceiptItemData) => {
-    Alert.alert(
-      'Remove Item',
-      `Remove "${item.name || 'this item'}" from your list?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => removeItem(item.id),
-        },
-      ],
-    );
   };
 
   return (
@@ -177,7 +161,7 @@ export default function YourItemScreen() {
               price={item.price}
               discount={item.discount}
               percentage={percentages[item.id]}
-              onRemove={() => confirmRemoveItem(item)}
+              onRemove={isReadOnly ? undefined : () => removeItem(item.id)}
             />
           ))}
         </Animated.ScrollView>

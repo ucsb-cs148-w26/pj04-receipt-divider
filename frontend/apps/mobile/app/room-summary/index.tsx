@@ -12,15 +12,11 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-import { IconButton, sendSMS } from '@eezy-receipt/shared';
+import { IconButton } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGroupData } from '@/hooks';
 import { useAuth } from '@/providers';
-import {
-  updatePaidStatus,
-  createInviteLink,
-  finishGroup,
-} from '@/services/groupApi';
+import { updatePaidStatus, finishGroup } from '@/services/groupApi';
 import { supabase } from '@/services/supabase';
 import type {
   GroupMember as DbGroupMember,
@@ -138,15 +134,7 @@ export default function RoomSummaryScreen() {
         (s) => s.subtotal + s.tax > 0 && s.profileId !== currentUserId,
       );
 
-      // 1. Mark owing members as 'requested' and finish the group
-      await Promise.all(
-        owingSummaries.map((s) =>
-          updatePaidStatus(roomId, s.profileId, 'requested'),
-        ),
-      );
-      await finishGroup(roomId);
-
-      // 2. Detect guest profiles (empty email = anonymous/guest user)
+      // 1. Detect guest profiles (empty email = anonymous/guest user)
       const profileIds = owingSummaries.map((s) => s.profileId);
       const { data: profileRows } = await supabase
         .from('profiles')
@@ -158,36 +146,37 @@ export default function RoomSummaryScreen() {
           .map((p) => p.id as string),
       );
 
-      // 3. Fetch invite link once for all SMS messages
-      let inviteUrl = '';
-      try {
-        const { url } = await createInviteLink(roomId);
-        inviteUrl = url;
-      } catch {
-        inviteUrl = process.env.EXPO_PUBLIC_FRONTEND_URL ?? '';
+      // 2. If there are guest participants who owe money, inform the host
+      const owingGuests = owingSummaries.filter((s) =>
+        guestIds.has(s.profileId),
+      );
+      if (owingGuests.length > 0) {
+        await new Promise<void>((resolve) => {
+          const guestNames = owingGuests.map((s) => s.name).join(', ');
+          Alert.alert(
+            'Guests in Room',
+            `Payment requests aren't available for guests (${guestNames}). To collect payment, go to the receipt detail room and tap on each guest to send them an SMS with their total.`,
+            [{ text: 'OK', onPress: () => resolve() }],
+          );
+        });
       }
 
-      // 4. Send SMS for each owing guest (sequential so native compose UI is one-at-a-time)
-      for (const s of owingSummaries) {
-        if (!guestIds.has(s.profileId)) continue;
-        const itemLines = s.items
-          .map((i) => `  • ${i.name}: $${i.price}`)
-          .join('\n');
-        const taxLine = s.tax > 0 ? `\nTax: $${s.tax.toFixed(2)}` : '';
-        const total = s.subtotal + s.tax;
-        const message =
-          `Hi ${s.name}! Here's your receipt summary for "${groupName}":\n\n` +
-          itemLines +
-          `\n\nSubtotal: $${s.subtotal.toFixed(2)}` +
-          taxLine +
-          `\nTotal: $${total.toFixed(2)}` +
-          (inviteUrl ? `\n\nRejoin the room: ${inviteUrl}` : '');
-        await sendSMS(message);
-      }
+      // 3. Mark only non-guest owing members as 'requested' and finish the group
+      const nonGuestOwing = owingSummaries.filter(
+        (s) => !guestIds.has(s.profileId),
+      );
+      await Promise.all(
+        nonGuestOwing.map((s) =>
+          updatePaidStatus(roomId, s.profileId, 'requested'),
+        ),
+      );
+      await finishGroup(roomId);
 
-      Alert.alert('Done!', 'Money requests have been sent.', [
-        { text: 'OK', onPress: () => router.dismissAll() },
-      ]);
+      Alert.alert(
+        'Room Completed!',
+        'Money requests have been sent. The room is now complete — only you can make further changes. All participants have been notified.',
+        [{ text: 'OK', onPress: () => router.dismissAll() }],
+      );
     } catch (err) {
       Alert.alert(
         'Error',

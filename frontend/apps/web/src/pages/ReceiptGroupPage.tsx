@@ -112,6 +112,7 @@ export default function ReceiptGroupPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [claimingIds, setClaimingIds] = useState<Set<string>>(new Set());
+  const [isRoomFinished, setIsRoomFinished] = useState(false);
   const { sessionToken, logout } = useAuth();
 
   const profileId = useMemo(
@@ -153,12 +154,21 @@ export default function ReceiptGroupPage() {
   const fetchAll = useCallback(async () => {
     if (!groupId) return;
 
-    const [itemsRes] = await Promise.all([
+    const [itemsRes, groupRes] = await Promise.all([
       authedClient
         .from('items')
         .select('id,name,amount,unit_price')
         .eq('group_id', groupId),
+      authedClient
+        .from('groups')
+        .select('is_finished')
+        .eq('id', groupId)
+        .single(),
     ]);
+
+    if (groupRes.data?.is_finished) {
+      setIsRoomFinished(true);
+    }
 
     const fetchedItems: Item[] = itemsRes.data ?? [];
     setItems(fetchedItems);
@@ -216,7 +226,6 @@ export default function ReceiptGroupPage() {
     // distinguish sync from async setState calls, so this is a false positive.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAll();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchParticipants();
   }, [fetchAll, fetchParticipants]);
 
@@ -261,7 +270,26 @@ export default function ReceiptGroupPage() {
       )
       .subscribe();
 
-    channelsRef.current = [itemsCh, claimsCh, membersCh];
+    const groupsCh = authedClient
+      .channel(`groups:${groupId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'groups',
+          filter: `id=eq.${groupId}`,
+        },
+        (payload) => {
+          const newData = payload.new as Record<string, unknown>;
+          if (newData.is_finished === true) {
+            setIsRoomFinished(true);
+          }
+        },
+      )
+      .subscribe();
+
+    channelsRef.current = [itemsCh, claimsCh, membersCh, groupsCh];
     return () => {
       channelsRef.current.forEach((ch) => void authedClient.removeChannel(ch));
     };
@@ -272,6 +300,7 @@ export default function ReceiptGroupPage() {
   // ---------------------------------------------------------------------------
 
   const toggleClaim = async (itemId: string) => {
+    if (isRoomFinished) return;
     const jwt = sessionToken;
     if (!jwt || !profileId) return;
 
@@ -417,6 +446,24 @@ export default function ReceiptGroupPage() {
         </button>
       </div>
 
+      {/* Room completed banner */}
+      {isRoomFinished && (
+        <div
+          style={{
+            background: '#4999DF',
+            color: '#ffffff',
+            padding: '10px 16px',
+            textAlign: 'center',
+            fontSize: 14,
+            fontWeight: 600,
+            fontFamily: 'system-ui, sans-serif',
+            flexShrink: 0,
+          }}
+        >
+          🔒 The host has completed this room. Item claiming is now closed.
+        </div>
+      )}
+
       {/* Items */}
       <div style={styles.itemList}>
         {items.length === 0 ? (
@@ -460,9 +507,11 @@ export default function ReceiptGroupPage() {
                       hoveredId === item.id
                         ? '0 4px 16px rgba(0,0,0,0.14)'
                         : '0 1px 4px rgba(0,0,0,0.06)',
+                    cursor: isRoomFinished ? 'default' : 'pointer',
+                    opacity: isRoomFinished ? 0.7 : 1,
                   }}
                   onClick={() => void toggleClaim(item.id)}
-                  onMouseEnter={() => setHoveredId(item.id)}
+                  onMouseEnter={() => !isRoomFinished && setHoveredId(item.id)}
                   onMouseLeave={() => setHoveredId(null)}
                 >
                   {/* Claim indicator */}

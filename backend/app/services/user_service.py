@@ -3,12 +3,12 @@ from typing import Optional
 
 from fastapi import HTTPException, status
 from supabase import Client as SupabaseClient
-from sqlalchemy import select, func
+from sqlalchemy import case, select, func
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy.dialects.postgresql import insert
 
 from app.config import settings
-from app.models import Group, Item, Receipt, GroupMember, ItemClaim
+from app.models import Group, Item, Receipt, GroupMember, ItemClaim, PaymentDebt
 from app.models.profile import Profile
 from app.services.ocr_service import OCRService
 from app.services.receipt_parser.types import ReceiptConfidence
@@ -116,19 +116,33 @@ class UserService:
         )
         return list(self.db.execute(stmt).scalars().all())
 
-    def update_paid_status(
+    def get_group_debts(self, caller_id: str, group_id: str) -> list[PaymentDebt]:
+        """Return all payment_debts rows for a group (caller must be a member)."""
+        member = self.db.get(
+            GroupMember, {"profile_id": caller_id, "group_id": group_id}
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this group",
+            )
+        stmt = select(PaymentDebt).where(PaymentDebt.group_id == group_id)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def update_debt_status(
         self,
         caller_profile_id: str,
         group_id: str,
-        target_profile_id: str,
+        debtor_id: str,
+        creditor_id: str,
         new_status: str,
     ) -> None:
-        """Update a group member's paid_status.
+        """Update the paid_status for a specific (debtor, creditor) debt within a group.
 
         Rules:
-        - 'requested': only the group host may set this (requesting payment from a member).
-        - 'pending': only the target member themselves may set this (self-reporting payment).
-        - 'verified' / 'unrequested': only the group host may set this.
+        - 'pending'     : only the debtor may self-report payment.
+        - 'requested'   : only the creditor may request payment.
+        - 'verified' / 'unrequested' : only the creditor may set these.
         """
         _VALID = {"verified", "pending", "requested", "unrequested"}
         if new_status not in _VALID:
@@ -138,38 +152,42 @@ class UserService:
             )
 
         if new_status == "pending":
-            # Only the member themselves can self-report payment
-            if caller_profile_id != target_profile_id:
+            if caller_profile_id != debtor_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the member themselves can mark their payment as pending",
-                )
-        elif new_status == "requested":
-            # Host can request payment from anyone; a member can undo their own self-report
-            if caller_profile_id != target_profile_id and not self._is_host(
-                caller_profile_id, group_id
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the group host can update this paid status",
+                    detail="Only the debtor can self-report payment",
                 )
         else:
-            # 'verified' / 'unrequested' require host privileges
-            if not self._is_host(caller_profile_id, group_id):
+            # requested / verified / unrequested — caller must be the creditor
+            if caller_profile_id != creditor_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the group host can update this paid status",
+                    detail="Only the creditor can request or verify payment",
                 )
 
-        member = self.db.get(
-            GroupMember, {"profile_id": target_profile_id, "group_id": group_id}
-        )
-        if member is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Member not found in group",
+        # Verify both parties are members of the group
+        for pid in (debtor_id, creditor_id):
+            m = self.db.get(GroupMember, {"profile_id": pid, "group_id": group_id})
+            if m is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Profile {pid} is not a member of this group",
+                )
+
+        stmt = (
+            insert(PaymentDebt)
+            .values(
+                group_id=group_id,
+                debtor_id=debtor_id,
+                creditor_id=creditor_id,
+                paid_status=new_status,
             )
-        member.paid_status = new_status
+            .on_conflict_do_update(
+                index_elements=["group_id", "debtor_id", "creditor_id"],
+                set_={"paid_status": new_status, "updated_at": func.now()},
+            )
+        )
+        self.db.execute(stmt)
         self.db.commit()
 
     def delete_item(self, profile_id: str, item_id: str) -> None:
@@ -263,8 +281,9 @@ class UserService:
 
     def get_groups_summary(self, profile_id: str):
         """Return one row per group the user belongs to:
-        group id, name, member count, total claimed amount, the user's paid_status,
-        whether the room is finished, and whether all outstanding payments are settled.
+        group id, name, member count, total claimed amount, the user's aggregate
+        paid_status (derived from payment_debts), whether the room is finished,
+        and whether all outstanding payments in the group are settled.
         """
         # Subquery: member count per group
         member_count_sq = (
@@ -304,16 +323,44 @@ class UserService:
             .subquery()
         )
 
-        # Subquery: count members with outstanding (requested/pending) payments per group
+        # Subquery: count distinct debtors with at least one unverified debt per group
         outstanding_sq = (
             select(
-                GroupMember.group_id,
-                func.count(GroupMember.profile_id).label("outstanding_count"),
+                PaymentDebt.group_id,
+                func.count(func.distinct(PaymentDebt.debtor_id)).label(
+                    "outstanding_count"
+                ),
             )
-            .where(GroupMember.paid_status.in_(["requested", "pending"]))
-            .group_by(GroupMember.group_id)
+            .where(PaymentDebt.paid_status != "verified")
+            .group_by(PaymentDebt.group_id)
             .subquery()
         )
+
+        # Subquery: this user's aggregate paid_status across all their debts per group.
+        # Worst-status wins: unrequested(4) > requested(3) > pending(2) > verified(1).
+        # No debt rows → NULL max_priority → coalesces to 'verified' (nothing owed).
+        _priority = case(
+            (PaymentDebt.paid_status == "unrequested", 4),
+            (PaymentDebt.paid_status == "requested", 3),
+            (PaymentDebt.paid_status == "pending", 2),
+            else_=1,
+        )
+        user_debt_sq = (
+            select(PaymentDebt.group_id, func.max(_priority).label("max_priority"))
+            .where(PaymentDebt.debtor_id == profile_id)
+            .group_by(PaymentDebt.group_id)
+            .subquery()
+        )
+
+        paid_status_expr = func.coalesce(
+            case(
+                (user_debt_sq.c.max_priority == 4, "unrequested"),
+                (user_debt_sq.c.max_priority == 3, "requested"),
+                (user_debt_sq.c.max_priority == 2, "pending"),
+                else_="verified",
+            ),
+            "verified",
+        ).label("paid_status")
 
         stmt = (
             select(
@@ -326,7 +373,7 @@ class UserService:
                 func.coalesce(uploaded_sum_sq.c.total_uploaded, 0.0).label(
                     "total_uploaded"
                 ),
-                GroupMember.paid_status,
+                paid_status_expr,
                 Group.is_finished,
                 func.coalesce(outstanding_sq.c.outstanding_count, 0).label(
                     "outstanding_count"
@@ -337,6 +384,7 @@ class UserService:
             .outerjoin(claimed_sum_sq, claimed_sum_sq.c.group_id == Group.id)
             .outerjoin(uploaded_sum_sq, uploaded_sum_sq.c.group_id == Group.id)
             .outerjoin(outstanding_sq, outstanding_sq.c.group_id == Group.id)
+            .outerjoin(user_debt_sq, user_debt_sq.c.group_id == Group.id)
             .where(GroupMember.profile_id == profile_id)
             .order_by(Group.id)
         )

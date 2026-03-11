@@ -268,13 +268,6 @@ export default function CreateRoomScreen() {
           }`}
           disabled={isCreating}
           onPress={async () => {
-            if (photoUris.length === 0) {
-              Alert.alert(
-                'No Receipt Photo',
-                'Please add at least one receipt photo before creating a room.',
-              );
-              return;
-            }
             setIsCreating(true);
             try {
               const { groupId } = await createGroup(

@@ -31,6 +31,7 @@ import type {
   Item,
   ItemClaim,
   GroupMember,
+  PaymentDebt,
   Receipt,
 } from '@eezy-receipt/shared';
 
@@ -41,6 +42,8 @@ export interface GroupEntry {
   claims: ItemClaim[];
   members: GroupMember[];
   receipts: Receipt[];
+  /** All payment_debts rows for the group */
+  debtStatuses: PaymentDebt[];
   /** profileId → ProfileWithColor (username + accentColor) */
   profiles: Record<string, ProfileWithColor>;
   /** auth user UUID of the group creator */
@@ -55,6 +58,7 @@ export const EMPTY_ENTRY: GroupEntry = {
   claims: [],
   members: [],
   receipts: [],
+  debtStatuses: [],
   profiles: {},
   createdBy: '',
   username: null,
@@ -92,20 +96,22 @@ async function doFetchGroup(
 ): Promise<GroupEntry | null> {
   try {
     // Supabase reads run in parallel
-    const [itemsRes, membersRes, receiptsRes, groupRes] = await Promise.all([
-      supabase.from('items').select('*').eq('group_id', groupId),
-      supabase.from('group_members').select('*').eq('group_id', groupId),
-      supabase
-        .from('receipts')
-        .select('*')
-        .eq('group_id', groupId)
-        .order('created_at', { ascending: true }),
-      supabase
-        .from('groups')
-        .select('name, created_by')
-        .eq('id', groupId)
-        .single(),
-    ]);
+    const [itemsRes, membersRes, receiptsRes, groupRes, debtsRes] =
+      await Promise.all([
+        supabase.from('items').select('*').eq('group_id', groupId),
+        supabase.from('group_members').select('*').eq('group_id', groupId),
+        supabase
+          .from('receipts')
+          .select('*')
+          .eq('group_id', groupId)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('groups')
+          .select('name, created_by')
+          .eq('id', groupId)
+          .single(),
+        supabase.from('payment_debts').select('*').eq('group_id', groupId),
+      ]);
 
     const items: Item[] = itemsRes.error ? [] : (itemsRes.data ?? []);
     const members: GroupMember[] = membersRes.error
@@ -114,6 +120,9 @@ async function doFetchGroup(
     const receipts: Receipt[] = receiptsRes.error
       ? []
       : (receiptsRes.data ?? []);
+    const debtStatuses: PaymentDebt[] = debtsRes.error
+      ? []
+      : (debtsRes.data ?? []);
     const groupName = groupRes.data?.name ?? null;
     const createdBy = groupRes.data?.created_by ?? '';
 
@@ -148,6 +157,7 @@ async function doFetchGroup(
       claims,
       members,
       receipts,
+      debtStatuses,
       profiles,
       createdBy: finalCreatedBy,
       username: groupName,
@@ -223,7 +233,7 @@ export function GroupCacheProvider({
   > {
     const { data: groupMembers, error: gmError } = await supabase
       .from('group_members')
-      .select('group_id, paid_status')
+      .select('group_id') // paid_status removed from group_members
       .eq('profile_id', profileId);
 
     if (gmError || !groupMembers) return new Map();
@@ -231,10 +241,38 @@ export function GroupCacheProvider({
     const groupIds = groupMembers.map((gm) => gm.group_id);
     if (groupIds.length === 0) return new Map();
 
-    const { data: groups, error: groupsError } = await supabase
-      .from('groups')
-      .select('id, name, created_at, is_finished')
-      .in('id', groupIds);
+    // Fetch group metadata and this user's debt records in parallel
+    const [groupsResult, debtsResult] = await Promise.all([
+      supabase
+        .from('groups')
+        .select('id, name, created_at, is_finished')
+        .in('id', groupIds),
+      supabase
+        .from('payment_debts')
+        .select('group_id, paid_status')
+        .eq('debtor_id', profileId)
+        .in('group_id', groupIds),
+    ]);
+
+    // Compute aggregate paid_status per group (worst status wins)
+    const priorityOf = (s: string): number => {
+      if (s === 'unrequested') return 4;
+      if (s === 'requested') return 3;
+      if (s === 'pending') return 2;
+      return 1; // verified
+    };
+    const statusFromPriority = (p: number): string => {
+      if (p >= 4) return 'unrequested';
+      if (p === 3) return 'requested';
+      if (p === 2) return 'pending';
+      return 'verified';
+    };
+    const debtPriorityMap = new Map<string, number>();
+    for (const debt of debtsResult.data ?? []) {
+      const current = debtPriorityMap.get(debt.group_id) ?? 0;
+      const p = priorityOf(debt.paid_status as string);
+      if (p > current) debtPriorityMap.set(debt.group_id, p);
+    }
 
     const metadata = new Map<
       string,
@@ -246,13 +284,14 @@ export function GroupCacheProvider({
       }
     >();
 
-    if (!groupsError && groups) {
-      const groupDataMap = new Map(groups.map((g) => [g.id, g]));
+    if (!groupsResult.error && groupsResult.data) {
+      const groupDataMap = new Map(groupsResult.data.map((g) => [g.id, g]));
       for (const gm of groupMembers) {
         const g = groupDataMap.get(gm.group_id);
+        const priority = debtPriorityMap.get(gm.group_id) ?? 0;
         metadata.set(gm.group_id, {
           name: g?.name ?? null,
-          paidStatus: gm.paid_status,
+          paidStatus: statusFromPriority(priority),
           createdAt: g?.created_at ?? null,
           isFinished: g?.is_finished ?? false,
         });
@@ -291,31 +330,12 @@ export function GroupCacheProvider({
 
       const itemMap = new Map(entry.items.map((i) => [i.id, i]));
 
-      // Map item ID → the profile who uploaded its receipt (null if no receipt)
-      const receiptUploaderMap = new Map(
-        entry.receipts.map((r) => [r.id, r.created_by]),
-      );
-
-      // A member "owes money" only if they have claims on items uploaded by someone else.
-      // This correctly excludes hosts/uploaders who only claimed their own items.
-      const membersWhoOwe = new Set(
-        entry.claims
-          .filter((c) => {
-            const item = itemMap.get(c.item_id);
-            if (!item || item.unit_price * c.share <= 0) return false;
-            const uploader = item.receipt_id
-              ? receiptUploaderMap.get(item.receipt_id)
-              : null;
-            // If there is no uploader (no receipt), count it - someone's owed
-            return !uploader || uploader !== c.profile_id;
-          })
-          .map((c) => c.profile_id),
-      );
+      // A debt record exists only when a status has been explicitly set, so
+      // "all paid" = all records that exist are verified (empty = no one has
+      // requested payment yet, which is also a valid "settled" baseline).
       const allMembersPaid =
-        membersWhoOwe.size > 0 &&
-        entry.members
-          .filter((m) => membersWhoOwe.has(m.profile_id))
-          .every((m) => m.paid_status === 'verified');
+        entry.debtStatuses.length > 0 &&
+        entry.debtStatuses.every((d) => d.paid_status === 'verified');
 
       let totalClaimed = 0;
       for (const claim of entry.claims) {
@@ -339,12 +359,13 @@ export function GroupCacheProvider({
           )
           .map((item) => item.id),
       );
+      // Members who have verified their payment to me (I am the creditor)
       const verifiedMemberIds = new Set(
-        entry.members
+        entry.debtStatuses
           .filter(
-            (m) => m.paid_status === 'verified' && m.profile_id !== profileId,
+            (d) => d.creditor_id === profileId && d.paid_status === 'verified',
           )
-          .map((m) => m.profile_id),
+          .map((d) => d.debtor_id),
       );
       let verifiedPaidAmount = 0;
       for (const claim of entry.claims) {

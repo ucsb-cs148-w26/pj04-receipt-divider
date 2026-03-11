@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,12 +14,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, IconButton } from '@eezy-receipt/shared';
+import type { PaidStatusDb } from '@eezy-receipt/shared';
 import { useGroupData } from '@/hooks';
 import { useAuth } from '@/providers';
 import {
   deleteGroup,
   updateGroupName,
-  updatePaidStatus,
+  updateDebtStatus,
 } from '@/services/groupApi';
 import { supabase } from '@/services/supabase';
 
@@ -62,6 +63,7 @@ export default function ReceiptDetailScreen() {
     members,
     receipts,
     profiles,
+    debtStatuses,
     isLoaded,
     refetch,
     createdBy,
@@ -69,7 +71,66 @@ export default function ReceiptDetailScreen() {
 
   const isHost = !!createdBy && createdBy === currentUserId;
 
-  // Build per-member data
+  // ── Per-creditor debts where I am the debtor ────────────────────────────────
+  // localDebtOverrides: optimistic status updates for the "Your Debts" sub-list
+  const [localDebtOverrides, setLocalDebtOverrides] = useState<
+    Map<string, PaidStatusDb>
+  >(new Map());
+
+  const myDebtsAsDebtor = useMemo(() => {
+    const creditorAmounts = new Map<string, number>();
+    for (const claim of claims) {
+      if (claim.profile_id !== currentUserId) continue;
+      const item = items.find((i) => i.id === claim.item_id);
+      if (!item || item.unit_price * claim.share <= 0) continue;
+      const receipt = receipts.find((r) => r.id === item.receipt_id);
+      if (!receipt || receipt.created_by === currentUserId) continue;
+      const creditorId = receipt.created_by;
+      creditorAmounts.set(
+        creditorId,
+        (creditorAmounts.get(creditorId) ?? 0) + item.unit_price * claim.share,
+      );
+    }
+    return Array.from(creditorAmounts.entries()).map(([creditorId, amount]) => {
+      const debtRecord = debtStatuses.find(
+        (d) => d.debtor_id === currentUserId && d.creditor_id === creditorId,
+      );
+      const overriddenStatus = localDebtOverrides.get(creditorId);
+      const paidStatus = (overriddenStatus ??
+        debtRecord?.paid_status ??
+        'unrequested') as PaidStatusDb;
+      return {
+        creditorId,
+        creditorName: profiles[creditorId]?.username ?? creditorId.slice(0, 8),
+        amount,
+        paidStatus,
+      };
+    });
+  }, [
+    claims,
+    items,
+    receipts,
+    currentUserId,
+    debtStatuses,
+    profiles,
+    localDebtOverrides,
+  ]);
+
+  // Aggregate debt status for the self row in the people list
+  const myAggregateDebtStatus = useMemo((): PersonStatus => {
+    if (myDebtsAsDebtor.length === 0) return 'completed';
+    if (myDebtsAsDebtor.every((d) => d.paidStatus === 'verified'))
+      return 'completed';
+    if (myDebtsAsDebtor.some((d) => d.paidStatus === 'pending'))
+      return 'waiting';
+    if (myDebtsAsDebtor.some((d) => d.paidStatus === 'requested'))
+      return 'pending';
+    return 'unrequested';
+  }, [myDebtsAsDebtor]);
+
+  // ── People list ───────────────────────────────────────────────────────────
+  // Build per-member data (from the creditor perspective: what does each person
+  // owe ME?).  The self-entry uses the aggregate debtor status instead.
   const basePeople = useMemo((): Person[] => {
     return members.map((member) => {
       const memberClaims = claims.filter(
@@ -79,51 +140,81 @@ export default function ReceiptDetailScreen() {
         const item = items.find((i) => i.id === claim.item_id);
         return sum + (item ? item.unit_price * claim.share : 0);
       }, 0);
+
+      let status: PersonStatus;
+      if (member.profile_id === currentUserId) {
+        // Self: show aggregate across all my debts-as-debtor
+        status = myAggregateDebtStatus;
+      } else {
+        // Others: show their debt status specifically to me (I am the creditor)
+        const debtToMe = debtStatuses.find(
+          (d) =>
+            d.debtor_id === member.profile_id &&
+            d.creditor_id === currentUserId,
+        );
+        status = mapDbPaidStatus(debtToMe?.paid_status as PaidStatusDb);
+      }
+
       return {
         id: member.profile_id,
         name:
           profiles[member.profile_id]?.username ??
           member.profile_id.slice(0, 8),
-        status: mapDbPaidStatus(member.paid_status),
+        status,
         amount: memberAmount,
       };
     });
-  }, [members, claims, items, profiles]);
+  }, [
+    members,
+    claims,
+    items,
+    profiles,
+    debtStatuses,
+    currentUserId,
+    myAggregateDebtStatus,
+  ]);
 
-  // completedIds: initialized once from DB, then locally toggleable
+  // completedIds: members who have verified their payment to me (I am the creditor).
+  // Kept as state so we can apply optimistic updates before the next refetch.
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
-  // localStatusOverrides: tracks request/cancel actions before next refetch
+  // localStatusOverrides: optimistic request/cancel actions in the people list
   const [localStatusOverrides, setLocalStatusOverrides] = useState<
     Map<string, PersonStatus>
   >(new Map());
-  const initializedRef = useRef(false);
+
+  // Re-sync completedIds whenever debtStatuses arrive (post-refetch)
   useEffect(() => {
-    if (initializedRef.current || !members.length) return;
-    initializedRef.current = true;
     setCompletedIds(
       new Set(
-        members
-          .filter((m) => m.paid_status === 'verified')
-          .map((m) => m.profile_id),
+        debtStatuses
+          .filter(
+            (d) =>
+              d.creditor_id === currentUserId && d.paid_status === 'verified',
+          )
+          .map((d) => d.debtor_id),
       ),
     );
-  }, [members]);
+  }, [debtStatuses, currentUserId]);
 
-  const persistVerify = async (personId: string, verified: boolean) => {
+  const persistVerify = async (
+    debtorId: string,
+    creditorId: string,
+    verified: boolean,
+  ) => {
     const newStatus = verified ? 'verified' : 'unrequested';
     try {
-      await updatePaidStatus(id ?? '', personId, newStatus);
+      await updateDebtStatus(id ?? '', debtorId, creditorId, newStatus);
       if (verified) {
-        setCompletedIds((prev) => new Set(prev).add(personId));
+        setCompletedIds((prev) => new Set(prev).add(debtorId));
       } else {
         setCompletedIds((prev) => {
           const next = new Set(prev);
-          next.delete(personId);
+          next.delete(debtorId);
           return next;
         });
         setLocalStatusOverrides((prev) => {
           const next = new Map(prev);
-          next.delete(personId);
+          next.delete(debtorId);
           return next;
         });
       }
@@ -151,7 +242,7 @@ export default function ReceiptDetailScreen() {
         {
           text: 'Verify Anyway',
           style: 'destructive',
-          onPress: () => void persistVerify(person.id, true),
+          onPress: () => void persistVerify(person.id, currentUserId, true),
         },
       ]);
       return;
@@ -164,7 +255,7 @@ export default function ReceiptDetailScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Verify',
-          onPress: () => void persistVerify(person.id, true),
+          onPress: () => void persistVerify(person.id, currentUserId, true),
         },
       ],
     );
@@ -199,7 +290,8 @@ export default function ReceiptDetailScreen() {
         : 'unrequested';
     setActionLoading(action);
     try {
-      await updatePaidStatus(id ?? '', person.id, newStatus);
+      // debtor = person being requested, creditor = current user (me)
+      await updateDebtStatus(id ?? '', person.id, currentUserId, newStatus);
       const uiStatus: PersonStatus =
         action === 'cancel' ? 'unrequested' : 'pending';
       setLocalStatusOverrides((prev) => new Map(prev).set(person.id, uiStatus));
@@ -232,46 +324,21 @@ export default function ReceiptDetailScreen() {
     setSelectedPerson(null);
   };
 
-  const handleSelfPayToggle = async () => {
-    if (!selfPerson) return;
-    if (
-      selfPerson.status === 'pending' ||
-      selfPerson.status === 'unrequested'
-    ) {
-      // 'requested'/'unrequested' in DB → mark as paid sets DB to 'pending' → UI 'waiting'
+  // ── Single-debt pay ──────────────────────────────────────────────────────────
+  // Called from the "Your Debts" sub-list for each individual creditor.
+  const handleSingleDebtPay = (
+    creditorId: string,
+    creditorName: string,
+    amount: number,
+    currentStatus: PaidStatusDb,
+  ) => {
+    if (currentStatus === 'verified') return;
+
+    if (currentStatus === 'pending') {
+      // Already self-reported — offer to unmark
       Alert.alert(
-        'Mark as Paid?',
-        'This will notify the host that you have paid. They will need to verify your payment.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Mark as Paid',
-            onPress: async () => {
-              setIsSelfPayLoading(true);
-              try {
-                await updatePaidStatus(id ?? '', currentUserId, 'pending');
-                setLocalStatusOverrides((prev) =>
-                  new Map(prev).set(currentUserId, 'waiting'),
-                );
-              } catch (err) {
-                Alert.alert(
-                  'Error',
-                  err instanceof Error
-                    ? err.message
-                    : 'Failed to update status.',
-                );
-              } finally {
-                setIsSelfPayLoading(false);
-              }
-            },
-          },
-        ],
-      );
-    } else if (selfPerson.status === 'waiting') {
-      // Already marked as paid — offer to unmark (sets back to 'requested' in DB → 'pending' in UI)
-      Alert.alert(
-        'Unmark as Paid?',
-        'This will set your payment status back to unpaid. The host will need to re-verify your payment.',
+        'Unmark Payment?',
+        `Your payment to ${creditorName} is awaiting their verification. Do you want to unmark it?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -279,9 +346,14 @@ export default function ReceiptDetailScreen() {
             style: 'destructive',
             onPress: async () => {
               try {
-                await updatePaidStatus(id ?? '', currentUserId, 'requested');
-                setLocalStatusOverrides((prev) =>
-                  new Map(prev).set(currentUserId, 'pending'),
+                await updateDebtStatus(
+                  id ?? '',
+                  currentUserId,
+                  creditorId,
+                  'requested',
+                );
+                setLocalDebtOverrides((prev) =>
+                  new Map(prev).set(creditorId, 'requested'),
                 );
               } catch (err) {
                 Alert.alert(
@@ -295,7 +367,108 @@ export default function ReceiptDetailScreen() {
           },
         ],
       );
+      return;
     }
+
+    Alert.alert(
+      'Mark as Paid?',
+      `This will notify ${creditorName} that you've paid $${amount.toFixed(2)}. They will need to verify receipt of payment.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark as Paid',
+          onPress: async () => {
+            try {
+              await updateDebtStatus(
+                id ?? '',
+                currentUserId,
+                creditorId,
+                'pending',
+              );
+              setLocalDebtOverrides((prev) =>
+                new Map(prev).set(creditorId, 'pending'),
+              );
+            } catch (err) {
+              Alert.alert(
+                'Error',
+                err instanceof Error ? err.message : 'Failed to update status.',
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // ── Bulk-pay self ────────────────────────────────────────────────────────────
+  // Triggered by tapping the self row in the people list.  Requires two
+  // confirmation alerts so the user doesn't tap through accidentally.
+  const handleBulkSelfPay = () => {
+    const unpaidDebts = myDebtsAsDebtor.filter(
+      (d) => d.paidStatus !== 'verified' && d.paidStatus !== 'pending',
+    );
+    if (unpaidDebts.length === 0) {
+      // Nothing to bulk-pay; fall through silently
+      return;
+    }
+    const totalOwed = unpaidDebts.reduce((sum, d) => sum + d.amount, 0);
+    const names = unpaidDebts.map((d) => d.creditorName).join(', ');
+
+    // Alert 1 — summary
+    Alert.alert(
+      'Mark All as Paid?',
+      `You owe a total of $${totalOwed.toFixed(2)} to ${unpaidDebts.length} ${unpaidDebts.length === 1 ? 'person' : 'people'} (${names}).\n\nThis will notify each of them that you have paid.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue →',
+          onPress: () => {
+            // Alert 2 — final confirmation
+            Alert.alert(
+              'Confirm All Payments',
+              'Please make sure you have actually sent payment to each person listed. Each creditor must verify receipt individually.',
+              [
+                { text: 'Go Back', style: 'cancel' },
+                {
+                  text: 'Yes, Mark All Paid',
+                  style: 'destructive',
+                  onPress: async () => {
+                    setIsSelfPayLoading(true);
+                    try {
+                      await Promise.all(
+                        unpaidDebts.map((d) =>
+                          updateDebtStatus(
+                            id ?? '',
+                            currentUserId,
+                            d.creditorId,
+                            'pending',
+                          ),
+                        ),
+                      );
+                      setLocalDebtOverrides((prev) => {
+                        const next = new Map(prev);
+                        for (const d of unpaidDebts)
+                          next.set(d.creditorId, 'pending');
+                        return next;
+                      });
+                    } catch (err) {
+                      Alert.alert(
+                        'Error',
+                        err instanceof Error
+                          ? err.message
+                          : 'Failed to update status.',
+                      );
+                    } finally {
+                      setIsSelfPayLoading(false);
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   };
 
   // All members with updated status, current user excluded from ordering/counts
@@ -305,9 +478,7 @@ export default function ReceiptDetailScreen() {
       ? ('completed' as PersonStatus)
       : localStatusOverrides.has(p.id)
         ? localStatusOverrides.get(p.id)!
-        : p.status === 'completed'
-          ? ('unrequested' as PersonStatus)
-          : p.status,
+        : p.status,
   }));
 
   const otherPeople = allPeople
@@ -586,6 +757,87 @@ export default function ReceiptDetailScreen() {
           </View>
         </View>
 
+        {/* Your Debts — sub-list of per-creditor amounts the current user owes */}
+        {myDebtsAsDebtor.length > 0 && (
+          <View className='bg-card rounded-2xl overflow-hidden mb-4'>
+            <View className='px-4 pt-4 pb-2 flex-row items-center justify-between'>
+              <Text className='text-foreground font-semibold text-base'>
+                Your Debts
+              </Text>
+              <Text className='text-muted-foreground text-xs'>
+                {
+                  myDebtsAsDebtor.filter((d) => d.paidStatus !== 'verified')
+                    .length
+                }{' '}
+                outstanding
+              </Text>
+            </View>
+            {myDebtsAsDebtor.map((debt, idx) => {
+              const debtStatusLabel =
+                debt.paidStatus === 'verified'
+                  ? 'Paid & Verified'
+                  : debt.paidStatus === 'pending'
+                    ? 'Awaiting Verification'
+                    : debt.paidStatus === 'requested'
+                      ? 'Payment Requested — tap to pay'
+                      : 'Not Yet Paid — tap to mark paid';
+              const debtStatusColor =
+                debt.paidStatus === 'verified'
+                  ? 'text-status-completed'
+                  : debt.paidStatus === 'pending'
+                    ? 'text-status-waiting'
+                    : debt.paidStatus === 'requested'
+                      ? 'text-status-pending'
+                      : 'text-status-unrequested';
+              return (
+                <View key={debt.creditorId}>
+                  {idx > 0 && <View className='h-px bg-border mx-4' />}
+                  <Pressable
+                    className='flex-row items-center px-4 py-3 active:opacity-70'
+                    onPress={() =>
+                      handleSingleDebtPay(
+                        debt.creditorId,
+                        debt.creditorName,
+                        debt.amount,
+                        debt.paidStatus,
+                      )
+                    }
+                    disabled={debt.paidStatus === 'verified'}
+                  >
+                    <View className='flex-1 mr-3'>
+                      <Text
+                        className='font-semibold text-base text-foreground'
+                        numberOfLines={1}
+                      >
+                        {debt.creditorName}
+                      </Text>
+                      <Text className={`text-sm ${debtStatusColor}`}>
+                        {debtStatusLabel}
+                      </Text>
+                    </View>
+                    <Text className={`font-semibold mr-2 ${debtStatusColor}`}>
+                      ${debt.amount.toFixed(2)}
+                    </Text>
+                    {debt.paidStatus === 'verified' ? (
+                      <MaterialCommunityIcons
+                        name='check-circle'
+                        size={18}
+                        className='text-status-completed'
+                      />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name='chevron-right'
+                        size={18}
+                        className='text-accent-dark'
+                      />
+                    )}
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {/* People / Receipts section */}
         <Text className='text-foreground text-lg font-semibold mb-2 px-1'>
           {tab === 'people' ? 'Receipts' : 'People'}
@@ -605,18 +857,25 @@ export default function ReceiptDetailScreen() {
             people.map((person, index) => {
               const isSelf = person.id === currentUserId;
               const isPersonHost = person.id === createdBy;
-              const selfRequested = isSelf && person.status === 'pending';
+              // For self: derive status from myAggregateDebtStatus
+              const selfHasUnpaidDebts =
+                isSelf &&
+                myDebtsAsDebtor.some(
+                  (d) =>
+                    d.paidStatus !== 'verified' && d.paidStatus !== 'pending',
+                );
               const selfWaiting = isSelf && person.status === 'waiting';
-              const selfUnrequested =
-                isSelf && person.status === 'unrequested' && person.amount > 0;
+              const selfCanBulkPay =
+                isSelf && (selfHasUnpaidDebts || selfWaiting);
               const owedToMeByPerson =
                 amountOwedToMePerPerson.get(person.id) ?? 0;
               const borderColor = isSelf
-                ? selfRequested
+                ? person.status === 'pending'
                   ? 'border-status-pending'
-                  : selfWaiting
+                  : person.status === 'waiting'
                     ? 'border-status-waiting'
-                    : selfUnrequested
+                    : person.status === 'unrequested' &&
+                        myDebtsAsDebtor.length > 0
                       ? 'border-status-unrequested'
                       : 'border-border'
                 : person.status === 'completed'
@@ -627,7 +886,7 @@ export default function ReceiptDetailScreen() {
                       ? 'border-status-pending'
                       : 'border-status-unrequested';
               const textColor = isSelf
-                ? selfRequested
+                ? person.status === 'pending'
                   ? 'text-status-pending'
                   : 'text-muted-foreground'
                 : person.status === 'completed'
@@ -638,12 +897,12 @@ export default function ReceiptDetailScreen() {
                       ? 'text-status-pending'
                       : 'text-status-unrequested';
               const statusLabel = isSelf
-                ? selfRequested
-                  ? 'Payment Requested — tap to mark as paid'
-                  : selfWaiting
-                    ? 'Marked as Paid — Awaiting Verification'
-                    : selfUnrequested
-                      ? 'You owe money — tap to mark as paid'
+                ? person.status === 'pending'
+                  ? 'Payment requested — tap to bulk mark as paid'
+                  : person.status === 'waiting'
+                    ? 'Some payments awaiting verification'
+                    : myDebtsAsDebtor.length > 0
+                      ? 'You owe money — tap to bulk mark as paid'
                       : 'You'
                 : person.status === 'completed'
                   ? 'Paid & Verified'
@@ -660,11 +919,8 @@ export default function ReceiptDetailScreen() {
                   <Pressable
                     className='flex-row items-center px-4 py-3 active:opacity-70'
                     onPress={() => {
-                      if (
-                        isSelf &&
-                        (selfRequested || selfWaiting || selfUnrequested)
-                      ) {
-                        void handleSelfPayToggle();
+                      if (isSelf && selfCanBulkPay) {
+                        handleBulkSelfPay();
                       } else if (!isSelf && owedToMeByPerson > 0) {
                         setSelectedPerson({
                           id: person.id,
@@ -675,21 +931,18 @@ export default function ReceiptDetailScreen() {
                       }
                     }}
                   >
-                    {/* Checkbox — interactive for self when payment is requested */}
+                    {/* Checkbox */}
                     <Pressable
                       onPress={() => {
-                        if (selfRequested || selfWaiting || selfUnrequested) {
-                          void handleSelfPayToggle();
+                        if (isSelf && selfCanBulkPay) {
+                          handleBulkSelfPay();
                         } else if (!isSelf && owedToMeByPerson > 0) {
                           handleCheckboxPress(person);
                         }
                       }}
                       hitSlop={8}
                       disabled={
-                        (isSelf &&
-                          !selfRequested &&
-                          !selfWaiting &&
-                          !selfUnrequested) ||
+                        (isSelf && !selfCanBulkPay) ||
                         (isSelf && isSelfPayLoading) ||
                         (!isSelf &&
                           (person.status === 'completed' ||
@@ -742,7 +995,7 @@ export default function ReceiptDetailScreen() {
                       )}
                     </View>
 
-                    {/* Amount — shown for others who owe money, and for self when payment is requested/marked */}
+                    {/* Amount */}
                     {!isSelf && owedToMeByPerson > 0 && (
                       <Text className={`font-semibold mr-1 ${textColor}`}>
                         {completedIds.has(person.id)
@@ -750,13 +1003,14 @@ export default function ReceiptDetailScreen() {
                           : `+$${person.amount.toFixed(2)}`}
                       </Text>
                     )}
-                    {isSelf &&
-                      (selfRequested || selfWaiting || selfUnrequested) &&
-                      person.amount > 0 && (
-                        <Text className={`font-semibold mr-1 ${textColor}`}>
-                          ${person.amount.toFixed(2)}
-                        </Text>
-                      )}
+                    {isSelf && myDebtsAsDebtor.length > 0 && (
+                      <Text className={`font-semibold mr-1 ${textColor}`}>
+                        $
+                        {myDebtsAsDebtor
+                          .reduce((s, d) => s + d.amount, 0)
+                          .toFixed(2)}
+                      </Text>
+                    )}
 
                     {!isSelf && (
                       <MaterialCommunityIcons
@@ -767,6 +1021,13 @@ export default function ReceiptDetailScreen() {
                             ? 'text-transparent'
                             : 'text-accent-dark'
                         }
+                      />
+                    )}
+                    {isSelf && selfCanBulkPay && (
+                      <MaterialCommunityIcons
+                        name='chevron-right'
+                        size={18}
+                        className='text-accent-dark'
                       />
                     )}
                   </Pressable>
@@ -950,7 +1211,11 @@ export default function ReceiptDetailScreen() {
                                 text: 'Verify',
                                 onPress: async () => {
                                   setActionLoading('verify');
-                                  await persistVerify(selectedPerson.id, true);
+                                  await persistVerify(
+                                    selectedPerson.id,
+                                    currentUserId,
+                                    true,
+                                  );
                                   setActionLoading(null);
                                   setSelectedPerson(null);
                                 },
@@ -1004,7 +1269,11 @@ export default function ReceiptDetailScreen() {
                                 text: 'Unverify',
                                 style: 'destructive',
                                 onPress: () => {
-                                  void persistVerify(selectedPerson.id, false);
+                                  void persistVerify(
+                                    selectedPerson.id,
+                                    currentUserId,
+                                    false,
+                                  );
                                   setSelectedPerson(null);
                                 },
                               },

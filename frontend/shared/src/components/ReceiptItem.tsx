@@ -4,7 +4,6 @@ import {
   Text,
   Pressable,
   Animated,
-  Alert,
   LayoutRectangle,
   StyleSheet,
 } from 'react-native';
@@ -474,33 +473,6 @@ export function ReceiptItem({
     isAnyTextFocusedS,
   ]);
 
-  /** ---------------- Delete with Warning ---------------- */
-  const confirmDelete = () => {
-    Alert.alert(
-      'Delete Item',
-      `Are you sure you want to delete "${item.name || 'this item'}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => onDelete() },
-      ],
-    );
-  };
-
-  const confirmRemoveTag = (userId: number) => {
-    Alert.alert(
-      'Remove User',
-      `Remove user ${userId} from "${item.name || 'this item'}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => onRemoveFromUser(userId),
-        },
-      ],
-    );
-  };
-
   /** ---------------- Render ---------------- */
 
   // Both layers crossfade simultaneously: editAnim drives the edit card opacity
@@ -540,7 +512,7 @@ export function ReceiptItem({
                 <View className='flex-row items-center'>
                   {/* Delete button */}
                   <Pressable
-                    onPress={confirmDelete}
+                    onPress={onDelete}
                     className='w-10 h-10 items-center justify-center mr-3'
                     accessibilityLabel='Delete item'
                   >
@@ -652,7 +624,7 @@ export function ReceiptItem({
                   <UserTag
                     key={userId}
                     id={userId}
-                    onRemove={() => confirmRemoveTag(userId)}
+                    onRemove={() => onRemoveFromUser(userId)}
                     isEntering={enteringTagIds.has(userId)}
                     isExiting={exitingTagIds.has(userId)}
                     isEditMode={isEditMode}

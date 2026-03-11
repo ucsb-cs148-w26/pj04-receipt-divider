@@ -184,6 +184,47 @@ export default function ReceiptRoomScreen() {
   // refetches (triggered by unrelated events) don't overwrite optimistic state.
   const pendingClaimsRef = useRef(0);
 
+  /**---------------- Undo Toast State ---------------- */
+  const [undoToast, setUndoToast] = useState<{
+    message: string;
+    onUndo: () => void;
+  } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUndoActionRef = useRef<(() => void) | null>(null);
+
+  const showUndoToast = (
+    message: string,
+    undoAction: () => void,
+    deferredAction: () => void,
+  ) => {
+    // Flush any existing deferred action immediately before showing the new toast
+    if (undoTimerRef.current !== null) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+      pendingUndoActionRef.current?.();
+      pendingUndoActionRef.current = null;
+    }
+    pendingUndoActionRef.current = deferredAction;
+    undoTimerRef.current = setTimeout(() => {
+      deferredAction();
+      pendingUndoActionRef.current = null;
+      undoTimerRef.current = null;
+      setUndoToast(null);
+    }, 5000);
+    setUndoToast({
+      message,
+      onUndo: () => {
+        if (undoTimerRef.current !== null) {
+          clearTimeout(undoTimerRef.current);
+          undoTimerRef.current = null;
+        }
+        pendingUndoActionRef.current = null;
+        undoAction();
+        setUndoToast(null);
+      },
+    });
+  };
+
   /**---------------- Debounce timers for item updates ---------------- */
   const itemUpdateTimers = useRef<
     Record<string, ReturnType<typeof setTimeout>>
@@ -544,7 +585,6 @@ export default function ReceiptRoomScreen() {
           });
       }
     }
-    setSelectedItemIds(new Set());
   };
 
   /**---------------- Drag Functions ---------------- */
@@ -668,10 +708,47 @@ export default function ReceiptRoomScreen() {
     finishedAlertShownRef.current = true;
     Alert.alert(
       'Room Completed',
-      'The host has completed this room. Editing items or claims now may cause issues.',
+      'The host has completed this room. You can no longer add or remove items or receipts.',
       [{ text: 'OK' }],
     );
   }, [isRoomFinished, isHost, groupData.isLoaded]);
+
+  // Realtime subscription: detect when the host finishes the room
+  useEffect(() => {
+    if (!isGroupRoom || !roomId) return;
+    const channel = supabase
+      .channel(`groups-finished:${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'groups',
+          filter: `id=eq.${roomId}`,
+        },
+        (payload) => {
+          const newData = payload.new as Record<string, unknown>;
+          if (newData.is_finished === true) {
+            setIsRoomFinished(true);
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [isGroupRoom, roomId]);
+
+  // Exit edit mode for non-hosts when the room is completed
+  useEffect(() => {
+    if (!isRoomFinished || isHost || !isEditMode) return;
+    setIsEditMode(false);
+    Animated.timing(editModeAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setIsEditAnimating(false));
+  }, [isRoomFinished, isHost, isEditMode, editModeAnim]);
 
   const groupDisplay = useMemo(() => {
     if (!isGroupRoom || !groupData.members.length) {
@@ -959,6 +1036,13 @@ export default function ReceiptRoomScreen() {
       addReceiptItem();
       return;
     }
+    if (!isHost && isRoomFinished) {
+      Alert.alert(
+        'Room Completed',
+        'The host has completed this room. No changes can be made.',
+      );
+      return;
+    }
     setAddItemName('');
     setAddItemPrice('0.00');
     setAddItemTax('0.00');
@@ -1125,27 +1209,59 @@ export default function ReceiptRoomScreen() {
   };
 
   const deleteReceiptItem = (id: string) => {
-    receiptItems.setItems(receiptItems.items.filter((item) => item.id !== id));
+    if (isGroupRoom && !isHost && isRoomFinished) {
+      Alert.alert(
+        'Room Completed',
+        'The host has completed this room. No changes can be made.',
+      );
+      return;
+    }
+    const items = receiptItems.items;
+    const idx = items.findIndex((item) => item.id === id);
+    const deletedItem = items[idx];
+    if (!deletedItem) return;
+
+    receiptItems.setItems(items.filter((item) => item.id !== id));
     setSelectedItemIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
       return next;
     });
-    if (isGroupRoom)
-      deleteItem(id).catch((err) => {
-        console.error(err);
-        Alert.alert(
-          'Delete Failed',
-          'Could not delete the item. Please refresh and try again.',
-        );
-      });
+
+    showUndoToast(
+      `"${deletedItem.name || 'Item'}" deleted`,
+      () => {
+        receiptItems.setItems((prev) => {
+          const next = [...prev];
+          next.splice(idx, 0, deletedItem);
+          return next;
+        });
+      },
+      () => {
+        if (isGroupRoom)
+          deleteItem(id).catch((err) => {
+            console.error(err);
+            Alert.alert(
+              'Delete Failed',
+              'Could not delete the item. Please refresh and try again.',
+            );
+          });
+      },
+    );
   };
 
   const handleDeleteReceipt = (receiptId: string, sectionItemIds: string[]) => {
+    if (isGroupRoom && !isHost && isRoomFinished) {
+      Alert.alert(
+        'Room Completed',
+        'The host has completed this room. No changes can be made.',
+      );
+      return;
+    }
     const count = sectionItemIds.length;
     Alert.alert(
       'Delete Receipt',
-      `Delete this receipt and its ${count} item${count !== 1 ? 's' : ''}? This cannot be undone.`,
+      `Delete this receipt and its ${count} item${count !== 1 ? 's' : ''}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1153,6 +1269,12 @@ export default function ReceiptRoomScreen() {
           style: 'destructive',
           onPress: () => {
             const idSet = new Set(sectionItemIds);
+            const allItems = receiptItems.items;
+            const deletedItems = allItems.filter((item) => idSet.has(item.id));
+            const deletedIndices = deletedItems.map((item) =>
+              allItems.indexOf(item),
+            );
+
             receiptItems.setItems((prev) =>
               prev.filter((item) => !idSet.has(item.id)),
             );
@@ -1161,14 +1283,29 @@ export default function ReceiptRoomScreen() {
               idSet.forEach((id) => next.delete(id));
               return next;
             });
-            if (isGroupRoom)
-              deleteReceipt(receiptId).catch((err) => {
-                console.error(err);
-                Alert.alert(
-                  'Delete Failed',
-                  'Could not delete the receipt. Please refresh and try again.',
-                );
-              });
+
+            showUndoToast(
+              `Receipt and ${count} item${count !== 1 ? 's' : ''} deleted`,
+              () => {
+                receiptItems.setItems((prev) => {
+                  const next = [...prev];
+                  deletedItems.forEach((item, i) => {
+                    next.splice(deletedIndices[i], 0, item);
+                  });
+                  return next;
+                });
+              },
+              () => {
+                if (isGroupRoom)
+                  deleteReceipt(receiptId).catch((err) => {
+                    console.error(err);
+                    Alert.alert(
+                      'Delete Failed',
+                      'Could not delete the receipt. Please refresh and try again.',
+                    );
+                  });
+              },
+            );
           },
         },
       ],
@@ -1218,8 +1355,9 @@ export default function ReceiptRoomScreen() {
         return;
       }
     }
+    const itemsSnapshot = receiptItems.items;
     receiptItems.setItems(
-      receiptItems.items.map((item) => {
+      itemsSnapshot.map((item) => {
         if (item.id === itemId) {
           return {
             ...item,
@@ -1229,23 +1367,35 @@ export default function ReceiptRoomScreen() {
         return item;
       }),
     );
-    if (isGroupRoom) {
-      const profileId = groupDisplay.participantIdToProfileId.get(userId);
-      if (profileId) {
-        pendingClaimsRef.current++;
-        unassignItem(itemId, profileId)
-          .catch((err) => {
-            console.error(err);
-            Alert.alert(
-              'Error',
-              'Failed to remove item assignment. Please refresh and try again.',
-            );
-          })
-          .finally(() => {
+    if (isGroupRoom) pendingClaimsRef.current++;
+
+    showUndoToast(
+      'User removed from item',
+      () => {
+        receiptItems.setItems(itemsSnapshot);
+        if (isGroupRoom) pendingClaimsRef.current--;
+      },
+      () => {
+        if (isGroupRoom) {
+          const profileId = groupDisplay.participantIdToProfileId.get(userId);
+          if (profileId) {
+            unassignItem(itemId, profileId)
+              .catch((err) => {
+                console.error(err);
+                Alert.alert(
+                  'Error',
+                  'Failed to remove item assignment. Please refresh and try again.',
+                );
+              })
+              .finally(() => {
+                pendingClaimsRef.current--;
+              });
+          } else {
             pendingClaimsRef.current--;
-          });
-      }
-    }
+          }
+        }
+      },
+    );
   };
 
   /**---------------- Computed Values ---------------- */
@@ -1626,7 +1776,6 @@ export default function ReceiptRoomScreen() {
                 <View
                   key={participant.id}
                   style={isDisabled ? { opacity: 0.4 } : undefined}
-                  pointerEvents={isDisabled ? 'none' : 'auto'}
                 >
                   <Participant
                     id={participant.id}
@@ -1669,30 +1818,27 @@ export default function ReceiptRoomScreen() {
                       };
                     }}
                     goToYourItemsPage={() => {
-                      if (selectedItemIds.size > 0) {
-                        claimSelectedToParticipant(participant.id);
-                      } else {
-                        router.push({
-                          pathname: '../items',
-                          params: {
-                            roomId,
-                            items: JSON.stringify(
-                              displayItems.filter((item) =>
-                                item.userTags?.includes(participant.id),
-                              ),
+                      router.push({
+                        pathname: '../items',
+                        params: {
+                          roomId,
+                          items: JSON.stringify(
+                            displayItems.filter((item) =>
+                              item.userTags?.includes(participant.id),
                             ),
-                            participantId: participant.id.toString(),
-                            participantName: participant.name,
-                            profileId:
-                              groupDisplay.participantIdToProfileId.get(
-                                participant.id,
-                              ) ?? '',
-                            taxPerItem: JSON.stringify(
-                              Object.fromEntries(taxPerItemMap),
-                            ),
-                          } as YourItemsRoomParams,
-                        });
-                      }
+                          ),
+                          participantId: participant.id.toString(),
+                          participantName: participant.name,
+                          profileId:
+                            groupDisplay.participantIdToProfileId.get(
+                              participant.id,
+                            ) ?? '',
+                          taxPerItem: JSON.stringify(
+                            Object.fromEntries(taxPerItemMap),
+                          ),
+                          isReadOnly: isDisabled ? 'true' : 'false',
+                        } as YourItemsRoomParams,
+                      });
                     }}
                     isEditMode={isEditMode}
                   />
@@ -1763,7 +1909,11 @@ export default function ReceiptRoomScreen() {
       >
         <Pressable
           className={`shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70 ${isEditMode ? 'bg-primary' : 'bg-card'}`}
-          disabled={showQuickActions || isEditAnimating}
+          disabled={
+            showQuickActions ||
+            isEditAnimating ||
+            (isGroupRoom && !isHost && isRoomFinished)
+          }
           onPress={() => {
             const newMode = !isEditMode;
             setIsEditAnimating(true);
@@ -1860,25 +2010,27 @@ export default function ReceiptRoomScreen() {
                       </Text>
                     </Pressable>
                   )}
-                  <Pressable
-                    className='items-center gap-1'
-                    onPress={() => {
-                      setShowQuickActions(false);
-                      router.push({
-                        pathname: '/add-receipt',
-                        params: { groupId: roomId },
-                      });
-                    }}
-                  >
-                    <MaterialCommunityIcons
-                      name='receipt-text-plus-outline'
-                      size={24}
-                      className='text-accent-dark'
-                    />
-                    <Text className='text-foreground text-xs'>
-                      Add Receipt{'\n'}
-                    </Text>
-                  </Pressable>
+                  {(!isGroupRoom || isHost || !isRoomFinished) && (
+                    <Pressable
+                      className='items-center gap-1'
+                      onPress={() => {
+                        setShowQuickActions(false);
+                        router.push({
+                          pathname: '/add-receipt',
+                          params: { groupId: roomId },
+                        });
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name='receipt-text-plus-outline'
+                        size={24}
+                        className='text-accent-dark'
+                      />
+                      <Text className='text-foreground text-xs'>
+                        Add Receipt{'\n'}
+                      </Text>
+                    </Pressable>
+                  )}
                   <Pressable
                     className='items-center gap-1'
                     onPress={() => {
@@ -2063,6 +2215,30 @@ export default function ReceiptRoomScreen() {
         onRemoveParticipant={isGroupRoom ? undefined : removeParticipant}
         loadingParticipantNames={isGroupRoom ? pendingGuestNames : undefined}
       />
+
+      {/* Undo toast */}
+      {undoToast && (
+        <View
+          className='absolute left-4 right-4 items-stretch'
+          style={{ zIndex: 50, bottom: 100 }}
+          pointerEvents='box-none'
+        >
+          <View className='bg-card border border-border rounded-2xl px-4 py-3 flex-row items-center shadow-lg shadow-black/30'>
+            <Text
+              className='text-foreground text-sm font-medium flex-1'
+              numberOfLines={1}
+            >
+              {undoToast.message}
+            </Text>
+            <Pressable
+              onPress={undoToast.onUndo}
+              className='ml-4 active:opacity-60'
+            >
+              <Text className='text-accent font-bold text-sm'>Undo</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {isLoadingPhoto && (
         <View

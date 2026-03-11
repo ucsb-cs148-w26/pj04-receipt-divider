@@ -159,10 +159,21 @@ class UpdateReceiptTaxRequest(BaseRequest):
     tax: Optional[float] = None
 
 
-class UpdatePaidStatusRequest(BaseRequest):
+class UpdateDebtStatusRequest(BaseRequest):
     group_id: uuid.UUID
-    profile_id: uuid.UUID
+    debtor_id: uuid.UUID
+    creditor_id: uuid.UUID
     paid_status: str  # 'verified' | 'pending' | 'requested' | 'unrequested'
+
+
+class DebtStatusRow(BaseResponse):
+    debtor_id: uuid.UUID
+    creditor_id: uuid.UUID
+    paid_status: str
+
+
+class GetGroupDebtsResponse(BaseResponse):
+    debts: list[DebtStatusRow]
 
 
 class FinishGroupRequest(BaseRequest):

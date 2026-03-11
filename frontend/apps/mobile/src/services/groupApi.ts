@@ -245,6 +245,16 @@ export async function unassignItems(
 
 export type PaidStatus = 'verified' | 'pending' | 'requested' | 'unrequested';
 
+export interface DebtStatusRow {
+  debtorId: string;
+  creditorId: string;
+  paidStatus: PaidStatus;
+}
+
+export interface GetGroupDebtsResponse {
+  debts: DebtStatusRow[];
+}
+
 export interface GroupSummary {
   groupId: string;
   name: string | null;
@@ -265,7 +275,29 @@ export async function joinGroup(groupId: string): Promise<void> {
   });
 }
 
-/** Update the paid_status of a group member via the backend API. */
+/** Update the paid_status for a specific (debtor, creditor) debt within a group. */
+export async function updateDebtStatus(
+  groupId: string,
+  debtorId: string,
+  creditorId: string,
+  status: PaidStatus,
+): Promise<void> {
+  return apiFetch<void>('/group/debt-status', {
+    method: 'PATCH',
+    body: JSON.stringify({ groupId, debtorId, creditorId, paidStatus: status }),
+  });
+}
+
+/** GET /group/debts?group_id=… — all payment_debts rows for a group */
+export async function getGroupDebts(
+  groupId: string,
+): Promise<GetGroupDebtsResponse> {
+  return apiFetch<GetGroupDebtsResponse>(
+    `/group/debts?group_id=${encodeURIComponent(groupId)}`,
+  );
+}
+
+/** @deprecated Use updateDebtStatus instead. */
 export async function updatePaidStatus(
   groupId: string,
   profileId: string,

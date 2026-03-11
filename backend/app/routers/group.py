@@ -19,7 +19,9 @@ from app.schemas.group import (
     CreateInviteLinkResponse,
     DeleteGroupRequest,
     DeleteReceiptRequest,
+    DebtStatusRow,
     FinishGroupRequest,
+    GetGroupDebtsResponse,
     GetMyGroupsResponse,
     GetProfilesResponse,
     GroupSummary,
@@ -27,13 +29,13 @@ from app.schemas.group import (
     LoginAsRequest,
     LoginAsResponse,
     RemoveMemberRequest,
+    UpdateDebtStatusRequest,
     UpdateItemRequest,
     UpdateGroupNameRequest,
     UpdateProfileColorRequest,
     UpdateUsernameRequest,
     UpdateReceiptTaxRequest,
     UpdateReceiptOwnerRequest,
-    UpdatePaidStatusRequest,
 )
 from app.dependencies import (
     get_auth_service,
@@ -403,13 +405,37 @@ def update_receipt_tax(
     user_service.update_receipt_tax(profile_id, str(payload.receipt_id), payload.tax)
 
 
-@router.patch("/paid-status")
-def update_paid_status(
-    payload: UpdatePaidStatusRequest,
+@router.get("/debts", response_model=GetGroupDebtsResponse)
+def get_group_debts(
+    group_id: str,
     auth_service: AuthService = Depends(get_auth_service),
     user_service: UserService = Depends(get_user_service),
 ):
     caller_id = auth_service.authenticate_any_user()
-    user_service.update_paid_status(
-        caller_id, str(payload.group_id), str(payload.profile_id), payload.paid_status
+    debts = user_service.get_group_debts(caller_id, group_id)
+    return GetGroupDebtsResponse(
+        debts=[
+            DebtStatusRow(
+                debtor_id=d.debtor_id,
+                creditor_id=d.creditor_id,
+                paid_status=d.paid_status,
+            )
+            for d in debts
+        ]
+    )
+
+
+@router.patch("/debt-status")
+def update_debt_status(
+    payload: UpdateDebtStatusRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    caller_id = auth_service.authenticate_any_user()
+    user_service.update_debt_status(
+        caller_id,
+        str(payload.group_id),
+        str(payload.debtor_id),
+        str(payload.creditor_id),
+        payload.paid_status,
     )

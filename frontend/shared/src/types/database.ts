@@ -23,7 +23,16 @@ export interface GroupMember {
   profile_id: string;
   group_id: string;
   joined_at: string;
+  // paid_status removed — use PaymentDebt rows instead
+}
+
+/** One debt relationship within a group: debtor_id owes creditor_id money. */
+export interface PaymentDebt {
+  group_id: string;
+  debtor_id: string;
+  creditor_id: string;
   paid_status: PaidStatusDb;
+  updated_at: string;
 }
 
 export interface Item {

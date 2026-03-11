@@ -44,12 +44,14 @@ export function useGroupData(groupId: string) {
   useRealtimeRefetch('item_claims', debouncedRefetch);
   useRealtimeRefetch('group_members', debouncedRefetch, { filter });
   useRealtimeRefetch('receipts', debouncedRefetch, { filter });
+  useRealtimeRefetch('payment_debts', debouncedRefetch, { filter });
 
   return {
     items: entry.items,
     claims: entry.claims,
     members: entry.members,
     receipts: entry.receipts,
+    debtStatuses: entry.debtStatuses,
     profiles: entry.profiles,
     createdBy: entry.createdBy,
     isLoaded: entry.isLoaded,

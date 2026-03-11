@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { USER_COLORS } from '../constants';
+import { USER_COLOR_HEX } from '../constants';
 
 // ── Options bottom sheet ───────────────────────────────────────────────────────
 
@@ -110,7 +110,7 @@ export type AddParticipantManualModalProps = {
   // eslint-disable-next-line no-unused-vars
   onAdd: (_name: string) => void;
   /** Optional list of already-added participants to display as tags. */
-  addedParticipants?: { id: number; name: string }[];
+  addedParticipants?: { id: number; name: string; accentColor?: string }[];
   /** Participant ids whose names cannot be edited (e.g. they have a real account). */
   lockedParticipantIds?: number[];
   /** Called when a participant tag is renamed. */
@@ -228,15 +228,26 @@ export function AddParticipantManualModal({
               (loadingParticipantNames &&
                 loadingParticipantNames.length > 0)) && (
               <View className='flex-row flex-wrap items-center justify-center gap-2 mb-4'>
-                {(addedParticipants ?? []).map((p) => (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => handleParticipantPress(p)}
-                    className={`px-3 py-1 rounded-full border-2 border-${USER_COLORS[(p.id - 1) % USER_COLORS.length]} active:opacity-60`}
-                  >
-                    <Text className='text-foreground text-sm'>{p.name}</Text>
-                  </Pressable>
-                ))}
+                {(addedParticipants ?? []).map((p) => {
+                  const accentHex =
+                    p.accentColor ??
+                    USER_COLOR_HEX[(p.id - 1) % USER_COLOR_HEX.length];
+                  return (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => handleParticipantPress(p)}
+                      className='px-3 py-1 rounded-full border-2 active:opacity-60'
+                      style={{ borderColor: accentHex }}
+                    >
+                      <Text
+                        className='text-sm font-medium'
+                        style={{ color: accentHex }}
+                      >
+                        {p.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
                 {(loadingParticipantNames ?? []).map((name) => (
                   <View
                     key={`loading-${name}`}
@@ -254,13 +265,13 @@ export function AddParticipantManualModal({
             <Pressable
               className={`rounded-xl py-3 items-center mb-2 ${
                 value.trim()
-                  ? 'bg-card border border-border active:opacity-80'
-                  : 'bg-card border border-border opacity-40'
+                  ? 'bg-card border border-accent active:opacity-80'
+                  : 'bg-card border border-accent opacity-40'
               }`}
               onPress={handleSubmitEditing}
               disabled={!value.trim()}
             >
-              <Text className='text-foreground font-bold'>Add</Text>
+              <Text className='text-accent font-bold'>Add</Text>
             </Pressable>
 
             <Pressable

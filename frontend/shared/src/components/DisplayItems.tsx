@@ -21,14 +21,18 @@ export function DisplayItems({
   return (
     <View className='w-full bg-card rounded-2xl p-4'>
       <View className='flex-row items-center'>
-        {/* Remove button */}
-        <Pressable
-          onPress={onRemove}
-          className='w-10 h-10 items-center justify-center'
-          accessibilityLabel='Remove item'
-        >
-          <Text className='text-destructive text-2xl font-bold'>✕</Text>
-        </Pressable>
+        {/* Remove button — only rendered when a handler is provided */}
+        {onRemove !== undefined ? (
+          <Pressable
+            onPress={onRemove}
+            className='w-10 h-10 items-center justify-center'
+            accessibilityLabel='Remove item'
+          >
+            <Text className='text-destructive text-2xl font-bold'>✕</Text>
+          </Pressable>
+        ) : (
+          <View className='w-10 h-10' />
+        )}
 
         {/* Percentage badge */}
         {pct < 100 && (
