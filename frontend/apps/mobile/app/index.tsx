@@ -90,6 +90,10 @@ export default function HomeScreen() {
   const groups: HistoryItem[] = (myGroups ?? [])
     .slice()
     .sort((a, b) => {
+      const statusA = getRoomStatus(a);
+      const statusB = getRoomStatus(b);
+      if (statusA === 'completed' && statusB !== 'completed') return 1;
+      if (statusA !== 'completed' && statusB === 'completed') return -1;
       if (!a.createdAt && !b.createdAt) return 0;
       if (!a.createdAt) return 1;
       if (!b.createdAt) return -1;

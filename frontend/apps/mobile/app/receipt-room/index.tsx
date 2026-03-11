@@ -17,6 +17,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import {
   SafeAreaView,
@@ -186,6 +187,11 @@ export default function ReceiptRoomScreen() {
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [showAddManual, setShowAddManual] = useState(false);
   const [pendingGuestNames, setPendingGuestNames] = useState<string[]>([]);
+
+  /**---------------- Receipt Image Viewer State ---------------- */
+  const [viewingReceiptImage, setViewingReceiptImage] = useState<string | null>(
+    null,
+  );
 
   /**---------------- Add Item Sheet State ---------------- */
   const [showAddItemSheet, setShowAddItemSheet] = useState(false);
@@ -1226,21 +1232,40 @@ export default function ReceiptRoomScreen() {
                           : 'No Receipt'}
                       </Text>
                       {isEditMode && receiptId && (
-                        <Pressable
-                          onPress={() =>
-                            handleDeleteReceipt(
-                              receiptId,
-                              sectionItems.map((i) => i.id),
-                            )
-                          }
-                          className='active:opacity-50 p-1'
-                        >
-                          <MaterialCommunityIcons
-                            name='trash-can-outline'
-                            size={16}
-                            color='#ef4444'
-                          />
-                        </Pressable>
+                        <View className='flex-row items-center gap-1'>
+                          {(() => {
+                            const r = groupData.receipts.find(
+                              (rec) => rec.id === receiptId,
+                            );
+                            return r?.image ? (
+                              <Pressable
+                                onPress={() => setViewingReceiptImage(r.image)}
+                                className='active:opacity-50 p-1'
+                              >
+                                <MaterialCommunityIcons
+                                  name='image-outline'
+                                  size={16}
+                                  color='#4999DF'
+                                />
+                              </Pressable>
+                            ) : null;
+                          })()}
+                          <Pressable
+                            onPress={() =>
+                              handleDeleteReceipt(
+                                receiptId,
+                                sectionItems.map((i) => i.id),
+                              )
+                            }
+                            className='active:opacity-50 p-1'
+                          >
+                            <MaterialCommunityIcons
+                              name='trash-can-outline'
+                              size={16}
+                              color='#ef4444'
+                            />
+                          </Pressable>
+                        </View>
                       )}
                     </View>
                   )}
@@ -1794,6 +1819,43 @@ export default function ReceiptRoomScreen() {
           data={pendingConfidence}
         />
       )}
+
+      {/* Receipt Image Viewer */}
+      <Modal
+        visible={viewingReceiptImage !== null}
+        transparent
+        animationType='fade'
+        onRequestClose={() => setViewingReceiptImage(null)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Pressable
+            onPress={() => setViewingReceiptImage(null)}
+            style={{
+              position: 'absolute',
+              top: insets.top + 12,
+              right: 16,
+              zIndex: 10,
+              padding: 8,
+            }}
+          >
+            <MaterialCommunityIcons name='close' size={28} color='#ffffff' />
+          </Pressable>
+          {viewingReceiptImage && (
+            <Image
+              source={{ uri: viewingReceiptImage }}
+              style={{ width: '100%', height: '85%' }}
+              resizeMode='contain'
+            />
+          )}
+        </View>
+      </Modal>
 
       {/* Add Item Receipt Picker Sheet */}
       <Modal
