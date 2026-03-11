@@ -1,7 +1,13 @@
 import { ReceiptItem } from '@shared/components/ReceiptItem';
 import { ReceiptItemData } from '@shared/types';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   View,
   ScrollView,
@@ -58,12 +64,14 @@ import {
   addItem,
   createManualReceipt,
   updateReceiptTax,
+  updateReceiptOwner,
   updateGroupName,
   createGuestProfile,
   removeGroupMember,
   createInviteLink,
 } from '@/services/groupApi';
 import { supabase } from '@/services/supabase';
+import { takePendingReceiptPhotos } from '@/services/pendingReceiptPhotos';
 import type {
   GroupMember as DbGroupMember,
   ItemClaim as DbItemClaim,
@@ -83,6 +91,7 @@ interface ParticipantType {
   id: number;
   name: string;
   isGuest?: boolean;
+  accentColor?: string;
 }
 
 export type ReceiptRoomParams = {
@@ -192,6 +201,7 @@ export default function ReceiptRoomScreen() {
   const [viewingReceiptImage, setViewingReceiptImage] = useState<string | null>(
     null,
   );
+  const [receiptImageLoading, setReceiptImageLoading] = useState(false);
   /** Separate state for viewing a receipt image from within the add-item sheet,
    *  displayed as an overlay inside the same Modal to avoid nested-Modal issues. */
   const [addItemSheetViewingImage, setAddItemSheetViewingImage] = useState<
@@ -209,6 +219,11 @@ export default function ReceiptRoomScreen() {
 
   const [isAddingItem, setIsAddingItem] = useState(false);
 
+  /**---------------- Tax Input State (editable tax rows) ---------------- */
+  const [localTaxInputs, setLocalTaxInputs] = useState<Map<string, string>>(
+    new Map(),
+  );
+
   // Tracks the tax amount (in $) last saved to the receipt for each item,
   // so repeated price edits correctly update rather than accumulate.
   const itemSavedTaxRef = useRef<Record<string, number>>({});
@@ -224,9 +239,8 @@ export default function ReceiptRoomScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   /** Receipt IDs we're waiting to see appear in the realtime cache. */
   const pendingReceiptIdsRef = useRef<Set<string>>(new Set());
-  /** Confidence data to show once items arrive. */
-  const [pendingConfidence, setPendingConfidence] =
-    useState<ConfidenceData | null>(null);
+  /** Queue of confidence reports to show one-by-one after uploads complete. */
+  const [confidenceQueue, setConfidenceQueue] = useState<ConfidenceData[]>([]);
   const [showConfidenceModal, setShowConfidenceModal] = useState(false);
 
   const handleRefresh = async () => {
@@ -289,9 +303,9 @@ export default function ReceiptRoomScreen() {
       }),
     )
       .then(() => {
-        // Store aggregated confidence (use first receipt's score for simplicity)
+        // Enqueue all collected confidence reports to show one-by-one.
         if (collectedConfidence.length > 0) {
-          setPendingConfidence(collectedConfidence[0]);
+          setConfidenceQueue((prev) => [...prev, ...collectedConfidence]);
         }
         // Loading is cleared by the groupData watcher below once receipts arrive.
       })
@@ -312,6 +326,53 @@ export default function ReceiptRoomScreen() {
     }, 20_000);
     return () => clearTimeout(fallback);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Pick up photos handed off by the Add Receipt screen and process them here
+   *  so the receipt-room's "Processing receipt…" banner is shown. */
+  useFocusEffect(
+    useCallback(() => {
+      const uris = takePendingReceiptPhotos();
+      if (!uris || uris.length === 0 || !params.roomId) return;
+      setIsLoadingPhoto(true);
+      const collectedConfidence: ConfidenceData[] = [];
+      Promise.all(
+        uris.map(async (uri) => {
+          const result = await addReceipt(params.roomId as string, uri);
+          pendingReceiptIdsRef.current.add(result.receiptId);
+          if (result.confidenceScore != null) {
+            collectedConfidence.push({
+              confidenceScore: result.confidenceScore,
+              warnings: result.warnings,
+              notes: result.notes,
+              tax: result.tax,
+              ocrTotal: result.ocrTotal,
+            });
+          }
+        }),
+      )
+        .then(() => {
+          if (collectedConfidence.length > 0) {
+            setConfidenceQueue((prev) => [...prev, ...collectedConfidence]);
+          }
+          // Loading cleared by the groupData watcher once receipts arrive.
+        })
+        .catch((err) => {
+          Alert.alert(
+            'Upload Failed',
+            err instanceof Error ? err.message : 'Could not process receipt.',
+          );
+          setIsLoadingPhoto(false);
+        });
+
+      const fallback = setTimeout(() => {
+        if (pendingReceiptIdsRef.current.size > 0) {
+          pendingReceiptIdsRef.current = new Set();
+          setIsLoadingPhoto(false);
+        }
+      }, 20_000);
+      return () => clearTimeout(fallback);
+    }, [params.roomId]),
+  );
 
   /**---------------- Participants Functions ---------------- */
   const addParticipant = (name: string) => {
@@ -626,6 +687,7 @@ export default function ReceiptRoomScreen() {
       id: i + 1,
       name: groupData.profiles[m.profile_id]?.username ?? `Member ${i + 1}`,
       isGuest: groupData.profiles[m.profile_id]?.isGuest ?? false,
+      accentColor: groupData.profiles[m.profile_id]?.accentColor || undefined,
     }));
     const claims = groupData.claims as DbItemClaim[];
     const items = (groupData.items as DbItem[]).map((item) => {
@@ -689,16 +751,29 @@ export default function ReceiptRoomScreen() {
     if (allArrived) {
       pendingReceiptIdsRef.current = new Set();
       setIsLoadingPhoto(false);
-      if (pendingConfidence) {
-        setShowConfidenceModal(true);
-      }
     }
-  }, [groupData.receipts, isLoadingPhoto, pendingConfidence]);
+  }, [groupData.receipts, isLoadingPhoto]);
+
+  // Open the confidence modal whenever the queue gains a new entry and no modal is open.
+  useEffect(() => {
+    if (confidenceQueue.length > 0 && !showConfidenceModal) {
+      setShowConfidenceModal(true);
+    }
+  }, [confidenceQueue, showConfidenceModal]);
 
   const displayItems = receiptItems.items;
   const displayParticipants = isGroupRoom
     ? groupDisplay.participants
     : participants;
+
+  // Map participant id → hex accent color (for coloring Participant cards and UserTag badges)
+  const participantColors = useMemo<Record<number, string>>(() => {
+    const m: Record<number, string> = {};
+    for (const p of displayParticipants) {
+      if (p.accentColor) m[p.id] = p.accentColor;
+    }
+    return m;
+  }, [displayParticipants]);
 
   // Numeric participant ID for the current user (used when navigating to QR page)
   const currentParticipantId = isGroupRoom
@@ -729,12 +804,11 @@ export default function ReceiptRoomScreen() {
   const receiptTaxMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of groupData.receipts) {
-      if (r.tax != null && r.tax > 0) m.set(r.id, r.tax);
+      if (r.tax != null) m.set(r.id, r.tax);
     }
     // Apply optimistic overrides from local state (set before Supabase resyncs)
     for (const [rid, tax] of localReceiptTaxOverrides.entries()) {
-      if (tax > 0) m.set(rid, tax);
-      else m.delete(rid);
+      m.set(rid, tax);
     }
     return m;
   }, [groupData.receipts, localReceiptTaxOverrides]);
@@ -1096,6 +1170,36 @@ export default function ReceiptRoomScreen() {
     );
   };
 
+  const handleChangeReceiptOwner = (receiptId: string) => {
+    const receipt = groupData.receipts.find((r) => r.id === receiptId);
+    if (!receipt) return;
+    const memberOptions = groupDisplay.participants
+      .map((p) => ({
+        name: p.name,
+        profileId: groupDisplay.participantIdToProfileId.get(p.id) ?? '',
+      }))
+      .filter((o) => o.profileId);
+    Alert.alert('Change Receipt Owner', 'Who should own this receipt?', [
+      ...memberOptions.map((o) => ({
+        text: o.profileId === receipt.created_by ? `${o.name} ✓` : o.name,
+        onPress: () => {
+          if (o.profileId === receipt.created_by) return;
+          updateReceiptOwner(receiptId, o.profileId)
+            .then(() => groupData.refetch())
+            .catch((err) => {
+              Alert.alert(
+                'Error',
+                err instanceof Error
+                  ? err.message
+                  : 'Could not change receipt owner.',
+              );
+            });
+        },
+      })),
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   const removeItemFromUser = (itemId: string, userId: number) => {
     if (isGroupRoom && !isHost) {
       const targetProfileId = groupDisplay.participantIdToProfileId.get(userId);
@@ -1269,19 +1373,42 @@ export default function ReceiptRoomScreen() {
                 <React.Fragment key={receiptId ?? '__no_receipt__'}>
                   {isGroupRoom && receiptId && (
                     <View className='flex-row items-center justify-between px-1 pt-1'>
-                      <Text className='text-muted-foreground text-xs font-semibold uppercase tracking-wide'>
-                        {receiptId
-                          ? (() => {
-                              const r = groupData.receipts.find(
-                                (rec) => rec.id === receiptId,
-                              );
-                              const byLine = r?.is_manual
-                                ? `Created by ${receiptUploaderMap.get(receiptId) ?? 'Unknown'}`
-                                : `Uploaded by ${receiptUploaderMap.get(receiptId) ?? 'Unknown'}`;
-                              return `Receipt #${receiptNumberMap.get(receiptId) ?? sectionIndex + 1} · ${byLine}`;
-                            })()
-                          : 'No Receipt'}
-                      </Text>
+                      <View className='flex-row items-center flex-1 mr-2 flex-wrap'>
+                        {(() => {
+                          const r = groupData.receipts.find(
+                            (rec) => rec.id === receiptId,
+                          );
+                          const verb = r?.is_manual
+                            ? 'Created by'
+                            : 'Uploaded by';
+                          const uploaderName =
+                            receiptUploaderMap.get(receiptId) ?? 'Unknown';
+                          const canChangeOwner =
+                            isHost || r?.created_by === currentUserId;
+                          return (
+                            <>
+                              <Text className='text-muted-foreground text-xs font-semibold uppercase tracking-wide'>
+                                {`Receipt #${receiptNumberMap.get(receiptId) ?? sectionIndex + 1} · `}
+                              </Text>
+                              <Pressable
+                                disabled={!canChangeOwner}
+                                onPress={() =>
+                                  handleChangeReceiptOwner(receiptId)
+                                }
+                                className={
+                                  canChangeOwner ? 'active:opacity-60' : ''
+                                }
+                              >
+                                <Text
+                                  className={`text-xs font-semibold uppercase tracking-wide ${canChangeOwner ? 'text-accent' : 'text-muted-foreground'}`}
+                                >
+                                  {verb} {uploaderName}
+                                </Text>
+                              </Pressable>
+                            </>
+                          );
+                        })()}
+                      </View>
                       {isEditMode && receiptId && (
                         <View className='flex-row items-center gap-1'>
                           {(() => {
@@ -1291,7 +1418,7 @@ export default function ReceiptRoomScreen() {
                             return r?.image ? (
                               <Pressable
                                 onPress={() => setViewingReceiptImage(r.image)}
-                                className='active:opacity-50 p-1'
+                                className='active:opacity-50 mr-2'
                               >
                                 <MaterialCommunityIcons
                                   name='image-outline'
@@ -1308,7 +1435,7 @@ export default function ReceiptRoomScreen() {
                                 sectionItems.map((i) => i.id),
                               )
                             }
-                            className='active:opacity-50 p-1'
+                            className='active:opacity-50'
                           >
                             <MaterialCommunityIcons
                               name='trash-can-outline'
@@ -1356,26 +1483,86 @@ export default function ReceiptRoomScreen() {
                       isSelected={selectedItemIds.has(item.id)}
                       onToggleSelect={() => toggleItemSelection(item.id)}
                       scrollContext={scrollCtx}
+                      participantColors={participantColors}
                     />
                   ))}
                   {/* Tax row — displayed at the bottom of each receipt section */}
-                  {isGroupRoom && receiptId && receiptTaxMap.has(receiptId) && (
-                    <View className='flex-row items-center justify-between bg-card rounded-2xl px-4 py-3 border border-border opacity-70'>
-                      <View className='flex-row items-center gap-2'>
-                        <MaterialCommunityIcons
-                          name='percent-outline'
-                          size={16}
-                          color='#6b7280'
-                        />
-                        <Text className='text-muted-foreground text-sm font-medium'>
-                          Tax
-                        </Text>
+                  {isGroupRoom &&
+                    receiptId &&
+                    (receiptTaxMap.has(receiptId) || isEditMode) && (
+                      <View
+                        className={`flex-row items-center justify-between bg-card rounded-2xl px-4 py-3 border border-border${isEditMode ? '' : ' opacity-70'}`}
+                      >
+                        <View className='flex-row items-center gap-2'>
+                          <MaterialCommunityIcons
+                            name='percent-outline'
+                            size={16}
+                            color='#6b7280'
+                          />
+                          <Text className='text-muted-foreground text-sm font-medium'>
+                            Tax
+                          </Text>
+                        </View>
+                        {isEditMode ? (
+                          <View className='flex-row items-center'>
+                            <Text className='text-muted-foreground text-sm font-semibold'>
+                              $
+                            </Text>
+                            <PriceInput
+                              value={
+                                localTaxInputs.get(receiptId) ??
+                                (receiptTaxMap.get(receiptId) ?? 0).toFixed(2)
+                              }
+                              onValueChange={(val) => {
+                                setLocalTaxInputs((prev) => {
+                                  const next = new Map(prev);
+                                  next.set(receiptId, val);
+                                  return next;
+                                });
+                              }}
+                              onBlur={() => {
+                                const valStr = localTaxInputs.get(receiptId);
+                                if (valStr === undefined) return;
+                                const val = parseFloat(valStr) || 0;
+                                setLocalReceiptTaxOverrides((prev) => {
+                                  const next = new Map(prev);
+                                  if (val > 0) next.set(receiptId, val);
+                                  else next.delete(receiptId);
+                                  return next;
+                                });
+                                setLocalTaxInputs((prev) => {
+                                  const next = new Map(prev);
+                                  next.delete(receiptId);
+                                  return next;
+                                });
+                                updateReceiptTax(
+                                  receiptId,
+                                  val > 0 ? val : null,
+                                ).catch((err) => {
+                                  console.error(
+                                    'Failed to update receipt tax:',
+                                    err,
+                                  );
+                                });
+                              }}
+                              placeholder='0.00'
+                              placeholderTextColor='#9ca3af'
+                              className='text-muted-foreground text-sm font-semibold'
+                              style={{
+                                padding: 0,
+                                includeFontPadding: false,
+                                lineHeight: 20,
+                                minWidth: 20,
+                              }}
+                            />
+                          </View>
+                        ) : (
+                          <Text className='text-muted-foreground text-sm font-semibold'>
+                            ${receiptTaxMap.get(receiptId)!.toFixed(2)}
+                          </Text>
+                        )}
                       </View>
-                      <Text className='text-muted-foreground text-sm font-semibold'>
-                        ${receiptTaxMap.get(receiptId)!.toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
+                    )}
                 </React.Fragment>
               ),
             )}
@@ -1424,6 +1611,7 @@ export default function ReceiptRoomScreen() {
                 itemCount={getParticipantItemCount(participant.id)}
                 totalAmount={getParticipantTotal(participant.id)}
                 isGuest={isGroupRoom ? (participant.isGuest ?? false) : true}
+                accentColor={participant.accentColor}
                 onRemove={
                   isGroupRoom
                     ? () => {
@@ -1860,14 +2048,16 @@ export default function ReceiptRoomScreen() {
         </View>
       )}
 
-      {pendingConfidence && (
+      {confidenceQueue.length > 0 && (
         <ReceiptConfidenceModal
           visible={showConfidenceModal}
           onClose={() => {
             setShowConfidenceModal(false);
-            setPendingConfidence(null);
+            // Remove the front of the queue; the useEffect above will reopen
+            // the modal for the next entry (if any) after the close animation.
+            setConfidenceQueue((prev) => prev.slice(1));
           }}
-          data={pendingConfidence}
+          data={confidenceQueue[0]}
         />
       )}
 
@@ -1899,11 +2089,22 @@ export default function ReceiptRoomScreen() {
             <MaterialCommunityIcons name='close' size={28} color='#ffffff' />
           </Pressable>
           {viewingReceiptImage && (
-            <Image
-              source={{ uri: viewingReceiptImage }}
-              style={{ width: '100%', height: '85%' }}
-              resizeMode='contain'
-            />
+            <>
+              {receiptImageLoading && (
+                <ActivityIndicator
+                  size='large'
+                  color='#ffffff'
+                  style={{ position: 'absolute' }}
+                />
+              )}
+              <Image
+                source={{ uri: viewingReceiptImage }}
+                style={{ width: '100%', height: '85%' }}
+                resizeMode='contain'
+                onLoadStart={() => setReceiptImageLoading(true)}
+                onLoadEnd={() => setReceiptImageLoading(false)}
+              />
+            </>
           )}
         </View>
       </Modal>

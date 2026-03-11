@@ -49,15 +49,18 @@ export default function HomeScreen() {
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
 
   const [profileName, setProfileName] = useState<string>('');
-  useEffect(() => {
+  const [accentColor, setAccentColor] = useState<string | null>(null);
+
+  const fetchProfile = useCallback(() => {
     if (!user?.id) return;
     void supabase
       .from('profiles')
-      .select('username')
+      .select('username, accent_color')
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
         if (data?.username) setProfileName(data.username);
+        if (data?.accent_color) setAccentColor(data.accent_color);
       });
   }, [user?.id]);
 
@@ -81,11 +84,18 @@ export default function HomeScreen() {
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await refetchMyGroups();
+    await Promise.all([
+      refetchMyGroups(),
+      new Promise<void>((res) => {
+        fetchProfile();
+        res();
+      }),
+    ]);
     setIsRefreshing(false);
-  }, [refetchMyGroups]);
+  }, [refetchMyGroups, fetchProfile]);
 
   useFocusEffect(fetchGroups);
+  useFocusEffect(fetchProfile);
 
   const groups: HistoryItem[] = (myGroups ?? [])
     .slice()
@@ -150,7 +160,10 @@ export default function HomeScreen() {
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} className='w-full h-full' />
           ) : (
-            <View className='w-full h-full items-center justify-center bg-primary'>
+            <View
+              className={`w-full h-full items-center justify-center${accentColor ? '' : ' bg-primary'}`}
+              style={accentColor ? { backgroundColor: accentColor } : undefined}
+            >
               <Text className='text-white font-bold text-base'>
                 {displayName[0]?.toUpperCase()}
               </Text>

@@ -20,6 +20,8 @@ interface ParticipantsProps {
   isEditMode?: boolean;
   /** If false, the remove button is hidden (real/registered users cannot be removed) */
   isGuest?: boolean;
+  /** Hex accent color to override the default avatar-X palette color */
+  accentColor?: string;
 }
 
 export function Participant({
@@ -32,6 +34,7 @@ export function Participant({
   goToYourItemsPage,
   isEditMode = true,
   isGuest = true,
+  accentColor,
 }: ParticipantsProps) {
   const ref = useRef<View>(null);
   const displayName = name || `Name ${id}`;
@@ -75,14 +78,22 @@ export function Participant({
     >
       {/* Colored top strip */}
       <View
-        className={`h-3 bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`}
+        className={
+          accentColor
+            ? 'h-3'
+            : `h-3 bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`
+        }
+        style={
+          accentColor ? { height: 12, backgroundColor: accentColor } : undefined
+        }
       />
 
       <View className='px-3 py-3 flex-1 justify-between'>
         <View className='flex-row items-center gap-3'>
           {/* User ID circle — cross-fades ✕ (edit, guests only) ↔ number (claim) */}
           <Pressable
-            className={`w-9 h-9 rounded-full items-center justify-center bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} ${isEditMode && isGuest ? 'active:opacity-70' : ''}`}
+            className={`w-9 h-9 rounded-full items-center justify-center ${accentColor ? '' : `bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`} ${isEditMode && isGuest ? 'active:opacity-70' : ''}`}
+            style={accentColor ? { backgroundColor: accentColor } : undefined}
             onPress={isEditMode && isGuest ? confirmRemove : undefined}
             accessibilityLabel={
               isEditMode && isGuest ? 'Remove participant' : undefined

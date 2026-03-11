@@ -126,6 +126,10 @@ interface ReceiptItemProps extends DragProps {
 
   /** Scroll context from useScrollToInput — enables scroll-to-focus on edit-mode inputs. */
   scrollContext?: ScrollToInputContext;
+
+  /** Map from participant id (1-based) to their hex accent color. When provided,
+   *  overrides the default avatar-X palette color on UserTag badges. */
+  participantColors?: Record<number, string>;
 }
 
 export function ReceiptItem({
@@ -162,6 +166,8 @@ export function ReceiptItem({
   onToggleSelect,
   // Scroll-to-focus
   scrollContext,
+  // Participant accent colors
+  participantColors,
 }: ReceiptItemProps) {
   /** ---------------- UI State ---------------- */
   const [uiState, setUIState] = useState<UIState>({
@@ -650,6 +656,7 @@ export function ReceiptItem({
                     isEntering={enteringTagIds.has(userId)}
                     isExiting={exitingTagIds.has(userId)}
                     isEditMode={isEditMode}
+                    accentColor={participantColors?.[userId]}
                   />
                 ))}
               </View>

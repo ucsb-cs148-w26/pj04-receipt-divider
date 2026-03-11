@@ -17,6 +17,11 @@ class DeleteReceiptRequest(BaseRequest):
     receipt_id: uuid.UUID
 
 
+class UpdateReceiptOwnerRequest(BaseRequest):
+    receipt_id: uuid.UUID
+    new_owner_profile_id: uuid.UUID
+
+
 class CreateInviteLinkResponse(BaseResponse):
     url: str
 

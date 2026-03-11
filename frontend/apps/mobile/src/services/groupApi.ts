@@ -308,6 +308,14 @@ export async function updateUsername(username: string): Promise<void> {
   });
 }
 
+/** PATCH /group/profile/color — update the current user's accent color */
+export async function updateProfileColor(accentColor: string): Promise<void> {
+  return apiFetch<void>('/group/profile/color', {
+    method: 'PATCH',
+    body: JSON.stringify({ accentColor }),
+  });
+}
+
 /** DELETE /group/delete — delete a group (host only) */
 export async function deleteGroup(groupId: string): Promise<void> {
   return apiFetch<void>('/group/delete', {
@@ -348,6 +356,17 @@ export async function updateReceiptTax(
   return apiFetch<void>('/group/receipt/tax', {
     method: 'PATCH',
     body: JSON.stringify({ receiptId, tax }),
+  });
+}
+
+/** PATCH /group/receipt/owner — change who owns a receipt (host or current owner only) */
+export async function updateReceiptOwner(
+  receiptId: string,
+  newOwnerProfileId: string,
+): Promise<void> {
+  return apiFetch<void>('/group/receipt/owner', {
+    method: 'PATCH',
+    body: JSON.stringify({ receiptId, newOwnerProfileId }),
   });
 }
 

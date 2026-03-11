@@ -665,7 +665,7 @@ export default function ReceiptDetailScreen() {
                     style: 'destructive',
                     onPress: () => {
                       deleteGroup(id ?? '')
-                        .then(() => router.replace('/'))
+                        .then(() => router.back())
                         .catch((err) =>
                           Alert.alert(
                             'Error',

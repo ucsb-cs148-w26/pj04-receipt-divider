@@ -32,6 +32,7 @@ from app.schemas.group import (
     UpdateProfileColorRequest,
     UpdateUsernameRequest,
     UpdateReceiptTaxRequest,
+    UpdateReceiptOwnerRequest,
     UpdatePaidStatusRequest,
 )
 from app.dependencies import (
@@ -378,6 +379,18 @@ def create_manual_receipt(
         profile_id, str(payload.group_id), payload.tax
     )
     return CreateManualReceiptResponse(receipt_id=receipt_id)
+
+
+@router.patch("/receipt/owner")
+def change_receipt_owner(
+    payload: UpdateReceiptOwnerRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    profile_id = auth_service.authenticate_any_user()
+    user_service.update_receipt_owner(
+        profile_id, str(payload.receipt_id), str(payload.new_owner_profile_id)
+    )
 
 
 @router.patch("/receipt/tax")

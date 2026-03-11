@@ -1,32 +1,154 @@
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   Alert,
   Image,
   Modal,
+  PanResponder,
   Pressable,
+  RefreshControl,
+  ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { DefaultButtons } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/providers';
 import { supabase } from '@/services/supabase';
+import { updateUsername, updateProfileColor } from '@/services/groupApi';
 
-const ACCENT_COLORS = [
-  '#6366F1', // indigo
-  '#EC4899', // pink
-  '#F59E0B', // amber
-  '#10B981', // emerald
-  '#3B82F6', // blue
-  '#EF4444', // red
-  '#8B5CF6', // violet
-  '#14B8A6', // teal
-  '#F97316', // orange
-  '#06B6D4', // cyan
-];
+const WHEEL_SIZE = 240;
+const CX = WHEEL_SIZE / 2;
+const CY = WHEEL_SIZE / 2;
+const R_OUTER = 108;
+const R_INNER = 72;
+const R_MID = (R_OUTER + R_INNER) / 2;
+const NUM_SEGMENTS = 72; // 5° each
+
+function polarToCartesian(r: number, angleDeg: number) {
+  const a = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) };
+}
+
+function makeSegmentPath(startAngle: number, endAngle: number): string {
+  const s1 = polarToCartesian(R_OUTER, startAngle);
+  const e1 = polarToCartesian(R_OUTER, endAngle);
+  const s2 = polarToCartesian(R_INNER, endAngle);
+  const e2 = polarToCartesian(R_INNER, startAngle);
+  return `M ${s1.x} ${s1.y} A ${R_OUTER} ${R_OUTER} 0 0 1 ${e1.x} ${e1.y} L ${s2.x} ${s2.y} A ${R_INNER} ${R_INNER} 0 0 0 ${e2.x} ${e2.y} Z`;
+}
+
+function hslToHex(h: number): string {
+  const s = 1,
+    l = 0.5;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) =>
+    l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = (x: number) =>
+    Math.round(255 * x)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+}
+
+function hexToHue(hex: string): number {
+  if (!hex.startsWith('#') || hex.length < 7) return 0;
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b);
+  if (max === min) return 0;
+  const d = max - min;
+  let h = 0;
+  if (max === r) h = (((g - b) / d + (g < b ? 6 : 0)) / 6) * 360;
+  else if (max === g) h = (((b - r) / d + 2) / 6) * 360;
+  else h = (((r - g) / d + 4) / 6) * 360;
+  return h;
+}
+
+function ColorWheelPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (hex: string) => void;
+}) {
+  const containerRef = useRef<View>(null);
+
+  // Use a ref so the PanResponder closure always calls the latest onChange
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  const handleTouch = (pageX: number, pageY: number) => {
+    containerRef.current?.measureInWindow((vx, vy, vw, vh) => {
+      const scaleX = WHEEL_SIZE / vw;
+      const scaleY = WHEEL_SIZE / vh;
+      const localX = (pageX - vx) * scaleX;
+      const localY = (pageY - vy) * scaleY;
+      const dx = localX - CX;
+      const dy = localY - CY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      // Accept touches slightly outside the ring for better UX
+      if (dist < R_INNER - 12 || dist > R_OUTER + 12) return;
+      let angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
+      if (angleDeg < 0) angleDeg += 360;
+      if (angleDeg >= 360) angleDeg -= 360;
+      onChangeRef.current(hslToHex(Math.round(angleDeg)));
+    });
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) =>
+        handleTouch(e.nativeEvent.pageX, e.nativeEvent.pageY),
+      onPanResponderMove: (e) =>
+        handleTouch(e.nativeEvent.pageX, e.nativeEvent.pageY),
+    }),
+  ).current;
+
+  const hue = hexToHue(value);
+  const indicatorPos = polarToCartesian(R_MID, hue);
+
+  return (
+    <View
+      ref={containerRef}
+      style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}
+      {...panResponder.panHandlers}
+    >
+      <Svg width={WHEEL_SIZE} height={WHEEL_SIZE}>
+        {Array.from({ length: NUM_SEGMENTS }, (_, i) => {
+          const step = 360 / NUM_SEGMENTS;
+          const startAngle = i * step;
+          const endAngle = startAngle + step + 0.5; // slight overlap to avoid gaps
+          const segHue = Math.round(startAngle);
+          return (
+            <Path
+              key={i}
+              d={makeSegmentPath(startAngle, endAngle)}
+              fill={`hsl(${segHue}, 100%, 50%)`}
+            />
+          );
+        })}
+        {/* Selected-color indicator */}
+        <Circle
+          cx={indicatorPos.x}
+          cy={indicatorPos.y}
+          r={12}
+          fill={value}
+          stroke='white'
+          strokeWidth={3}
+        />
+      </Svg>
+    </View>
+  );
+}
 
 // ── Reusable row (top-level to avoid re-mount on parent re-render) ──
 function SettingRow({
@@ -127,46 +249,51 @@ export default function SettingsScreen() {
   const email = user?.email ?? '';
 
   const [nameModalVisible, setNameModalVisible] = useState(false);
-  const [emailModalVisible, setEmailModalVisible] = useState(false);
   const [colorModalVisible, setColorModalVisible] = useState(false);
 
   const [newName, setNewName] = useState(fullName);
-  const [newEmail, setNewEmail] = useState(email);
-  const [selectedColor, setSelectedColor] = useState(ACCENT_COLORS[0]);
+  const [selectedColor, setSelectedColor] = useState<string>(
+    (user?.user_metadata?.accent_color as string | undefined) ?? '#6366F1',
+  );
   const [saving, setSaving] = useState(false);
+  const [accentColor, setAccentColor] = useState<string>(
+    (user?.user_metadata?.accent_color as string | undefined) ?? '#6366F1',
+  );
+  const [displayName, setDisplayName] = useState(fullName);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const displayInitial = (fullName || email || 'U')[0]?.toUpperCase();
+  const displayInitial = (displayName || email || 'U')[0]?.toUpperCase();
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (user?.id) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('username, accent_color')
+          .eq('id', user.id)
+          .single();
+        if (data?.username) setDisplayName(data.username as string);
+        if (data?.accent_color) setAccentColor(data.accent_color as string);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user?.id]);
 
   const handleSaveName = async () => {
     if (!newName.trim()) return;
     setSaving(true);
     try {
+      // Update auth metadata and profiles table via backend (handles auth + DB atomically)
       const { error } = await supabase.auth.updateUser({
         data: { full_name: newName.trim() },
       });
       if (error) throw error;
+      await updateUsername(newName.trim());
       Alert.alert('Success', 'Name updated.');
+      setDisplayName(newName.trim());
       setNameModalVisible(false);
-    } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveEmail = async () => {
-    if (!newEmail.trim()) return;
-    setSaving(true);
-    try {
-      const { error } = await supabase.auth.updateUser({
-        email: newEmail.trim(),
-      });
-      if (error) throw error;
-      Alert.alert(
-        'Confirmation Sent',
-        'Check your new email to confirm the change.',
-      );
-      setEmailModalVisible(false);
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
     } finally {
@@ -177,11 +304,14 @@ export default function SettingsScreen() {
   const handleSaveColor = async () => {
     setSaving(true);
     try {
+      // Update auth metadata and profiles table via backend
       const { error } = await supabase.auth.updateUser({
         data: { accent_color: selectedColor },
       });
       if (error) throw error;
+      await updateProfileColor(selectedColor);
       Alert.alert('Success', 'Accent color updated.');
+      setAccentColor(selectedColor);
       setColorModalVisible(false);
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
@@ -207,63 +337,63 @@ export default function SettingsScreen() {
     <SafeAreaView className='flex-1 bg-background'>
       <DefaultButtons.Close onPress={() => router.back()} />
 
-      {/* Profile picture + name */}
-      <View className='items-center mt-[10vh] mb-6'>
-        <View className='w-24 h-24 rounded-full overflow-hidden mb-3 shadow-md shadow-black/20'>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} className='w-full h-full' />
-          ) : (
-            <View className='w-full h-full items-center justify-center bg-primary'>
-              <Text className='text-white font-bold text-3xl'>
-                {displayInitial}
-              </Text>
-            </View>
-          )}
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {/* Profile picture + name */}
+        <View className='items-center mt-[10vh] mb-6'>
+          <View className='w-24 h-24 rounded-full overflow-hidden mb-3 shadow-md shadow-black/20'>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} className='w-full h-full' />
+            ) : (
+              <View
+                className='w-full h-full items-center justify-center'
+                style={{ backgroundColor: accentColor }}
+              >
+                <Text className='text-white font-bold text-3xl'>
+                  {displayInitial}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text className='text-foreground text-xl font-bold'>
+            {displayName || 'User'}
+          </Text>
+          <Text className='text-muted-foreground text-sm'>{email}</Text>
         </View>
-        <Text className='text-foreground text-xl font-bold'>
-          {fullName || 'User'}
-        </Text>
-        <Text className='text-muted-foreground text-sm'>{email}</Text>
-      </View>
 
-      {/* Settings options */}
-      <View className='bg-card mx-5 rounded-2xl overflow-hidden'>
-        <SettingRow
-          icon='account-outline'
-          label='Name'
-          value={fullName || 'Not set'}
-          onPress={() => {
-            setNewName(fullName);
-            setNameModalVisible(true);
-          }}
-        />
-        <View className='h-px bg-border mx-4' />
-        <SettingRow
-          icon='email-outline'
-          label='Email'
-          value={email}
-          onPress={() => {
-            setNewEmail(email);
-            setEmailModalVisible(true);
-          }}
-        />
-        <View className='h-px bg-border mx-4' />
-        <SettingRow
-          icon='palette-outline'
-          label='Accent Color'
-          onPress={() => setColorModalVisible(true)}
-        />
-      </View>
+        {/* Settings options */}
+        <View className='bg-card mx-5 rounded-2xl overflow-hidden'>
+          <SettingRow
+            icon='account-outline'
+            label='Name'
+            value={fullName || 'Not set'}
+            onPress={() => {
+              setNewName(fullName);
+              setNameModalVisible(true);
+            }}
+          />
+          <View className='h-px bg-border mx-4' />
+          <SettingRow
+            icon='palette-outline'
+            label='Accent Color'
+            onPress={() => setColorModalVisible(true)}
+          />
+        </View>
 
-      {/* Sign out */}
-      <View className='bg-card mx-5 mt-4 rounded-2xl overflow-hidden'>
-        <SettingRow
-          icon='logout'
-          label='Sign Out'
-          onPress={handleSignOut}
-          destructive
-        />
-      </View>
+        {/* Sign out */}
+        <View className='bg-card mx-5 mt-4 rounded-2xl overflow-hidden'>
+          <SettingRow
+            icon='logout'
+            label='Sign Out'
+            onPress={handleSignOut}
+            destructive
+          />
+        </View>
+      </ScrollView>
 
       {/* Name modal */}
       <EditModal
@@ -283,26 +413,6 @@ export default function SettingsScreen() {
         />
       </EditModal>
 
-      {/* Email modal */}
-      <EditModal
-        visible={emailModalVisible}
-        title='Change Email'
-        onClose={() => setEmailModalVisible(false)}
-        onSave={handleSaveEmail}
-        saving={saving}
-      >
-        <TextInput
-          className='bg-background text-foreground px-4 py-3 rounded-lg text-base'
-          placeholder='Enter new email'
-          placeholderTextColor='#9CA3AF'
-          value={newEmail}
-          onChangeText={setNewEmail}
-          keyboardType='email-address'
-          autoCapitalize='none'
-          autoFocus
-        />
-      </EditModal>
-
       {/* Color modal */}
       <EditModal
         visible={colorModalVisible}
@@ -311,30 +421,24 @@ export default function SettingsScreen() {
         onSave={handleSaveColor}
         saving={saving}
       >
-        <View className='flex-row flex-wrap gap-3 justify-center'>
-          {ACCENT_COLORS.map((color) => (
-            <Pressable
-              key={color}
-              onPress={() => setSelectedColor(color)}
-              className='items-center justify-center'
+        <View className='items-center gap-4'>
+          <ColorWheelPicker value={selectedColor} onChange={setSelectedColor} />
+          {/* Swatch preview */}
+          <View className='flex-row items-center gap-3'>
+            <View
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: color,
-                borderWidth: selectedColor === color ? 3 : 0,
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: selectedColor,
+                borderWidth: 2,
                 borderColor: '#FFFFFF',
               }}
-            >
-              {selectedColor === color && (
-                <MaterialCommunityIcons
-                  name='check'
-                  size={22}
-                  color='#FFFFFF'
-                />
-              )}
-            </Pressable>
-          ))}
+            />
+            <Text className='text-foreground text-base font-mono'>
+              {selectedColor.toUpperCase()}
+            </Text>
+          </View>
         </View>
       </EditModal>
     </SafeAreaView>

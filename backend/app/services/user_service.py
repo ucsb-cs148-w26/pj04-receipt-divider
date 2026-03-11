@@ -458,6 +458,16 @@ class UserService:
                 detail="Only the receipt owner or group host can remove receipts",
             )
 
+        # Explicitly delete associated items so Supabase realtime propagates
+        # the DELETE events for each item (cascade deletes aren't always broadcast).
+        items = (
+            self.db.execute(select(Item).where(Item.receipt_id == receipt.id))
+            .scalars()
+            .all()
+        )
+        for item in items:
+            self.db.delete(item)
+
         self.db.delete(receipt)
         self.db.commit()
 
@@ -631,4 +641,32 @@ class UserService:
                 detail="Not a member of this group",
             )
         receipt.tax = tax
+        self.db.commit()
+
+    def update_receipt_owner(
+        self, profile_id: str, receipt_id: str, new_owner_profile_id: str
+    ) -> None:
+        receipt = self.db.get(Receipt, receipt_id)
+        if receipt is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Receipt not found"
+            )
+        if str(receipt.created_by) != profile_id and not self._is_host_of_receipt(
+            profile_id, receipt_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the receipt owner or group host can change receipt ownership",
+            )
+        # Verify the new owner is a member of the same group
+        member = self.db.get(
+            GroupMember,
+            {"profile_id": new_owner_profile_id, "group_id": str(receipt.group_id)},
+        )
+        if member is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="New owner must be a member of this group",
+            )
+        receipt.created_by = uuid.UUID(new_owner_profile_id)
         self.db.commit()

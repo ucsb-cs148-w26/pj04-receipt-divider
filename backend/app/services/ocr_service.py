@@ -38,6 +38,9 @@ class OCRService:
 
         cleaned: list[CleanedItem] = []
         for item in receipt.items:
+            # Skip $0 items — they are typically OCR noise or header lines
+            if item.final_price == 0:
+                continue
             cleaned.append(
                 CleanedItem(
                     name=clean_item_name(item.name, language=receipt.detected_language),

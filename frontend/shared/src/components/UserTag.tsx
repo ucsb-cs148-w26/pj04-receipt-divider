@@ -19,12 +19,14 @@ export function UserTag({
   isEntering = false,
   isExiting = false,
   isEditMode = true,
+  accentColor,
 }: {
   id: number;
   onRemove: () => void;
   isEntering?: boolean;
   isExiting?: boolean;
   isEditMode?: boolean;
+  accentColor?: string;
 }) {
   const scale = useSharedValue(isEntering ? 0 : 1);
   const editOpacity = useSharedValue(isEditMode ? 1 : 0);
@@ -65,7 +67,8 @@ export function UserTag({
     <Animated.View style={scaleStyle}>
       <Pressable
         onPress={isEditMode ? onRemove : undefined}
-        className={`bg-${USER_COLORS[(id - 1) % USER_COLORS.length]} px-1 h-[25px] w-[28px] py-1 rounded-md justify-center items-center shadow-sm`}
+        className={`${accentColor ? '' : `bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`} px-1 h-[25px] w-[28px] py-1 rounded-md justify-center items-center shadow-sm`}
+        style={accentColor ? { backgroundColor: accentColor } : undefined}
         accessibilityLabel={
           isEditMode ? `Tap to remove user ${id}` : `Claimed by user ${id}`
         }

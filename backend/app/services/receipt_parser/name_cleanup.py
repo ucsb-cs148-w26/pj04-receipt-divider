@@ -194,6 +194,7 @@ def _normalize_punctuation(text: str) -> str:
     text = re.sub(r"\.{2,}", ".", text)  # collapse multiple periods
     text = re.sub(r"[.]+$", "", text)  # strip trailing periods
     text = text.replace("*", "")  # remove asterisks (tax markers)
+    text = text.replace("$", "")  # remove dollar signs (OCR artifacts)
     text = re.sub(r"\s{2,}", " ", text)  # collapse whitespace
     return text.strip()
 
