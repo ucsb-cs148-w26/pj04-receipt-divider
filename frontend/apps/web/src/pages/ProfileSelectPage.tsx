@@ -178,13 +178,16 @@ export default function ProfileSelectPage() {
           profileId: string;
           accentColor: string;
           username: string;
+          isGuest: boolean;
         }[] = data.profiles ?? [];
-        const fetched = profiles.map((p, i) => ({
-          id: i + 1,
-          profileId: p.profileId,
-          name: p.username || `Person ${i + 1}`,
-          color: p.accentColor || getColor(i + 1),
-        }));
+        const fetched = profiles
+          .filter((p) => p.isGuest)
+          .map((p, i) => ({
+            id: i + 1,
+            profileId: p.profileId,
+            name: p.username || `Person ${i + 1}`,
+            color: p.accentColor || getColor(i + 1),
+          }));
         setParticipants(fetched);
         if (fetched.length > 0) setSelectedId(fetched[0].id);
       })
