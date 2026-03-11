@@ -89,7 +89,7 @@ interface GroupCacheContextType {
 async function doFetchGroup(
   groupId: string,
   setEntries: React.Dispatch<React.SetStateAction<Record<string, GroupEntry>>>,
-): Promise<void> {
+): Promise<GroupEntry | null> {
   try {
     // Supabase reads run in parallel
     const [itemsRes, membersRes, receiptsRes, groupRes] = await Promise.all([
@@ -139,21 +139,21 @@ async function doFetchGroup(
       if (!claimsRes.error) claims = claimsRes.data ?? [];
     }
 
-    setEntries((prev) => ({
-      ...prev,
-      [groupId]: {
-        items,
-        claims,
-        members,
-        receipts,
-        profiles,
-        createdBy: finalCreatedBy,
-        username: groupName,
-        isLoaded: true,
-      },
-    }));
+    const entry: GroupEntry = {
+      items,
+      claims,
+      members,
+      receipts,
+      profiles,
+      createdBy: finalCreatedBy,
+      username: groupName,
+      isLoaded: true,
+    };
+    setEntries((prev) => ({ ...prev, [groupId]: entry }));
+    return entry;
   } catch (err) {
     console.error('[GroupCache] doFetchGroup failed for', groupId, err);
+    return null;
   }
 }
 
@@ -187,6 +187,22 @@ export function GroupCacheProvider({
   // Ref-based guards prevent duplicate concurrent fetches.
   const myGroupsInFlight = useRef(false);
   const groupsInFlight = useRef<Set<string>>(new Set());
+
+  // Clear the entire cache whenever the user signs out or switches accounts
+  // so the next user never sees stale data from a previous session.
+  React.useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        setMyGroups(null);
+        setGroupEntries({});
+        myGroupsInFlight.current = false;
+        groupsInFlight.current.clear();
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // ── My Groups ──────────────────────────────────────────────────────────────
 
@@ -233,13 +249,15 @@ export function GroupCacheProvider({
   ): GroupSummary[] {
     const summaries: GroupSummary[] = [];
 
-    for (const [groupId, entry] of Object.entries(entries)) {
-      if (!entry.isLoaded) continue;
+    // Only iterate groups the user currently belongs to (from metadata).
+    // This ensures deleted groups and other users' groups never appear.
+    for (const [groupId, meta] of metadata.entries()) {
+      const entry = entries[groupId];
+      if (!entry?.isLoaded) continue;
 
-      const meta = metadata.get(groupId);
-      const name = meta?.name ?? entry.username ?? null;
+      const name = meta.name ?? entry.username ?? null;
       const paidStatus =
-        (meta?.paidStatus as GroupSummary['paidStatus']) || 'unrequested';
+        (meta.paidStatus as GroupSummary['paidStatus']) || 'unrequested';
 
       const memberCount = entry.members.length;
 
@@ -296,12 +314,20 @@ export function GroupCacheProvider({
         (id) => !groupEntries[id]?.isLoaded,
       );
 
-      await Promise.all(
+      const fetchResults = await Promise.all(
         missingGroupIds.map((id) => doFetchGroup(id, setGroupEntries)),
       );
 
+      // Build a merged snapshot so summary computation sees the freshly
+      // fetched entries, not the stale closure captured before the awaits.
+      const freshEntries: Record<string, GroupEntry> = { ...groupEntries };
+      missingGroupIds.forEach((id, idx) => {
+        const entry = fetchResults[idx];
+        if (entry) freshEntries[id] = entry;
+      });
+
       const groups = computeMyGroupsFromEntries(
-        groupEntries,
+        freshEntries,
         metadata,
         user.id,
       );

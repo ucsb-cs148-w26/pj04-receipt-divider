@@ -217,7 +217,7 @@ export default function CreateRoomScreen() {
                 </View>
                 <Text
                   className='text-foreground font-bold text-sm flex-1'
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
                   {user.name}
                 </Text>

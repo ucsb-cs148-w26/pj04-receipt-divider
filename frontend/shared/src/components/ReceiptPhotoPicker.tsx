@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -48,6 +48,37 @@ export function ReceiptPhotoPicker({
 }: ReceiptPhotoPickerProps) {
   const [showOptions, setShowOptions] = useState(false);
   const [pendingUri, setPendingUri] = useState<string | null>(null);
+  const [recropUri, setRecropUri] = useState<string | null>(null);
+  // Maps each cropped photo URI → { originalUri, cropRect, rotation } for re-crop
+  const [cropMetaMap, setCropMetaMap] = useState<
+    Record<
+      string,
+      {
+        originalUri: string;
+        cropRect: { x: number; y: number; w: number; h: number };
+        rotation: number;
+      }
+    >
+  >({});
+  const [pendingInitCropState, setPendingInitCropState] = useState<{
+    cropRect: { x: number; y: number; w: number; h: number };
+    rotation: number;
+  } | null>(null);
+  // Ref to synchronously capture the final crop params reported by onCropMetadata
+  // right before onComplete fires, avoiding stale-state issues.
+  const lastCropMetaRef = useRef<{
+    cropRect: { x: number; y: number; w: number; h: number };
+    rotation: number;
+  } | null>(null);
+  // Ref so handleCropComplete can read the *current* pendingUri without stale closure
+  const pendingUriRef = useRef<string | null>(null);
+  useEffect(() => {
+    pendingUriRef.current = pendingUri;
+  }, [pendingUri]);
+  const recropUriRef = useRef<string | null>(null);
+  useEffect(() => {
+    recropUriRef.current = recropUri;
+  }, [recropUri]);
 
   /**
    * Launch the native camera or photo-library picker.
@@ -109,12 +140,74 @@ export function ReceiptPhotoPicker({
   };
 
   const handleCropComplete = (croppedUri: string) => {
+    // Read synchronously captured metadata (set by handleCropMetadata via ref)
+    const finalMeta = lastCropMetaRef.current;
+    lastCropMetaRef.current = null;
+    const currentRecropUri = recropUriRef.current;
+    const currentPendingUri = pendingUriRef.current;
+
+    if (currentRecropUri) {
+      // Re-crop: swap the old photo for the new one, preserving original URI
+      setCropMetaMap((prev) => {
+        const previousMeta = prev[currentRecropUri];
+        const next = { ...prev };
+        delete next[currentRecropUri];
+        next[croppedUri] = {
+          originalUri: previousMeta?.originalUri ?? currentRecropUri,
+          cropRect: finalMeta?.cropRect ?? { x: 0, y: 0, w: 0, h: 0 },
+          rotation: finalMeta?.rotation ?? 0,
+        };
+        return next;
+      });
+      onPhotoRemoved?.(currentRecropUri);
+      setRecropUri(null);
+    } else if (finalMeta && currentPendingUri) {
+      // Fresh crop: store meta keyed by the final cropped URI
+      const originalUri = currentPendingUri;
+      setCropMetaMap((prev) => ({
+        ...prev,
+        [croppedUri]: {
+          originalUri,
+          cropRect: finalMeta.cropRect,
+          rotation: finalMeta.rotation,
+        },
+      }));
+    }
     setPendingUri(null);
+    setPendingInitCropState(null);
     onPhotoAdded(croppedUri);
+  };
+
+  const handleCropMetadata = (
+    cropRect: { x: number; y: number; w: number; h: number },
+    rotation: number,
+  ) => {
+    // Store synchronously in a ref so handleCropComplete (called right after)
+    // always reads the correct final value, not stale state.
+    lastCropMetaRef.current = { cropRect, rotation };
   };
 
   const handleCropCancel = () => {
     setPendingUri(null);
+    setRecropUri(null);
+    setPendingInitCropState(null);
+  };
+
+  const handleRecrop = (uri: string) => {
+    const meta = cropMetaMap[uri];
+    setRecropUri(uri);
+    if (meta) {
+      // Open original image with the previous crop box restored
+      setPendingInitCropState({
+        cropRect: meta.cropRect,
+        rotation: meta.rotation,
+      });
+      setPendingUri(meta.originalUri);
+    } else {
+      // No saved meta — open the cropped image as-is
+      setPendingInitCropState(null);
+      setPendingUri(uri);
+    }
   };
 
   const takePhoto = () => launchPicker('camera');
@@ -123,6 +216,7 @@ export function ReceiptPhotoPicker({
 
   const handleTakeNewPhoto = async () => {
     setPendingUri(null);
+    setPendingInitCropState(null);
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -187,11 +281,27 @@ export function ReceiptPhotoPicker({
                 className='rounded-2xl overflow-hidden bg-card'
                 style={{ width: 120, height: 120 }}
               >
-                <Image
-                  source={{ uri }}
-                  style={{ width: 120, height: 120 }}
-                  resizeMode='cover'
-                />
+                <Pressable
+                  className='w-full h-full'
+                  onPress={() => handleRecrop(uri)}
+                  disabled={isLoading}
+                >
+                  <Image
+                    source={{ uri }}
+                    style={{ width: 120, height: 120 }}
+                    resizeMode='cover'
+                  />
+                  <View
+                    className='absolute bottom-1 left-1 bg-black/60 rounded flex-row items-center'
+                    style={{ padding: 3 }}
+                  >
+                    <MaterialCommunityIcons
+                      name='crop'
+                      size={11}
+                      color='white'
+                    />
+                  </View>
+                </Pressable>
                 {onPhotoRemoved && (
                   <Pressable
                     className='absolute top-1 right-1 bg-black/60 rounded-full'
@@ -297,6 +407,9 @@ export function ReceiptPhotoPicker({
         onComplete={handleCropComplete}
         onCancel={handleCropCancel}
         onTakeNewPhoto={handleTakeNewPhoto}
+        initialCropRect={pendingInitCropState?.cropRect}
+        initialRotation={pendingInitCropState?.rotation}
+        onCropMetadata={handleCropMetadata}
       />
     </>
   );

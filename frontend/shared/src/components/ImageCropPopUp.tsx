@@ -23,6 +23,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Polygon, Rect, Defs, Mask, Line } from 'react-native-svg';
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,22 @@ export interface ImageCropPopUpProps {
   onCancel: () => void;
   /** Optional — called when the user taps "Take New Photo" in the dropdown */
   onTakeNewPhoto?: () => void;
+  /**
+   * Optional initial crop rect (in preview-coordinate space) to restore a
+   * previous crop session. Pass alongside `initialRotation`.
+   */
+  initialCropRect?: { x: number; y: number; w: number; h: number };
+  /** Initial crop rotation in degrees to restore a previous crop session. */
+  initialRotation?: number;
+  /**
+   * Called just before `onComplete` with the raw editor crop parameters, so
+   * the caller can store them and pass them back as `initialCropRect` /
+   * `initialRotation` for a future re-crop of the same image.
+   */
+  onCropMetadata?: (
+    cropRect: { x: number; y: number; w: number; h: number },
+    rotation: number,
+  ) => void;
 }
 
 export interface ImageCropPopUpRef {
@@ -430,9 +447,11 @@ function MoveOriginHandle({
       {...panResponder.panHandlers}
     >
       <View className='w-[30px] h-[30px] rounded-full border-2 justify-center items-center shadow-sm border-primary bg-white/85 dark:bg-[rgba(30,30,30,0.85)]'>
-        <Text className='text-base font-bold leading-[18px] text-center text-primary'>
-          {'\u271A'}
-        </Text>
+        <MaterialCommunityIcons
+          name='cursor-move'
+          size={18}
+          color={RAW_PRIMARY}
+        />
       </View>
     </View>
   );
@@ -526,7 +545,15 @@ function RotationHandle({
 // ---------------------------------------------------------------------------
 const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
   function ImageCropPopUp(
-    { imageUri, onComplete, onCancel, onTakeNewPhoto },
+    {
+      imageUri,
+      onComplete,
+      onCancel,
+      onTakeNewPhoto,
+      initialCropRect,
+      initialRotation,
+      onCropMetadata,
+    },
     ref,
   ) {
     const colorScheme = useColorScheme();
@@ -573,7 +600,7 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
       setPreviewUri(null);
       setPreviewRotation(0);
       setDropdownOpen(false);
-      setRotation(0);
+      setRotation(initialRotation ?? 0);
       setImageLoading(true);
       Image.getSize(
         imageUri,
@@ -585,7 +612,8 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
           setPreviewScale(s);
           setPreviewW(pw);
           setPreviewH(ph);
-          setCropRect({ x: 0, y: 0, w: pw, h: ph });
+          // Restore previous crop box if provided, otherwise default to full image
+          setCropRect(initialCropRect ?? { x: 0, y: 0, w: pw, h: ph });
           setImageLoading(false);
         },
         () => {
@@ -593,7 +621,7 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
           setImageLoading(false);
         },
       );
-    }, [imageUri]);
+    }, [imageUri]); // eslint-disable-line react-hooks/exhaustive-deps -- initialCropRect/initialRotation are intentionally read from closure at open time
 
     const handleUseCrop = useCallback(async () => {
       if (!imageUri) return;
@@ -683,18 +711,33 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
           );
           finalUri = rotResult.uri;
         }
+        onCropMetadata?.(cropRect, rotation);
         setVisible(false);
         onComplete(finalUri);
       } catch (err: any) {
         Alert.alert('Error', err.message || 'Failed to finalize crop.');
       }
-    }, [previewUri, previewRotation, onComplete]);
+    }, [
+      previewUri,
+      previewRotation,
+      onComplete,
+      onCropMetadata,
+      cropRect,
+      rotation,
+    ]);
 
     const handleCropCancel = useCallback(() => {
+      const cleanup = () => {
+        setPreviewUri(null);
+        setPreviewRotation(0);
+        setDropdownOpen(false);
+      };
+      if (Platform.OS === 'ios') {
+        onDismissRef.current = cleanup;
+      } else {
+        setTimeout(cleanup, 400);
+      }
       setVisible(false);
-      setPreviewUri(null);
-      setPreviewRotation(0);
-      setDropdownOpen(false);
       onCancel();
     }, [onCancel]);
 
@@ -753,15 +796,8 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
       if (previewUri) {
         return (
           <View className='flex-1 bg-background pt-[50px] items-center'>
-            <Text className='text-xl font-bold mb-1 text-foreground'>
+            <Text className='text-xl font-bold mb-3 text-foreground'>
               Crop Preview
-            </Text>
-            <Text className='text-sm text-muted-foreground mb-4 text-center px-5'>
-              Review the cropped result. Make sure the receipt looks properly
-              aligned.
-            </Text>
-            <Text className='text-[13px] text-primary font-medium italic mb-3 text-center px-5'>
-              Rotate the receipt so that it reads top to bottom.
             </Text>
 
             <View
@@ -804,7 +840,15 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
               </TouchableOpacity>
             </View>
 
-            <View className='flex-row justify-between px-5 pb-[30px] pt-5 w-full gap-3 mt-auto'>
+            <Text className='text-sm text-muted-foreground mt-3 mb-1 text-center px-5'>
+              Review the cropped result. Make sure the receipt looks properly
+              aligned.
+            </Text>
+            <Text className='text-[13px] text-primary font-medium italic mb-3 text-center px-5'>
+              Rotate the receipt so that it reads top to bottom.
+            </Text>
+
+            <View className='flex-row justify-between px-5 pb-[30px] pt-2 w-full gap-3'>
               <View className='flex-1 flex-row rounded-[10px] border-[1.5px] border-primary overflow-hidden'>
                 <TouchableOpacity
                   className='flex-1 py-[14px] items-center justify-center'
@@ -879,11 +923,8 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
 
       return (
         <View className='flex-1 bg-background pt-[50px] items-center'>
-          <Text className='text-xl font-bold mb-1 text-foreground'>
+          <Text className='text-xl font-bold mb-3 text-foreground'>
             Crop Receipt
-          </Text>
-          <Text className='text-sm text-muted-foreground mb-4 text-center px-5'>
-            Drag edges or corners to resize, crosshair to move, handle to rotate
           </Text>
 
           <View
@@ -1021,29 +1062,35 @@ const ImageCropPopUp = forwardRef<ImageCropPopUpRef, ImageCropPopUpProps>(
             </Text>
           </View>
 
-          <View className='flex-row justify-between px-5 pb-[30px] pt-5 w-full gap-4 mt-auto'>
-            <TouchableOpacity
-              className='flex-1 py-[14px] rounded-[10px] border-[1.5px] border-primary items-center'
-              onPress={handleCropCancel}
-              disabled={loading}
-            >
-              <Text className='text-primary text-base font-semibold'>
-                Cancel
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className='flex-1 py-[14px] rounded-[10px] bg-primary items-center'
-              onPress={handleUseCrop}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={RAW_PRIMARY_FG} size='small' />
-              ) : (
-                <Text className='text-primary-foreground text-base font-semibold'>
-                  Use Crop
+          <View className='mt-auto w-full'>
+            <Text className='text-sm text-muted-foreground mb-2 text-center px-5'>
+              Drag edges or corners to resize, crosshair to move, handle to
+              rotate
+            </Text>
+            <View className='flex-row justify-between px-5 pb-[30px] pt-3 w-full gap-4'>
+              <TouchableOpacity
+                className='flex-1 py-[14px] rounded-[10px] border-[1.5px] border-primary items-center'
+                onPress={handleCropCancel}
+                disabled={loading}
+              >
+                <Text className='text-primary text-base font-semibold'>
+                  Cancel
                 </Text>
-              )}
-            </TouchableOpacity>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className='flex-1 py-[14px] rounded-[10px] bg-primary items-center'
+                onPress={handleUseCrop}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={RAW_PRIMARY_FG} size='small' />
+                ) : (
+                  <Text className='text-primary-foreground text-base font-semibold'>
+                    Use Crop
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       );
