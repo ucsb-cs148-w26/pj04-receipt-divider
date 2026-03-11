@@ -2,7 +2,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -24,9 +23,15 @@ const STATUS_LABELS: Record<RoomStatus, string> = {
   'payment-pending': 'Payment Pending',
 };
 
+const STATUS_COLORS: Record<RoomStatus, string> = {
+  completed: 'text-status-completed',
+  'in-progress': 'text-muted-foreground',
+  'payment-pending': 'text-status-pending',
+};
+
 function getRoomStatus(g: GroupSummary): RoomStatus {
-  if (!g.isFinished) return 'in-progress';
   if (g.allMembersPaid) return 'completed';
+  if (!g.isFinished) return 'in-progress';
   return 'payment-pending';
 }
 
@@ -40,13 +45,11 @@ type HistoryItem = {
 
 export default function HomeScreen() {
   const { user, isLoading: isAuthLoading } = useAuth();
-  const { myGroups, refetchMyGroups } = useGroupCache();
+  const { myGroups, refetchMyGroups, groupEntries } = useGroupCache();
   const [activeTab, setActiveTab] = useState<'groups' | 'people'>('groups');
   const [showNewRoom, setShowNewRoom] = useState(false);
 
   console.log(myGroups);
-
-  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
 
   const [profileName, setProfileName] = useState<string>('');
   const [accentColor, setAccentColor] = useState<string | null>(null);
@@ -66,9 +69,10 @@ export default function HomeScreen() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  // Timestamp (ms) of the last time the payment modal was shown; 0 = never shown.
-  const paymentModalLastShownRef = useRef(0);
   const PAYMENT_MODAL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+  // Local cache of the next-nudge timestamp so we don't re-show the modal on
+  // every focus-triggered myGroups refresh within the cooldown window.
+  const nextNudgeRef = useRef<number>(0);
 
   const fetchGroups = useCallback(() => {
     if (!user) return;
@@ -123,18 +127,42 @@ export default function HomeScreen() {
       g.paidStatus === 'requested' && g.totalUploaded - g.totalClaimed < -0.001,
   );
 
-  // Show payment modal at most once every PAYMENT_MODAL_INTERVAL_MS when there are pending requests
+  // Show payment modal when next_nudge is due and there are pending payment requests
   useEffect(() => {
-    if (myGroups === null) return;
-    const now = Date.now();
-    if (
-      requestedGroups.length > 0 &&
-      now - paymentModalLastShownRef.current >= PAYMENT_MODAL_INTERVAL_MS
-    ) {
-      paymentModalLastShownRef.current = now;
-      setShowPaymentModal(true);
-    }
+    if (myGroups === null || !user?.id) return;
+    if (requestedGroups.length === 0) return;
+    // If we already know we're within the cooldown window, skip the DB query.
+    if (nextNudgeRef.current > Date.now()) return;
+    void supabase
+      .from('profiles')
+      .select('next_nudge')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        const now = Date.now();
+        const nextNudge = data?.next_nudge
+          ? new Date(data.next_nudge).getTime()
+          : 0;
+        nextNudgeRef.current = nextNudge;
+        if (now >= nextNudge) {
+          setShowPaymentModal(true);
+        }
+      });
   }, [myGroups]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dismissPaymentModal = () => {
+    if (!user?.id) return;
+    const nextNudgeTs = new Date(
+      Date.now() + PAYMENT_MODAL_INTERVAL_MS,
+    ).toISOString();
+    // Update local cache immediately so subsequent myGroups refreshes don't re-show the modal.
+    nextNudgeRef.current = Date.now() + PAYMENT_MODAL_INTERVAL_MS;
+    void supabase
+      .from('profiles')
+      .update({ next_nudge: nextNudgeTs })
+      .eq('id', user.id);
+    setShowPaymentModal(false);
+  };
 
   const firstName = profileName.split(' ')[0] || 'there';
 
@@ -157,18 +185,14 @@ export default function HomeScreen() {
       {/* Header */}
       <View className='flex-row items-center px-5 pt-2 pb-3'>
         <View className='w-10 h-10 rounded-full overflow-hidden mr-3'>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} className='w-full h-full' />
-          ) : (
-            <View
-              className={`w-full h-full items-center justify-center${accentColor ? '' : ' bg-primary'}`}
-              style={accentColor ? { backgroundColor: accentColor } : undefined}
-            >
-              <Text className='text-white font-bold text-base'>
-                {displayName[0]?.toUpperCase()}
-              </Text>
-            </View>
-          )}
+          <View
+            className={`w-full h-full items-center justify-center${accentColor ? '' : ' bg-primary'}`}
+            style={accentColor ? { backgroundColor: accentColor } : undefined}
+          >
+            <Text className='text-white font-bold text-base'>
+              {displayName[0]?.toUpperCase()}
+            </Text>
+          </View>
         </View>
         <Text
           className='flex-1 text-foreground text-2xl font-bold'
@@ -286,8 +310,19 @@ export default function HomeScreen() {
                     </Text>
                     <Text className='text-muted-foreground text-sm'>
                       {activeTab === 'groups'
-                        ? `${item.members} ${item.members === 1 ? 'member' : 'members'} · ${STATUS_LABELS[item.status]}`
-                        : STATUS_LABELS[item.status]}
+                        ? `${item.members} ${item.members === 1 ? 'member' : 'members'} · `
+                        : ''}
+                      <Text
+                        className={`${groupEntries[item.id]?.createdBy === user?.id ? 'text-primary' : 'text-muted-foreground'} text-sm font-medium`}
+                      >
+                        {groupEntries[item.id]?.createdBy === user?.id
+                          ? 'Host'
+                          : 'Member'}
+                      </Text>
+                      {' · '}
+                      <Text className={`${STATUS_COLORS[item.status]} text-sm`}>
+                        {STATUS_LABELS[item.status]}
+                      </Text>
                     </Text>
                   </View>
                   <Text
@@ -404,11 +439,11 @@ export default function HomeScreen() {
         transparent
         animationType='fade'
         visible={showPaymentModal}
-        onRequestClose={() => setShowPaymentModal(false)}
+        onRequestClose={dismissPaymentModal}
       >
         <Pressable
           className='flex-1 bg-black/50 justify-center px-6'
-          onPress={() => setShowPaymentModal(false)}
+          onPress={dismissPaymentModal}
         >
           <Pressable onPress={() => {}}>
             <View className='bg-card rounded-2xl overflow-hidden shadow-xl shadow-black/40'>
@@ -431,7 +466,7 @@ export default function HomeScreen() {
                   <Pressable
                     className='flex-row items-center justify-between px-5 py-4 active:opacity-70'
                     onPress={() => {
-                      setShowPaymentModal(false);
+                      dismissPaymentModal();
                       router.navigate({
                         pathname: '/receipt-detail',
                         params: {
@@ -466,7 +501,7 @@ export default function HomeScreen() {
               {/* Dismiss */}
               <Pressable
                 className='py-4 items-center active:opacity-70'
-                onPress={() => setShowPaymentModal(false)}
+                onPress={dismissPaymentModal}
               >
                 <Text className='text-muted-foreground text-base'>Dismiss</Text>
               </Pressable>

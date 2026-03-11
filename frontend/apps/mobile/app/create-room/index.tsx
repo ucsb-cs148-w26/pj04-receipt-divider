@@ -17,7 +17,7 @@ import {
   ReceiptPhotoPicker,
   AddParticipantManualModal,
 } from '@eezy-receipt/shared';
-import { USER_COLORS } from '@shared/constants';
+import { USER_COLOR_HEX } from '@shared/constants';
 import { useAuth, useGroupCache } from '@/providers';
 import { createGroup } from '@/services/groupApi';
 
@@ -196,48 +196,53 @@ export default function CreateRoomScreen() {
           }}
           style={{ height: 84 }}
         >
-          {users.map((user) => (
-            <Pressable
-              key={user.id}
-              onPress={() => handleUserPress(user)}
-              className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
-              style={{ width: 140 }}
-            >
-              <View
-                className={`h-3 bg-${USER_COLORS[(user.id - 1) % USER_COLORS.length]}`}
-              />
-              <View className='flex-row items-center gap-3 px-3 py-3'>
+          {users.map((user) => {
+            const accentColor =
+              USER_COLOR_HEX[(user.id - 1) % USER_COLOR_HEX.length];
+            return (
+              <Pressable
+                key={user.id}
+                onPress={() => handleUserPress(user)}
+                className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
+                style={{ width: 140 }}
+              >
                 <View
-                  className={`w-8 h-8 rounded-full items-center justify-center bg-${USER_COLORS[(user.id - 1) % USER_COLORS.length]}`}
-                  style={{ opacity: 0.7 }}
-                >
-                  <Text className='text-white text-sm font-bold'>
-                    {user.id}
-                  </Text>
-                </View>
-                <Text
-                  className='text-foreground font-bold text-sm flex-1'
-                  numberOfLines={2}
-                >
-                  {user.name}
-                </Text>
-                {user.source === 'manual' && (
-                  <Pressable
-                    onPress={() =>
-                      setUsers((prev) => prev.filter((u) => u.id !== user.id))
-                    }
-                    hitSlop={8}
+                  className='h-3'
+                  style={{ backgroundColor: accentColor }}
+                />
+                <View className='flex-row items-center gap-3 px-3 py-3'>
+                  <View
+                    className='w-8 h-8 rounded-full items-center justify-center'
+                    style={{ backgroundColor: accentColor, opacity: 0.85 }}
                   >
-                    <MaterialCommunityIcons
-                      name='close'
-                      size={14}
-                      className='text-accent-dark'
-                    />
-                  </Pressable>
-                )}
-              </View>
-            </Pressable>
-          ))}
+                    <Text className='text-white text-sm font-bold'>
+                      {user.id}
+                    </Text>
+                  </View>
+                  <Text
+                    className='text-foreground font-bold text-sm flex-1'
+                    numberOfLines={2}
+                  >
+                    {user.name}
+                  </Text>
+                  {user.source === 'manual' && (
+                    <Pressable
+                      onPress={() =>
+                        setUsers((prev) => prev.filter((u) => u.id !== user.id))
+                      }
+                      hitSlop={8}
+                    >
+                      <MaterialCommunityIcons
+                        name='close'
+                        size={14}
+                        className='text-accent-dark'
+                      />
+                    </Pressable>
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
 
           <Pressable
             className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10 items-center justify-center active:opacity-70'

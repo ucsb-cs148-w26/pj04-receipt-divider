@@ -291,6 +291,32 @@ export function GroupCacheProvider({
 
       const itemMap = new Map(entry.items.map((i) => [i.id, i]));
 
+      // Map item ID → the profile who uploaded its receipt (null if no receipt)
+      const receiptUploaderMap = new Map(
+        entry.receipts.map((r) => [r.id, r.created_by]),
+      );
+
+      // A member "owes money" only if they have claims on items uploaded by someone else.
+      // This correctly excludes hosts/uploaders who only claimed their own items.
+      const membersWhoOwe = new Set(
+        entry.claims
+          .filter((c) => {
+            const item = itemMap.get(c.item_id);
+            if (!item || item.unit_price * c.share <= 0) return false;
+            const uploader = item.receipt_id
+              ? receiptUploaderMap.get(item.receipt_id)
+              : null;
+            // If there is no uploader (no receipt), count it - someone's owed
+            return !uploader || uploader !== c.profile_id;
+          })
+          .map((c) => c.profile_id),
+      );
+      const allMembersPaid =
+        membersWhoOwe.size > 0 &&
+        entry.members
+          .filter((m) => membersWhoOwe.has(m.profile_id))
+          .every((m) => m.paid_status === 'verified');
+
       let totalClaimed = 0;
       for (const claim of entry.claims) {
         if (claim.profile_id === profileId) {
@@ -301,23 +327,51 @@ export function GroupCacheProvider({
         }
       }
 
-      const receiptCreatedBy = new Set(entry.receipts.map((r) => r.created_by));
+      const myReceiptIds = new Set(
+        entry.receipts
+          .filter((r) => r.created_by === profileId)
+          .map((r) => r.id),
+      );
+      const myItemIds = new Set(
+        entry.items
+          .filter(
+            (item) => item.receipt_id && myReceiptIds.has(item.receipt_id),
+          )
+          .map((item) => item.id),
+      );
+      const verifiedMemberIds = new Set(
+        entry.members
+          .filter(
+            (m) => m.paid_status === 'verified' && m.profile_id !== profileId,
+          )
+          .map((m) => m.profile_id),
+      );
+      let verifiedPaidAmount = 0;
+      for (const claim of entry.claims) {
+        if (
+          verifiedMemberIds.has(claim.profile_id) &&
+          myItemIds.has(claim.item_id)
+        ) {
+          const item = itemMap.get(claim.item_id);
+          if (item) verifiedPaidAmount += item.unit_price * claim.share;
+        }
+      }
       let totalUploaded = 0;
       for (const item of entry.items) {
-        if (item.receipt_id && receiptCreatedBy.has(profileId)) {
+        if (item.receipt_id && myReceiptIds.has(item.receipt_id)) {
           totalUploaded += item.unit_price * item.amount;
         }
       }
-
-      const allMembersPaid = entry.members.every(
-        (m) => m.paid_status !== 'requested' && m.paid_status !== 'pending',
-      );
+      totalUploaded -= verifiedPaidAmount;
+      // If the current user is verified in this group, they've already paid
+      const effectiveTotalClaimed =
+        paidStatus === 'verified' ? 0 : totalClaimed;
 
       summaries.push({
         groupId,
         name,
         memberCount,
-        totalClaimed,
+        totalClaimed: effectiveTotalClaimed,
         totalUploaded,
         paidStatus,
         isFinished: meta.isFinished ?? false,

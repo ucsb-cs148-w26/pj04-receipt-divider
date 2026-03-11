@@ -208,6 +208,11 @@ export default function ReceiptRoomScreen() {
     string | null
   >(null);
 
+  /**---------------- Receipt Owner Change Loading State ---------------- */
+  const [changingOwnerReceiptId, setChangingOwnerReceiptId] = useState<
+    string | null
+  >(null);
+
   /**---------------- Add Item Sheet State ---------------- */
   const [showAddItemSheet, setShowAddItemSheet] = useState(false);
   const [addItemReceiptChoice, setAddItemReceiptChoice] = useState<
@@ -1184,6 +1189,7 @@ export default function ReceiptRoomScreen() {
         text: o.profileId === receipt.created_by ? `${o.name} ✓` : o.name,
         onPress: () => {
           if (o.profileId === receipt.created_by) return;
+          setChangingOwnerReceiptId(receiptId);
           updateReceiptOwner(receiptId, o.profileId)
             .then(() => groupData.refetch())
             .catch((err) => {
@@ -1193,7 +1199,8 @@ export default function ReceiptRoomScreen() {
                   ? err.message
                   : 'Could not change receipt owner.',
               );
-            });
+            })
+            .finally(() => setChangingOwnerReceiptId(null));
         },
       })),
       { text: 'Cancel', style: 'cancel' },
@@ -1291,16 +1298,17 @@ export default function ReceiptRoomScreen() {
       {/* ── Group name (group rooms only) ── */}
       {isGroupRoom && (
         <View className='items-center px-16 pb-1' pointerEvents='box-none'>
-          {isEditingGroupName ? (
+          {isHost && isEditingGroupName ? (
             <TextInput
               value={groupName}
               onChangeText={setGroupName}
               autoFocus
               returnKeyType='done'
-              onSubmitEditing={() => {
+              onEndEditing={(e) => {
+                const trimmed = e.nativeEvent.text.trim();
                 setIsEditingGroupName(false);
-                const trimmed = groupName.trim();
-                if (trimmed)
+                if (trimmed) {
+                  setGroupName(trimmed);
                   updateGroupName(roomId, trimmed).catch((err) => {
                     console.error(err);
                     Alert.alert(
@@ -1308,18 +1316,7 @@ export default function ReceiptRoomScreen() {
                       'Could not save the group name. Please try again.',
                     );
                   });
-              }}
-              onBlur={() => {
-                setIsEditingGroupName(false);
-                const trimmed = groupName.trim();
-                if (trimmed)
-                  updateGroupName(roomId, trimmed).catch((err) => {
-                    console.error(err);
-                    Alert.alert(
-                      'Save Failed',
-                      'Could not save the group name. Please try again.',
-                    );
-                  });
+                }
               }}
               className='text-foreground text-base font-bold text-center border-b border-border'
               style={{ minWidth: 80 }}
@@ -1328,7 +1325,7 @@ export default function ReceiptRoomScreen() {
           ) : (
             <Pressable
               className='flex-row items-center gap-1'
-              onPress={() => setIsEditingGroupName(true)}
+              onPress={() => isHost && setIsEditingGroupName(true)}
             >
               <Text
                 className='text-foreground text-base font-bold'
@@ -1336,11 +1333,13 @@ export default function ReceiptRoomScreen() {
               >
                 {groupName || 'Group'}
               </Text>
-              <MaterialCommunityIcons
-                name='pencil-outline'
-                size={14}
-                className='text-muted-foreground'
-              />
+              {isHost && (
+                <MaterialCommunityIcons
+                  name='pencil-outline'
+                  size={14}
+                  className='text-muted-foreground'
+                />
+              )}
             </Pressable>
           )}
         </View>
@@ -1391,7 +1390,10 @@ export default function ReceiptRoomScreen() {
                                 {`Receipt #${receiptNumberMap.get(receiptId) ?? sectionIndex + 1} · `}
                               </Text>
                               <Pressable
-                                disabled={!canChangeOwner}
+                                disabled={
+                                  !canChangeOwner ||
+                                  changingOwnerReceiptId === receiptId
+                                }
                                 onPress={() =>
                                   handleChangeReceiptOwner(receiptId)
                                 }
@@ -1399,11 +1401,19 @@ export default function ReceiptRoomScreen() {
                                   canChangeOwner ? 'active:opacity-60' : ''
                                 }
                               >
-                                <Text
-                                  className={`text-xs font-semibold uppercase tracking-wide ${canChangeOwner ? 'text-accent' : 'text-muted-foreground'}`}
-                                >
-                                  {verb} {uploaderName}
-                                </Text>
+                                <View className='flex-row items-center gap-1'>
+                                  {changingOwnerReceiptId === receiptId ? (
+                                    <ActivityIndicator
+                                      size={10}
+                                      color='#4999DF'
+                                    />
+                                  ) : null}
+                                  <Text
+                                    className={`text-xs font-semibold uppercase tracking-wide ${canChangeOwner ? 'text-accent' : 'text-muted-foreground'}`}
+                                  >
+                                    {verb} {uploaderName}
+                                  </Text>
+                                </View>
                               </Pressable>
                             </>
                           );
@@ -1489,7 +1499,10 @@ export default function ReceiptRoomScreen() {
                   {/* Tax row — displayed at the bottom of each receipt section */}
                   {isGroupRoom &&
                     receiptId &&
-                    (receiptTaxMap.has(receiptId) || isEditMode) && (
+                    (receiptTaxMap.has(receiptId) ||
+                      isEditMode ||
+                      !!groupData.receipts.find((r) => r.id === receiptId)
+                        ?.is_manual) && (
                       <View
                         className={`flex-row items-center justify-between bg-card rounded-2xl px-4 py-3 border border-border${isEditMode ? '' : ' opacity-70'}`}
                       >
@@ -1504,7 +1517,7 @@ export default function ReceiptRoomScreen() {
                           </Text>
                         </View>
                         {isEditMode ? (
-                          <View className='flex-row items-center'>
+                          <View className='flex-row items-center justify-center'>
                             <Text className='text-muted-foreground text-sm font-semibold'>
                               $
                             </Text>
@@ -1549,7 +1562,7 @@ export default function ReceiptRoomScreen() {
                               placeholderTextColor='#9ca3af'
                               className='text-muted-foreground text-sm font-semibold'
                               style={{
-                                padding: 0,
+                                paddingBottom: 10,
                                 includeFontPadding: false,
                                 lineHeight: 20,
                                 minWidth: 20,
@@ -1557,8 +1570,11 @@ export default function ReceiptRoomScreen() {
                             />
                           </View>
                         ) : (
-                          <Text className='text-muted-foreground text-sm font-semibold'>
-                            ${receiptTaxMap.get(receiptId)!.toFixed(2)}
+                          <Text
+                            className='text-muted-foreground text-sm font-semibold'
+                            style={{ paddingBottom: 10 }}
+                          >
+                            ${(receiptTaxMap.get(receiptId) ?? 0).toFixed(2)}
                           </Text>
                         )}
                       </View>
@@ -1603,74 +1619,89 @@ export default function ReceiptRoomScreen() {
             }}
             scrollEventThrottle={16}
           >
-            {displayParticipants.map((participant) => (
-              <Participant
-                key={participant.id}
-                id={participant.id}
-                name={participant.name}
-                itemCount={getParticipantItemCount(participant.id)}
-                totalAmount={getParticipantTotal(participant.id)}
-                isGuest={isGroupRoom ? (participant.isGuest ?? false) : true}
-                accentColor={participant.accentColor}
-                onRemove={
-                  isGroupRoom
-                    ? () => {
-                        const profileId =
-                          groupDisplay.participantIdToProfileId.get(
-                            participant.id,
-                          );
-                        if (!profileId) return;
-                        removeGroupMember(roomId, profileId)
-                          .then(() => groupData.refetch())
-                          .catch((err) => {
-                            Alert.alert(
-                              'Error',
-                              err instanceof Error
-                                ? err.message
-                                : 'Could not remove participant.',
-                            );
-                          });
+            {displayParticipants.map((participant) => {
+              const isOwn = participant.id === currentParticipantId;
+              const isDisabled = isGroupRoom && !isHost && !isOwn;
+              return (
+                <View
+                  key={participant.id}
+                  style={isDisabled ? { opacity: 0.4 } : undefined}
+                  pointerEvents={isDisabled ? 'none' : 'auto'}
+                >
+                  <Participant
+                    id={participant.id}
+                    name={participant.name}
+                    itemCount={getParticipantItemCount(participant.id)}
+                    totalAmount={getParticipantTotal(participant.id)}
+                    isGuest={
+                      isGroupRoom
+                        ? isHost
+                          ? (participant.isGuest ?? false)
+                          : false
+                        : true
+                    }
+                    accentColor={participant.accentColor}
+                    onRemove={
+                      isGroupRoom
+                        ? () => {
+                            const profileId =
+                              groupDisplay.participantIdToProfileId.get(
+                                participant.id,
+                              );
+                            if (!profileId) return;
+                            removeGroupMember(roomId, profileId)
+                              .then(() => groupData.refetch())
+                              .catch((err) => {
+                                Alert.alert(
+                                  'Error',
+                                  err instanceof Error
+                                    ? err.message
+                                    : 'Could not remove participant.',
+                                );
+                              });
+                          }
+                        : () => removeParticipant(participant.id)
+                    }
+                    onLayout={(layout) => {
+                      participantLayouts.current[participant.id] = {
+                        ...layout,
+                        x: layout.x + scrollOffset,
+                      };
+                    }}
+                    goToYourItemsPage={() => {
+                      if (selectedItemIds.size > 0) {
+                        claimSelectedToParticipant(participant.id);
+                      } else {
+                        router.push({
+                          pathname: '../items',
+                          params: {
+                            roomId,
+                            items: JSON.stringify(
+                              displayItems.filter((item) =>
+                                item.userTags?.includes(participant.id),
+                              ),
+                            ),
+                            participantId: participant.id.toString(),
+                            participantName: participant.name,
+                            profileId:
+                              groupDisplay.participantIdToProfileId.get(
+                                participant.id,
+                              ) ?? '',
+                            taxPerItem: JSON.stringify(
+                              Object.fromEntries(taxPerItemMap),
+                            ),
+                          } as YourItemsRoomParams,
+                        });
                       }
-                    : () => removeParticipant(participant.id)
-                }
-                onLayout={(layout) => {
-                  participantLayouts.current[participant.id] = {
-                    ...layout,
-                    x: layout.x + scrollOffset,
-                  };
-                }}
-                goToYourItemsPage={() => {
-                  if (selectedItemIds.size > 0) {
-                    claimSelectedToParticipant(participant.id);
-                  } else {
-                    router.push({
-                      pathname: '../items',
-                      params: {
-                        roomId,
-                        items: JSON.stringify(
-                          displayItems.filter((item) =>
-                            item.userTags?.includes(participant.id),
-                          ),
-                        ),
-                        participantId: participant.id.toString(),
-                        participantName: participant.name,
-                        profileId:
-                          groupDisplay.participantIdToProfileId.get(
-                            participant.id,
-                          ) ?? '',
-                        taxPerItem: JSON.stringify(
-                          Object.fromEntries(taxPerItemMap),
-                        ),
-                      } as YourItemsRoomParams,
-                    });
-                  }
-                }}
-                isEditMode={isEditMode}
-              />
-            ))}
+                    }}
+                    isEditMode={isEditMode}
+                  />
+                </View>
+              );
+            })}
 
-            {/* Add participant button - hidden when at the 10-person limit */}
-            {displayParticipants.length < 10 && (
+            {/* Add participant button - hidden when at the 10-person limit or for non-hosts */}
+            {displayParticipants.length < 10 && (!isGroupRoom || isHost) && (
               <Pressable
                 className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
                 style={{ width: 160, height: 100 }}

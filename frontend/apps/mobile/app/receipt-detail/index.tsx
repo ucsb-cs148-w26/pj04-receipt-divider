@@ -21,6 +21,7 @@ import {
   updateGroupName,
   updatePaidStatus,
 } from '@/services/groupApi';
+import { supabase } from '@/services/supabase';
 
 export type ReceiptDetailParams = {
   id: string;
@@ -139,21 +140,7 @@ export default function ReceiptDetailScreen() {
     name: string;
     status: PersonStatus;
   }) => {
-    if (person.status === 'completed') {
-      Alert.alert(
-        'Already Verified',
-        `${person.name} has been marked as paid & verified. Do you want to undo this?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Unverify',
-            style: 'destructive',
-            onPress: () => void persistVerify(person.id, false),
-          },
-        ],
-      );
-      return;
-    }
+    if (person.status === 'completed') return;
     if (person.status === 'pending' || person.status === 'unrequested') {
       const msg =
         person.status === 'unrequested'
@@ -170,7 +157,17 @@ export default function ReceiptDetailScreen() {
       return;
     }
     // status === 'waiting' — eligible to verify
-    void persistVerify(person.id, !completedIds.has(person.id));
+    Alert.alert(
+      'Verify Payment?',
+      `Confirm that you have received payment from ${person.name}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Verify',
+          onPress: () => void persistVerify(person.id, true),
+        },
+      ],
+    );
   };
 
   const STATUS_ORDER: Record<PersonStatus, number> = {
@@ -200,6 +197,7 @@ export default function ReceiptDetailScreen() {
       action === 'request' || action === 'rerequst'
         ? 'requested'
         : 'unrequested';
+    setActionLoading(action);
     try {
       await updatePaidStatus(id ?? '', person.id, newStatus);
       const uiStatus: PersonStatus =
@@ -211,24 +209,64 @@ export default function ReceiptDetailScreen() {
         err instanceof Error ? err.message : 'Failed to update status.',
       );
     }
+    setActionLoading(null);
+    setSelectedPerson(null);
+  };
+
+  const handleNudge = async (person: { id: string; name: string }) => {
+    setActionLoading('nudge');
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ next_nudge: new Date().toISOString() })
+        .eq('id', person.id);
+      if (error) throw error;
+      Alert.alert('Nudge Sent', `${person.name} will be reminded to pay soon.`);
+    } catch (err) {
+      Alert.alert(
+        'Error',
+        err instanceof Error ? err.message : 'Failed to nudge.',
+      );
+    }
+    setActionLoading(null);
     setSelectedPerson(null);
   };
 
   const handleSelfPayToggle = async () => {
     if (!selfPerson) return;
-    if (selfPerson.status === 'pending') {
-      // 'requested' in DB → 'pending' in UI; mark as paid sets DB to 'pending' → UI 'waiting'
-      try {
-        await updatePaidStatus(id ?? '', currentUserId, 'pending');
-        setLocalStatusOverrides((prev) =>
-          new Map(prev).set(currentUserId, 'waiting'),
-        );
-      } catch (err) {
-        Alert.alert(
-          'Error',
-          err instanceof Error ? err.message : 'Failed to update status.',
-        );
-      }
+    if (
+      selfPerson.status === 'pending' ||
+      selfPerson.status === 'unrequested'
+    ) {
+      // 'requested'/'unrequested' in DB → mark as paid sets DB to 'pending' → UI 'waiting'
+      Alert.alert(
+        'Mark as Paid?',
+        'This will notify the host that you have paid. They will need to verify your payment.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Mark as Paid',
+            onPress: async () => {
+              setIsSelfPayLoading(true);
+              try {
+                await updatePaidStatus(id ?? '', currentUserId, 'pending');
+                setLocalStatusOverrides((prev) =>
+                  new Map(prev).set(currentUserId, 'waiting'),
+                );
+              } catch (err) {
+                Alert.alert(
+                  'Error',
+                  err instanceof Error
+                    ? err.message
+                    : 'Failed to update status.',
+                );
+              } finally {
+                setIsSelfPayLoading(false);
+              }
+            },
+          },
+        ],
+      );
     } else if (selfPerson.status === 'waiting') {
       // Already marked as paid — offer to unmark (sets back to 'requested' in DB → 'pending' in UI)
       Alert.alert(
@@ -274,7 +312,12 @@ export default function ReceiptDetailScreen() {
 
   const otherPeople = allPeople
     .filter((p) => p.id !== currentUserId)
-    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+    .sort((a, b) => {
+      // Host always first
+      if (a.id === createdBy) return -1;
+      if (b.id === createdBy) return 1;
+      return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+    });
 
   const selfPerson = allPeople.find((p) => p.id === currentUserId);
 
@@ -306,6 +349,25 @@ export default function ReceiptDetailScreen() {
   const myReceiptIds = new Set(
     receipts.filter((r) => r.created_by === currentUserId).map((r) => r.id),
   );
+  // Per-person: how much each member has claimed from MY receipts specifically
+  const myItemIds = new Set(
+    items
+      .filter((item) => myReceiptIds.has(item.receipt_id ?? ''))
+      .map((i) => i.id),
+  );
+  const amountOwedToMePerPerson = new Map<string, number>(
+    members.map((member) => {
+      const owed = claims
+        .filter(
+          (c) => c.profile_id === member.profile_id && myItemIds.has(c.item_id),
+        )
+        .reduce((sum, c) => {
+          const item = items.find((i) => i.id === c.item_id);
+          return sum + (item ? item.unit_price * c.share : 0);
+        }, 0);
+      return [member.profile_id, owed];
+    }),
+  );
   const totalUploaded = items
     .filter((item) => myReceiptIds.has(item.receipt_id ?? ''))
     .reduce((sum, item) => sum + item.unit_price * item.amount, 0);
@@ -315,7 +377,11 @@ export default function ReceiptDetailScreen() {
       const item = items.find((i) => i.id === c.item_id);
       return sum + (item ? item.unit_price * c.share : 0);
     }, 0);
-  const displayAmount = totalUploaded - myClaimed;
+  const verifiedPaidAmount = [...completedIds].reduce(
+    (sum, memberId) => sum + (amountOwedToMePerPerson.get(memberId) ?? 0),
+    0,
+  );
+  const displayAmount = totalUploaded - myClaimed - verifiedPaidAmount;
 
   const statusParts: string[] = [];
   if (waitingCount > 0)
@@ -324,10 +390,51 @@ export default function ReceiptDetailScreen() {
   if (unrequestedCount > 0)
     statusParts.push(`${unrequestedCount} Not Yet Requested`);
 
+  // When user owes (didn't upload the receipt), progress bar reflects only self payment status
+  const userOwes = displayAmount < 0;
+  const selfStatusForBar = selfPerson?.status ?? 'unrequested';
+  const barCompletedFraction = userOwes
+    ? selfStatusForBar === 'completed'
+      ? 1
+      : 0
+    : completedFraction;
+  const barWaitingFraction = userOwes
+    ? selfStatusForBar === 'waiting'
+      ? 1
+      : 0
+    : waitingFraction;
+  const barPendingFraction = userOwes
+    ? selfStatusForBar === 'pending'
+      ? 1
+      : 0
+    : pendingFraction;
+  const barUnrequestedFraction = userOwes
+    ? selfStatusForBar === 'unrequested'
+      ? 1
+      : 0
+    : unrequestedFraction;
+  const barCompletedCount = userOwes
+    ? selfStatusForBar === 'completed'
+      ? 1
+      : 0
+    : completedCount;
+  const barTotal = userOwes ? 1 : total;
+  const barStatusParts = userOwes
+    ? selfStatusForBar === 'completed'
+      ? []
+      : selfStatusForBar === 'waiting'
+        ? ['Awaiting Verification']
+        : selfStatusForBar === 'pending'
+          ? ['Payment Requested']
+          : ['Not Yet Paid']
+    : statusParts;
+
   const [roomName, setRoomName] = useState(name ?? '');
   const [editingName, setEditingName] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [isSelfPayLoading, setIsSelfPayLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -355,41 +462,33 @@ export default function ReceiptDetailScreen() {
           onPress={() => router.back()}
         />
         <View className='flex-1 flex-row items-center justify-center gap-2 mx-2'>
-          {editingName ? (
+          {isHost && editingName ? (
             <TextInput
               value={roomName}
               onChangeText={setRoomName}
               autoFocus
               returnKeyType='done'
-              onSubmitEditing={() => {
+              onEndEditing={(e) => {
+                const trimmed = e.nativeEvent.text.trim();
                 setEditingName(false);
-                if (id && roomName.trim())
-                  updateGroupName(id, roomName.trim()).catch((err) => {
+                if (id && trimmed) {
+                  setRoomName(trimmed);
+                  updateGroupName(id, trimmed).catch((err) => {
                     console.error(err);
                     Alert.alert(
                       'Save Failed',
                       'Could not save the group name. Please try again.',
                     );
                   });
-              }}
-              onBlur={() => {
-                setEditingName(false);
-                if (id && roomName.trim())
-                  updateGroupName(id, roomName.trim()).catch((err) => {
-                    console.error(err);
-                    Alert.alert(
-                      'Save Failed',
-                      'Could not save the group name. Please try again.',
-                    );
-                  });
+                }
               }}
               className='text-foreground text-xl font-bold text-center border-b border-border flex-1'
             />
           ) : (
             <Pressable
-              onPress={() => setEditingName(true)}
+              onPress={() => isHost && setEditingName(true)}
               className='flex-row items-center gap-2'
-              accessibilityLabel='Edit room name'
+              accessibilityLabel={isHost ? 'Edit room name' : undefined}
             >
               <Text
                 className='text-foreground text-xl font-bold'
@@ -397,11 +496,13 @@ export default function ReceiptDetailScreen() {
               >
                 {roomName}
               </Text>
-              <MaterialCommunityIcons
-                name='pencil-outline'
-                size={18}
-                className='text-muted-foreground'
-              />
+              {isHost && (
+                <MaterialCommunityIcons
+                  name='pencil-outline'
+                  size={18}
+                  className='text-muted-foreground'
+                />
+              )}
             </Pressable>
           )}
         </View>
@@ -430,53 +531,55 @@ export default function ReceiptDetailScreen() {
           {/* Status summary row */}
           <View className='flex-row items-center justify-between mb-2'>
             <Text className='text-muted-foreground text-sm'>
-              {statusParts.length > 0 ? statusParts.join(', ') : 'All paid'}
+              {barStatusParts.length > 0
+                ? barStatusParts.join(', ')
+                : 'All paid'}
             </Text>
             <Text className='text-muted-foreground text-sm'>
-              {completedCount}/{total}
+              {barCompletedCount}/{barTotal}
             </Text>
           </View>
 
           {/* Progress bar */}
           <View className='h-2.5 bg-border rounded-full overflow-hidden flex-row'>
-            {completedFraction > 0 && (
+            {barCompletedFraction > 0 && (
               <View
                 className='h-full bg-status-completed'
-                style={{ flex: completedFraction }}
+                style={{ flex: barCompletedFraction }}
               />
             )}
-            {waitingFraction > 0 && (
+            {barWaitingFraction > 0 && (
               <View
                 className='h-full bg-status-waiting'
-                style={{ flex: waitingFraction }}
+                style={{ flex: barWaitingFraction }}
               />
             )}
-            {pendingFraction > 0 && (
+            {barPendingFraction > 0 && (
               <View
                 className='h-full bg-status-pending'
-                style={{ flex: pendingFraction }}
+                style={{ flex: barPendingFraction }}
               />
             )}
-            {unrequestedFraction > 0 && (
+            {barUnrequestedFraction > 0 && (
               <View
                 className='h-full bg-status-unrequested'
-                style={{ flex: unrequestedFraction }}
+                style={{ flex: barUnrequestedFraction }}
               />
             )}
-            {completedFraction +
-              waitingFraction +
-              pendingFraction +
-              unrequestedFraction <
+            {barCompletedFraction +
+              barWaitingFraction +
+              barPendingFraction +
+              barUnrequestedFraction <
               1 && (
               <View
                 className='h-full bg-border'
                 style={{
                   flex:
                     1 -
-                    completedFraction -
-                    waitingFraction -
-                    pendingFraction -
-                    unrequestedFraction,
+                    barCompletedFraction -
+                    barWaitingFraction -
+                    barPendingFraction -
+                    barUnrequestedFraction,
                 }}
               />
             )}
@@ -501,14 +604,21 @@ export default function ReceiptDetailScreen() {
           ) : (
             people.map((person, index) => {
               const isSelf = person.id === currentUserId;
+              const isPersonHost = person.id === createdBy;
               const selfRequested = isSelf && person.status === 'pending';
               const selfWaiting = isSelf && person.status === 'waiting';
+              const selfUnrequested =
+                isSelf && person.status === 'unrequested' && person.amount > 0;
+              const owedToMeByPerson =
+                amountOwedToMePerPerson.get(person.id) ?? 0;
               const borderColor = isSelf
                 ? selfRequested
                   ? 'border-status-pending'
                   : selfWaiting
                     ? 'border-status-waiting'
-                    : 'border-border'
+                    : selfUnrequested
+                      ? 'border-status-unrequested'
+                      : 'border-border'
                 : person.status === 'completed'
                   ? 'border-status-completed'
                   : person.status === 'waiting'
@@ -532,56 +642,80 @@ export default function ReceiptDetailScreen() {
                   ? 'Payment Requested — tap to mark as paid'
                   : selfWaiting
                     ? 'Marked as Paid — Awaiting Verification'
-                    : 'You'
+                    : selfUnrequested
+                      ? 'You owe money — tap to mark as paid'
+                      : 'You'
                 : person.status === 'completed'
                   ? 'Paid & Verified'
                   : person.status === 'waiting'
                     ? 'Claimed, Awaiting Verification'
                     : person.status === 'pending'
                       ? 'Requested, Awaiting Payment'
-                      : 'Not Yet Requested';
+                      : owedToMeByPerson > 0
+                        ? 'Not Yet Requested'
+                        : '';
               return (
                 <View key={person.id}>
                   {index > 0 && <View className='h-px bg-border mx-4' />}
                   <Pressable
                     className='flex-row items-center px-4 py-3 active:opacity-70'
-                    onPress={() =>
-                      !isSelf &&
-                      person.amount > 0 &&
-                      setSelectedPerson({
-                        id: person.id,
-                        name: person.name,
-                        status: person.status,
-                        amount: person.amount,
-                      })
-                    }
+                    onPress={() => {
+                      if (
+                        isSelf &&
+                        (selfRequested || selfWaiting || selfUnrequested)
+                      ) {
+                        void handleSelfPayToggle();
+                      } else if (!isSelf && owedToMeByPerson > 0) {
+                        setSelectedPerson({
+                          id: person.id,
+                          name: person.name,
+                          status: person.status,
+                          amount: owedToMeByPerson,
+                        });
+                      }
+                    }}
                   >
                     {/* Checkbox — interactive for self when payment is requested */}
                     <Pressable
                       onPress={() => {
-                        if (selfRequested || selfWaiting) {
+                        if (selfRequested || selfWaiting || selfUnrequested) {
                           void handleSelfPayToggle();
-                        } else if (!isSelf) {
+                        } else if (!isSelf && owedToMeByPerson > 0) {
                           handleCheckboxPress(person);
                         }
                       }}
                       hitSlop={8}
-                      disabled={isSelf && !selfRequested && !selfWaiting}
+                      disabled={
+                        (isSelf &&
+                          !selfRequested &&
+                          !selfWaiting &&
+                          !selfUnrequested) ||
+                        (isSelf && isSelfPayLoading) ||
+                        (!isSelf &&
+                          (person.status === 'completed' ||
+                            owedToMeByPerson <= 0))
+                      }
                       className={`w-7 h-7 rounded-full border-2 items-center justify-center mr-3 ${borderColor}`}
                     >
-                      {person.status === 'completed' && !isSelf && (
-                        <MaterialCommunityIcons
-                          name='check'
-                          size={16}
-                          className='text-status-completed'
-                        />
-                      )}
-                      {selfWaiting && (
-                        <MaterialCommunityIcons
-                          name='check'
-                          size={16}
-                          className='text-status-waiting'
-                        />
+                      {isSelf && isSelfPayLoading ? (
+                        <ActivityIndicator size='small' />
+                      ) : (
+                        <>
+                          {person.status === 'completed' && !isSelf && (
+                            <MaterialCommunityIcons
+                              name='check'
+                              size={16}
+                              className='text-status-completed'
+                            />
+                          )}
+                          {selfWaiting && (
+                            <MaterialCommunityIcons
+                              name='check'
+                              size={16}
+                              className='text-status-waiting'
+                            />
+                          )}
+                        </>
                       )}
                     </Pressable>
 
@@ -596,19 +730,28 @@ export default function ReceiptDetailScreen() {
                           : person.name}
                         {isSelf ? ' (You)' : ''}
                       </Text>
-                      <Text className='text-muted-foreground text-sm'>
-                        {statusLabel}
-                      </Text>
+                      {!isSelf && isPersonHost && (
+                        <Text className='text-primary text-xs font-semibold'>
+                          Host
+                        </Text>
+                      )}
+                      {statusLabel !== '' && (
+                        <Text className='text-muted-foreground text-sm'>
+                          {statusLabel}
+                        </Text>
+                      )}
                     </View>
 
-                    {/* Amount — shown for others, and for self when payment is requested/marked */}
-                    {!isSelf && (
+                    {/* Amount — shown for others who owe money, and for self when payment is requested/marked */}
+                    {!isSelf && owedToMeByPerson > 0 && (
                       <Text className={`font-semibold mr-1 ${textColor}`}>
-                        +${person.amount.toFixed(2)}
+                        {completedIds.has(person.id)
+                          ? '$0.00'
+                          : `+$${person.amount.toFixed(2)}`}
                       </Text>
                     )}
                     {isSelf &&
-                      (selfRequested || selfWaiting) &&
+                      (selfRequested || selfWaiting || selfUnrequested) &&
                       person.amount > 0 && (
                         <Text className={`font-semibold mr-1 ${textColor}`}>
                           ${person.amount.toFixed(2)}
@@ -620,7 +763,7 @@ export default function ReceiptDetailScreen() {
                         name='chevron-right'
                         size={18}
                         className={
-                          !isSelf && person.amount <= 0
+                          owedToMeByPerson <= 0
                             ? 'text-transparent'
                             : 'text-accent-dark'
                         }
@@ -733,28 +876,57 @@ export default function ReceiptDetailScreen() {
                   {/* Action button based on status */}
                   {selectedPerson.status === 'unrequested' && (
                     <Pressable
-                      className='bg-primary rounded-2xl py-3.5 items-center active:opacity-80 mb-3'
+                      className={`${
+                        unclaimedItemCount > 0 ? 'bg-destructive' : 'bg-primary'
+                      } rounded-2xl py-3.5 items-center active:opacity-80 mb-3`}
                       onPress={() =>
                         handleRequestAction(selectedPerson, 'request')
                       }
+                      disabled={!!actionLoading}
                     >
-                      <Text className='text-primary-foreground font-semibold text-base'>
-                        Request Money
-                      </Text>
+                      {actionLoading === 'request' ? (
+                        <ActivityIndicator color='white' />
+                      ) : (
+                        <Text className='text-primary-foreground font-semibold text-base'>
+                          {unclaimedItemCount > 0
+                            ? 'Request Money Anyway'
+                            : 'Request Money'}
+                        </Text>
+                      )}
                     </Pressable>
                   )}
 
                   {selectedPerson.status === 'pending' && (
-                    <Pressable
-                      className='bg-destructive rounded-2xl py-3.5 items-center active:opacity-80 mb-3'
-                      onPress={() =>
-                        handleRequestAction(selectedPerson, 'cancel')
-                      }
-                    >
-                      <Text className='text-destructive-foreground font-semibold text-base'>
-                        Cancel Request
-                      </Text>
-                    </Pressable>
+                    <>
+                      <Pressable
+                        className='bg-primary rounded-2xl py-3.5 items-center active:opacity-80 mb-3'
+                        onPress={() => void handleNudge(selectedPerson)}
+                        disabled={!!actionLoading}
+                      >
+                        {actionLoading === 'nudge' ? (
+                          <ActivityIndicator color='white' />
+                        ) : (
+                          <Text className='text-primary-foreground font-semibold text-base'>
+                            Nudge
+                          </Text>
+                        )}
+                      </Pressable>
+                      <Pressable
+                        className='bg-destructive rounded-2xl py-3.5 items-center active:opacity-80 mb-3'
+                        onPress={() =>
+                          handleRequestAction(selectedPerson, 'cancel')
+                        }
+                        disabled={!!actionLoading}
+                      >
+                        {actionLoading === 'cancel' ? (
+                          <ActivityIndicator color='white' />
+                        ) : (
+                          <Text className='text-destructive-foreground font-semibold text-base'>
+                            Cancel Request
+                          </Text>
+                        )}
+                      </Pressable>
+                    </>
                   )}
 
                   {selectedPerson.status === 'waiting' && (
@@ -767,23 +939,84 @@ export default function ReceiptDetailScreen() {
                       </View>
                       <Pressable
                         className='bg-primary rounded-2xl py-3.5 items-center active:opacity-80 mb-3'
+                        disabled={!!actionLoading}
+                        onPress={() =>
+                          Alert.alert(
+                            'Verify Payment?',
+                            `Confirm that you have received payment from ${selectedPerson.name}.`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Verify',
+                                onPress: async () => {
+                                  setActionLoading('verify');
+                                  await persistVerify(selectedPerson.id, true);
+                                  setActionLoading(null);
+                                  setSelectedPerson(null);
+                                },
+                              },
+                            ],
+                          )
+                        }
+                      >
+                        {actionLoading === 'verify' ? (
+                          <ActivityIndicator color='white' />
+                        ) : (
+                          <Text className='text-primary-foreground font-semibold text-base'>
+                            Verify Payment
+                          </Text>
+                        )}
+                      </Pressable>
+                      <Pressable
+                        className='bg-destructive rounded-2xl py-3.5 items-center active:opacity-80 mb-3'
                         onPress={() =>
                           handleRequestAction(selectedPerson, 'rerequst')
                         }
+                        disabled={!!actionLoading}
                       >
-                        <Text className='text-primary-foreground font-semibold text-base'>
-                          Re-Request Payment
-                        </Text>
+                        {actionLoading === 'rerequst' ? (
+                          <ActivityIndicator color='white' />
+                        ) : (
+                          <Text className='text-primary-foreground font-semibold text-base'>
+                            Re-Request Payment
+                          </Text>
+                        )}
                       </Pressable>
                     </>
                   )}
 
                   {selectedPerson.status === 'completed' && (
-                    <View className='bg-status-completed/10 border border-status-completed rounded-xl px-4 py-3 mb-3'>
-                      <Text className='text-status-completed text-sm text-center font-semibold'>
-                        Payment Verified ✓
-                      </Text>
-                    </View>
+                    <>
+                      <View className='bg-status-completed/10 border border-status-completed rounded-xl px-4 py-3 mb-3'>
+                        <Text className='text-status-completed text-sm text-center font-semibold'>
+                          Payment Verified ✓
+                        </Text>
+                      </View>
+                      <Pressable
+                        className='bg-destructive rounded-2xl py-3.5 items-center active:opacity-80 mb-3'
+                        onPress={() =>
+                          Alert.alert(
+                            'Unverify Payment?',
+                            `This will mark ${selectedPerson.name}'s payment as unverified. They will need to re-mark their payment before you can verify again.`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Unverify',
+                                style: 'destructive',
+                                onPress: () => {
+                                  void persistVerify(selectedPerson.id, false);
+                                  setSelectedPerson(null);
+                                },
+                              },
+                            ],
+                          )
+                        }
+                      >
+                        <Text className='text-destructive-foreground font-semibold text-base'>
+                          Unverify Payment
+                        </Text>
+                      </Pressable>
+                    </>
                   )}
 
                   <Pressable

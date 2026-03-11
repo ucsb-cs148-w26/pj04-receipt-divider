@@ -2,7 +2,6 @@ import { router } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Alert,
-  Image,
   Modal,
   PanResponder,
   Pressable,
@@ -244,7 +243,6 @@ function EditModal({
 export default function SettingsScreen() {
   const { signOut, user } = useAuth();
 
-  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
   const fullName = (user?.user_metadata?.full_name as string | undefined) ?? '';
   const email = user?.email ?? '';
 
@@ -335,8 +333,6 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
-      <DefaultButtons.Close onPress={() => router.back()} />
-
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
@@ -346,18 +342,14 @@ export default function SettingsScreen() {
         {/* Profile picture + name */}
         <View className='items-center mt-[10vh] mb-6'>
           <View className='w-24 h-24 rounded-full overflow-hidden mb-3 shadow-md shadow-black/20'>
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} className='w-full h-full' />
-            ) : (
-              <View
-                className='w-full h-full items-center justify-center'
-                style={{ backgroundColor: accentColor }}
-              >
-                <Text className='text-white font-bold text-3xl'>
-                  {displayInitial}
-                </Text>
-              </View>
-            )}
+            <View
+              className='w-full h-full items-center justify-center'
+              style={{ backgroundColor: accentColor }}
+            >
+              <Text className='text-white font-bold text-3xl'>
+                {displayInitial}
+              </Text>
+            </View>
           </View>
           <Text className='text-foreground text-xl font-bold'>
             {displayName || 'User'}
@@ -394,6 +386,8 @@ export default function SettingsScreen() {
           />
         </View>
       </ScrollView>
+
+      <DefaultButtons.Close onPress={() => router.back()} />
 
       {/* Name modal */}
       <EditModal
