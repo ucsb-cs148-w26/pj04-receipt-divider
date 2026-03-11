@@ -65,6 +65,7 @@ export default function ReceiptDetailScreen() {
     profiles,
     debtStatuses,
     isLoaded,
+    isFinished,
     refetch,
     createdBy,
   } = useGroupData(id ?? '');
@@ -385,6 +386,11 @@ export default function ReceiptDetailScreen() {
                 creditorId,
                 'pending',
               );
+              // Notify the creditor immediately by resetting their nudge timer
+              void supabase
+                .from('profiles')
+                .update({ next_nudge: new Date().toISOString() })
+                .eq('id', creditorId);
               setLocalDebtOverrides((prev) =>
                 new Map(prev).set(creditorId, 'pending'),
               );
@@ -394,77 +400,6 @@ export default function ReceiptDetailScreen() {
                 err instanceof Error ? err.message : 'Failed to update status.',
               );
             }
-          },
-        },
-      ],
-    );
-  };
-
-  // ── Bulk-pay self ────────────────────────────────────────────────────────────
-  // Triggered by tapping the self row in the people list.  Requires two
-  // confirmation alerts so the user doesn't tap through accidentally.
-  const handleBulkSelfPay = () => {
-    const unpaidDebts = myDebtsAsDebtor.filter(
-      (d) => d.paidStatus !== 'verified' && d.paidStatus !== 'pending',
-    );
-    if (unpaidDebts.length === 0) {
-      // Nothing to bulk-pay; fall through silently
-      return;
-    }
-    const totalOwed = unpaidDebts.reduce((sum, d) => sum + d.amount, 0);
-    const names = unpaidDebts.map((d) => d.creditorName).join(', ');
-
-    // Alert 1 — summary
-    Alert.alert(
-      'Mark All as Paid?',
-      `You owe a total of $${totalOwed.toFixed(2)} to ${unpaidDebts.length} ${unpaidDebts.length === 1 ? 'person' : 'people'} (${names}).\n\nThis will notify each of them that you have paid.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue →',
-          onPress: () => {
-            // Alert 2 — final confirmation
-            Alert.alert(
-              'Confirm All Payments',
-              'Please make sure you have actually sent payment to each person listed. Each creditor must verify receipt individually.',
-              [
-                { text: 'Go Back', style: 'cancel' },
-                {
-                  text: 'Yes, Mark All Paid',
-                  style: 'destructive',
-                  onPress: async () => {
-                    setIsSelfPayLoading(true);
-                    try {
-                      await Promise.all(
-                        unpaidDebts.map((d) =>
-                          updateDebtStatus(
-                            id ?? '',
-                            currentUserId,
-                            d.creditorId,
-                            'pending',
-                          ),
-                        ),
-                      );
-                      setLocalDebtOverrides((prev) => {
-                        const next = new Map(prev);
-                        for (const d of unpaidDebts)
-                          next.set(d.creditorId, 'pending');
-                        return next;
-                      });
-                    } catch (err) {
-                      Alert.alert(
-                        'Error',
-                        err instanceof Error
-                          ? err.message
-                          : 'Failed to update status.',
-                      );
-                    } finally {
-                      setIsSelfPayLoading(false);
-                    }
-                  },
-                },
-              ],
-            );
           },
         },
       ],
@@ -552,7 +487,12 @@ export default function ReceiptDetailScreen() {
     (sum, memberId) => sum + (amountOwedToMePerPerson.get(memberId) ?? 0),
     0,
   );
-  const displayAmount = totalUploaded - myClaimed - verifiedPaidAmount;
+  // Amounts I've been verified as having paid to my creditors — reduces "You Owe"
+  const myVerifiedPaymentsAsDebtor = myDebtsAsDebtor
+    .filter((d) => d.paidStatus === 'verified')
+    .reduce((sum, d) => sum + d.amount, 0);
+  const displayAmount =
+    totalUploaded - myClaimed - verifiedPaidAmount + myVerifiedPaymentsAsDebtor;
 
   const statusParts: string[] = [];
   if (waitingCount > 0)
@@ -562,49 +502,64 @@ export default function ReceiptDetailScreen() {
     statusParts.push(`${unrequestedCount} Not Yet Requested`);
 
   // When user owes (didn't upload the receipt), progress bar reflects only self payment status
-  const userOwes = displayAmount < 0;
+  const isZeroBalance = Math.abs(displayAmount) < 0.005;
+  const userOwes = displayAmount < -0.005;
   const selfStatusForBar = selfPerson?.status ?? 'unrequested';
-  const barCompletedFraction = userOwes
-    ? selfStatusForBar === 'completed'
-      ? 1
-      : 0
-    : completedFraction;
-  const barWaitingFraction = userOwes
-    ? selfStatusForBar === 'waiting'
-      ? 1
-      : 0
-    : waitingFraction;
-  const barPendingFraction = userOwes
-    ? selfStatusForBar === 'pending'
-      ? 1
-      : 0
-    : pendingFraction;
-  const barUnrequestedFraction = userOwes
-    ? selfStatusForBar === 'unrequested'
-      ? 1
-      : 0
-    : unrequestedFraction;
-  const barCompletedCount = userOwes
-    ? selfStatusForBar === 'completed'
-      ? 1
-      : 0
-    : completedCount;
-  const barTotal = userOwes ? 1 : total;
-  const barStatusParts = userOwes
-    ? selfStatusForBar === 'completed'
-      ? []
-      : selfStatusForBar === 'waiting'
-        ? ['Awaiting Verification']
-        : selfStatusForBar === 'pending'
-          ? ['Payment Requested']
-          : ['Not Yet Paid']
-    : statusParts;
+  // Only treat zero balance as "fully completed" if the room is actually finished;
+  // while still in progress, fall through to the real group fractions
+  const effectiveZero = isZeroBalance && isFinished;
+  const barCompletedFraction = effectiveZero
+    ? 1
+    : userOwes
+      ? selfStatusForBar === 'completed'
+        ? 1
+        : 0
+      : completedFraction;
+  const barWaitingFraction = effectiveZero
+    ? 0
+    : userOwes
+      ? selfStatusForBar === 'waiting'
+        ? 1
+        : 0
+      : waitingFraction;
+  const barPendingFraction = effectiveZero
+    ? 0
+    : userOwes
+      ? selfStatusForBar === 'pending'
+        ? 1
+        : 0
+      : pendingFraction;
+  const barUnrequestedFraction = effectiveZero
+    ? 0
+    : userOwes
+      ? selfStatusForBar === 'unrequested'
+        ? 1
+        : 0
+      : unrequestedFraction;
+  const barCompletedCount = effectiveZero
+    ? 1
+    : userOwes
+      ? selfStatusForBar === 'completed'
+        ? 1
+        : 0
+      : completedCount;
+  const barTotal = effectiveZero ? 1 : userOwes ? 1 : total;
+  const barStatusParts = effectiveZero
+    ? []
+    : userOwes
+      ? selfStatusForBar === 'completed'
+        ? []
+        : selfStatusForBar === 'waiting'
+          ? ['Awaiting Verification']
+          : selfStatusForBar === 'pending'
+            ? ['Payment Requested']
+            : ['Not Yet Paid']
+      : statusParts;
 
   const [roomName, setRoomName] = useState(name ?? '');
   const [editingName, setEditingName] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
-  const [isSelfPayLoading, setIsSelfPayLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useFocusEffect(
@@ -704,7 +659,9 @@ export default function ReceiptDetailScreen() {
             <Text className='text-muted-foreground text-sm'>
               {barStatusParts.length > 0
                 ? barStatusParts.join(', ')
-                : 'All paid'}
+                : isFinished
+                  ? 'Completed'
+                  : 'In Progress'}
             </Text>
             <Text className='text-muted-foreground text-sm'>
               {barCompletedCount}/{barTotal}
@@ -857,16 +814,6 @@ export default function ReceiptDetailScreen() {
             people.map((person, index) => {
               const isSelf = person.id === currentUserId;
               const isPersonHost = person.id === createdBy;
-              // For self: derive status from myAggregateDebtStatus
-              const selfHasUnpaidDebts =
-                isSelf &&
-                myDebtsAsDebtor.some(
-                  (d) =>
-                    d.paidStatus !== 'verified' && d.paidStatus !== 'pending',
-                );
-              const selfWaiting = isSelf && person.status === 'waiting';
-              const selfCanBulkPay =
-                isSelf && (selfHasUnpaidDebts || selfWaiting);
               const owedToMeByPerson =
                 amountOwedToMePerPerson.get(person.id) ?? 0;
               const borderColor = isSelf
@@ -897,13 +844,7 @@ export default function ReceiptDetailScreen() {
                       ? 'text-status-pending'
                       : 'text-status-unrequested';
               const statusLabel = isSelf
-                ? person.status === 'pending'
-                  ? 'Payment requested — tap to bulk mark as paid'
-                  : person.status === 'waiting'
-                    ? 'Some payments awaiting verification'
-                    : myDebtsAsDebtor.length > 0
-                      ? 'You owe money — tap to bulk mark as paid'
-                      : 'You'
+                ? ''
                 : person.status === 'completed'
                   ? 'Paid & Verified'
                   : person.status === 'waiting'
@@ -919,9 +860,7 @@ export default function ReceiptDetailScreen() {
                   <Pressable
                     className='flex-row items-center px-4 py-3 active:opacity-70'
                     onPress={() => {
-                      if (isSelf && selfCanBulkPay) {
-                        handleBulkSelfPay();
-                      } else if (!isSelf && owedToMeByPerson > 0) {
+                      if (!isSelf && owedToMeByPerson > 0) {
                         setSelectedPerson({
                           id: person.id,
                           name: person.name,
@@ -934,41 +873,25 @@ export default function ReceiptDetailScreen() {
                     {/* Checkbox */}
                     <Pressable
                       onPress={() => {
-                        if (isSelf && selfCanBulkPay) {
-                          handleBulkSelfPay();
-                        } else if (!isSelf && owedToMeByPerson > 0) {
+                        if (!isSelf && owedToMeByPerson > 0) {
                           handleCheckboxPress(person);
                         }
                       }}
                       hitSlop={8}
                       disabled={
-                        (isSelf && !selfCanBulkPay) ||
-                        (isSelf && isSelfPayLoading) ||
+                        isSelf ||
                         (!isSelf &&
                           (person.status === 'completed' ||
                             owedToMeByPerson <= 0))
                       }
                       className={`w-7 h-7 rounded-full border-2 items-center justify-center mr-3 ${borderColor}`}
                     >
-                      {isSelf && isSelfPayLoading ? (
-                        <ActivityIndicator size='small' />
-                      ) : (
-                        <>
-                          {person.status === 'completed' && !isSelf && (
-                            <MaterialCommunityIcons
-                              name='check'
-                              size={16}
-                              className='text-status-completed'
-                            />
-                          )}
-                          {selfWaiting && (
-                            <MaterialCommunityIcons
-                              name='check'
-                              size={16}
-                              className='text-status-waiting'
-                            />
-                          )}
-                        </>
+                      {person.status === 'completed' && !isSelf && (
+                        <MaterialCommunityIcons
+                          name='check'
+                          size={16}
+                          className='text-status-completed'
+                        />
                       )}
                     </Pressable>
 
@@ -1021,13 +944,6 @@ export default function ReceiptDetailScreen() {
                             ? 'text-transparent'
                             : 'text-accent-dark'
                         }
-                      />
-                    )}
-                    {isSelf && selfCanBulkPay && (
-                      <MaterialCommunityIcons
-                        name='chevron-right'
-                        size={18}
-                        className='text-accent-dark'
                       />
                     )}
                   </Pressable>

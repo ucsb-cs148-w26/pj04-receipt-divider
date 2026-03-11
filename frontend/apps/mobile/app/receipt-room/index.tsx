@@ -45,6 +45,7 @@ import {
   useScrollToInput,
   calculateParticipantTotal,
 } from '@eezy-receipt/shared';
+import { USER_COLOR_HEX } from '@shared/constants';
 import { ReceiptConfidenceModal, type ConfidenceData } from '@/components';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Participant } from '@shared/components/Participant';
@@ -701,16 +702,47 @@ export default function ReceiptRoomScreen() {
     })();
   }, [roomId, isGroupRoom, currentUserId]);
 
-  // Alert non-hosts when the room has been completed
+  // Navigate back with an error alert if the initial group data fetch fails
   useEffect(() => {
-    if (!isRoomFinished || isHost || finishedAlertShownRef.current) return;
+    if (!isGroupRoom || !groupData.hasError) return;
+    router.back();
+    Alert.alert(
+      'Connection Error',
+      'Could not load the room. Please check your connection and try again.',
+    );
+  }, [isGroupRoom, groupData.hasError]);
+
+  // Navigate back with a timeout alert if data never arrives
+  useEffect(() => {
+    if (!isGroupRoom || groupData.isLoaded) return;
+    const timer = setTimeout(() => {
+      router.back();
+      Alert.alert(
+        'Connection Timed Out',
+        'The room took too long to load. Please check your connection and try again.',
+      );
+    }, 15_000);
+    return () => clearTimeout(timer);
+  }, [isGroupRoom, groupData.isLoaded]);
+
+  // Alert all members (including the host) when the room has been completed
+  useEffect(() => {
+    if (!isRoomFinished || finishedAlertShownRef.current) return;
     if (!groupData.isLoaded) return;
     finishedAlertShownRef.current = true;
-    Alert.alert(
-      'Room Completed',
-      'The host has completed this room. You can no longer add or remove items or receipts.',
-      [{ text: 'OK' }],
-    );
+    if (isHost) {
+      Alert.alert(
+        'Room Completed',
+        'This room has been marked as completed. Editing items or receipts now is not recommended — any changes will require you to manually re-request payments from members.',
+        [{ text: 'OK' }],
+      );
+    } else {
+      Alert.alert(
+        'Room Completed',
+        'The host has completed this room. You can no longer add or remove items or receipts.',
+        [{ text: 'OK' }],
+      );
+    }
   }, [isRoomFinished, isHost, groupData.isLoaded]);
 
   // Realtime subscription: detect when the host finishes the room
@@ -765,12 +797,34 @@ export default function ReceiptRoomScreen() {
       profileIdToParticipantId.set(m.profile_id, i + 1);
       participantIdToProfileId.set(i + 1, m.profile_id);
     });
-    const participants: ParticipantType[] = members.map((m, i) => ({
+    // First pass: collect explicit accent colors from profiles
+    const rawParticipants = members.map((m, i) => ({
       id: i + 1,
       name: groupData.profiles[m.profile_id]?.username ?? `Member ${i + 1}`,
       isGuest: groupData.profiles[m.profile_id]?.isGuest ?? false,
-      accentColor: groupData.profiles[m.profile_id]?.accentColor || undefined,
+      accentColor: groupData.profiles[m.profile_id]?.accentColor || null,
     }));
+    // Second pass: for members without an explicit color, assign a unique
+    // fallback from USER_COLOR_HEX that isn't already taken by someone whose
+    // color IS set — this prevents two cards from showing the same color
+    // (e.g. a non-host who picked #3b82f6 and a host whose fallback is also
+    // bg-avatar-1 = #3b82f6).
+    const usedColors = new Set(
+      rawParticipants.filter((p) => p.accentColor).map((p) => p.accentColor),
+    );
+    let colorCursor = 0;
+    const participants: ParticipantType[] = rawParticipants.map((p) => {
+      if (p.accentColor) return p as ParticipantType;
+      while (
+        usedColors.has(USER_COLOR_HEX[colorCursor % USER_COLOR_HEX.length])
+      ) {
+        colorCursor++;
+      }
+      const fallback = USER_COLOR_HEX[colorCursor % USER_COLOR_HEX.length];
+      usedColors.add(fallback);
+      colorCursor++;
+      return { ...p, accentColor: fallback } as ParticipantType;
+    });
     const claims = groupData.claims as DbItemClaim[];
     const items = (groupData.items as DbItem[]).map((item) => {
       const claimProfileIds = claims
@@ -1085,6 +1139,14 @@ export default function ReceiptRoomScreen() {
   };
 
   const confirmAddItem = async () => {
+    if (isGroupRoom && !isHost && isRoomFinished) {
+      dismissAddItemSheet();
+      Alert.alert(
+        'Room Completed',
+        'The host has completed this room. No changes can be made.',
+      );
+      return;
+    }
     setIsAddingItem(true);
     try {
       let finalReceiptId: string | null = null;
@@ -1620,8 +1682,11 @@ export default function ReceiptRoomScreen() {
                       }
                       participantLayouts={participantLayouts.current}
                       scrollOffset={scrollOffset}
-                      onDragStart={(_itemId, initialPosition) =>
-                        handleItemDragStart(item.id, initialPosition)
+                      onDragStart={
+                        isGroupRoom && !isHost && isRoomFinished
+                          ? undefined
+                          : (_itemId, initialPosition) =>
+                              handleItemDragStart(item.id, initialPosition)
                       }
                       onDragEnd={handleItemDragEnd}
                       bannerTranslation={bannerTranslation}
@@ -1641,7 +1706,11 @@ export default function ReceiptRoomScreen() {
                       isEditMode={isEditMode}
                       editModeAnim={editModeAnim}
                       isSelected={selectedItemIds.has(item.id)}
-                      onToggleSelect={() => toggleItemSelection(item.id)}
+                      onToggleSelect={
+                        isGroupRoom && !isHost && isRoomFinished
+                          ? undefined
+                          : () => toggleItemSelection(item.id)
+                      }
                       scrollContext={scrollCtx}
                       participantColors={participantColors}
                     />
@@ -1772,6 +1841,12 @@ export default function ReceiptRoomScreen() {
             {displayParticipants.map((participant) => {
               const isOwn = participant.id === currentParticipantId;
               const isDisabled = isGroupRoom && !isHost && !isOwn;
+              const participantProfileId =
+                groupDisplay.participantIdToProfileId.get(participant.id);
+              const isParticipantHost =
+                isGroupRoom &&
+                !!groupData.createdBy &&
+                participantProfileId === groupData.createdBy;
               return (
                 <View
                   key={participant.id}
@@ -1790,6 +1865,7 @@ export default function ReceiptRoomScreen() {
                         : true
                     }
                     accentColor={participant.accentColor}
+                    isHostParticipant={isParticipantHost}
                     onRemove={
                       isGroupRoom
                         ? () => {
@@ -1907,47 +1983,49 @@ export default function ReceiptRoomScreen() {
         style={{ zIndex: 10, top: insets.top + 8 }}
         pointerEvents='box-none'
       >
-        <Pressable
-          className={`shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70 ${isEditMode ? 'bg-primary' : 'bg-card'}`}
-          disabled={
-            showQuickActions ||
-            isEditAnimating ||
-            (isGroupRoom && !isHost && isRoomFinished)
-          }
-          onPress={() => {
-            const newMode = !isEditMode;
-            setIsEditAnimating(true);
-            setIsEditMode(newMode);
-            Animated.timing(editModeAnim, {
-              toValue: newMode ? 1 : 0,
-              duration: 200,
-              useNativeDriver: true,
-            }).start(() => setIsEditAnimating(false));
-          }}
-        >
-          <View style={{ width: 26, height: 26 }}>
-            <Animated.View
-              style={{ position: 'absolute', opacity: editModeAnim }}
-            >
-              <MaterialCommunityIcons name='check' size={26} color='#ffffff' />
-            </Animated.View>
-            <Animated.View
-              style={{
-                position: 'absolute',
-                opacity: editModeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 0],
-                }),
-              }}
-            >
-              <MaterialCommunityIcons
-                name='pencil-outline'
-                size={26}
-                color='#4999DF'
-              />
-            </Animated.View>
-          </View>
-        </Pressable>
+        {!(isGroupRoom && !isHost && isRoomFinished) && (
+          <Pressable
+            className={`shadow-md shadow-black/20 w-[14vw] h-[14vw] rounded-2xl items-center justify-center active:opacity-70 ${isEditMode ? 'bg-primary' : 'bg-card'}`}
+            disabled={showQuickActions || isEditAnimating}
+            onPress={() => {
+              const newMode = !isEditMode;
+              setIsEditAnimating(true);
+              setIsEditMode(newMode);
+              Animated.timing(editModeAnim, {
+                toValue: newMode ? 1 : 0,
+                duration: 200,
+                useNativeDriver: true,
+              }).start(() => setIsEditAnimating(false));
+            }}
+          >
+            <View style={{ width: 26, height: 26 }}>
+              <Animated.View
+                style={{ position: 'absolute', opacity: editModeAnim }}
+              >
+                <MaterialCommunityIcons
+                  name='check'
+                  size={26}
+                  color='#ffffff'
+                />
+              </Animated.View>
+              <Animated.View
+                style={{
+                  position: 'absolute',
+                  opacity: editModeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 0],
+                  }),
+                }}
+              >
+                <MaterialCommunityIcons
+                  name='pencil-outline'
+                  size={26}
+                  color='#4999DF'
+                />
+              </Animated.View>
+            </View>
+          </Pressable>
+        )}
       </View>
 
       {/* ── Layer 2 (z:20): Full-screen overlay — dims left/center buttons and body ── */}
@@ -2068,39 +2146,43 @@ export default function ReceiptRoomScreen() {
                 <View className='h-px bg-border' />
 
                 {/* Menu items */}
-                <Pressable
-                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                  onPress={() => {
-                    selectAllItems();
-                    setShowQuickActions(false);
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name='checkbox-multiple-marked-outline'
-                    size={22}
-                    className='text-accent-dark'
-                  />
-                  <Text className='text-foreground text-base font-medium'>
-                    Select All Items
-                  </Text>
-                </Pressable>
+                {!(isGroupRoom && !isHost && isRoomFinished) && (
+                  <Pressable
+                    className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                    onPress={() => {
+                      selectAllItems();
+                      setShowQuickActions(false);
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name='checkbox-multiple-marked-outline'
+                      size={22}
+                      className='text-accent-dark'
+                    />
+                    <Text className='text-foreground text-base font-medium'>
+                      Select All Items
+                    </Text>
+                  </Pressable>
+                )}
 
-                <Pressable
-                  className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
-                  onPress={() => {
-                    deselectAllItems();
-                    setShowQuickActions(false);
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name='checkbox-multiple-blank-outline'
-                    size={22}
-                    className='text-accent-dark'
-                  />
-                  <Text className='text-foreground text-base font-medium'>
-                    Deselect All Items
-                  </Text>
-                </Pressable>
+                {!(isGroupRoom && !isHost && isRoomFinished) && (
+                  <Pressable
+                    className='flex-row items-center gap-3 px-4 py-3 active:opacity-70'
+                    onPress={() => {
+                      deselectAllItems();
+                      setShowQuickActions(false);
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name='checkbox-multiple-blank-outline'
+                      size={22}
+                      className='text-accent-dark'
+                    />
+                    <Text className='text-foreground text-base font-medium'>
+                      Deselect All Items
+                    </Text>
+                  </Pressable>
+                )}
 
                 {isHost && (
                   <>

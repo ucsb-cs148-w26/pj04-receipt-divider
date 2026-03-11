@@ -44,6 +44,18 @@ class UserService:
             )
         return self._is_host(host_profile_id, recepit.group_id)
 
+    def _assert_group_mutable(self, profile_id: str, group: Optional[Group]) -> None:
+        """Raise 403 if the group is finished and the caller is not the host."""
+        if (
+            group is not None
+            and group.is_finished
+            and str(group.created_by) != profile_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Room is completed. Only the host can make changes.",
+            )
+
     def create_group(self, profile_id: str, name: str) -> Group:
         group = Group(created_by=profile_id, name=name)
         self.db.add(group)
@@ -204,6 +216,8 @@ class UserService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not a member of this group",
             )
+        group = self.db.get(Group, str(item.group_id))
+        self._assert_group_mutable(profile_id, group)
         self.db.delete(item)
         self.db.commit()
 
@@ -227,6 +241,8 @@ class UserService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not a member of this group",
             )
+        group = self.db.get(Group, str(item.group_id))
+        self._assert_group_mutable(profile_id, group)
         if name is not None:
             item.name = name
         if unit_price is not None:
@@ -428,6 +444,8 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="User is not in group"
             )
+        group = self.db.get(Group, group_id)
+        self._assert_group_mutable(profile_id, group)
 
         file_path = f"{group_id}/{uuid.uuid4()}.{image_ext}"
 
@@ -506,6 +524,9 @@ class UserService:
                 detail="Only the receipt owner or group host can remove receipts",
             )
 
+        group = self.db.get(Group, str(receipt.group_id))
+        self._assert_group_mutable(profile_id, group)
+
         # Explicitly delete associated items so Supabase realtime propagates
         # the DELETE events for each item (cascade deletes aren't always broadcast).
         items = (
@@ -547,7 +568,12 @@ class UserService:
 
         return self.db.execute(stmt).scalars().all()
 
-    def claim_item(self, profile_id: str, item_id: str) -> None:
+    def claim_item(
+        self,
+        profile_id: str,
+        item_id: str,
+        authorizing_profile_id: Optional[str] = None,
+    ) -> None:
         item = self.db.get(Item, item_id)
         if item is None:
             raise HTTPException(
@@ -563,6 +589,9 @@ class UserService:
                 detail="User can't claim an item outside of their group",
             )
 
+        group = self.db.get(Group, str(item.group_id))
+        self._assert_group_mutable(authorizing_profile_id or profile_id, group)
+
         claim_portion = 1
         stmt = (
             insert(ItemClaim)
@@ -572,7 +601,17 @@ class UserService:
         self.db.execute(stmt)
         self.db.commit()
 
-    def unclaim_item(self, profile_id: str, item_id: str) -> None:
+    def unclaim_item(
+        self,
+        profile_id: str,
+        item_id: str,
+        authorizing_profile_id: Optional[str] = None,
+    ) -> None:
+        item = self.db.get(Item, item_id)
+        if item is not None:
+            group = self.db.get(Group, str(item.group_id))
+            self._assert_group_mutable(authorizing_profile_id or profile_id, group)
+
         claim = self.db.get(ItemClaim, {"profile_id": profile_id, "item_id": item_id})
         if claim is None:
             return
@@ -592,7 +631,9 @@ class UserService:
                 detail="Only host can assign items",
             )
 
-        self.claim_item(guest_profile_id, item_id)
+        self.claim_item(
+            guest_profile_id, item_id, authorizing_profile_id=host_profile_id
+        )
 
     def assign_items(
         self, host_profile_id: str, guest_profile_id: str, item_ids: list[str]
@@ -612,7 +653,9 @@ class UserService:
                 detail="Only host can unassign items",
             )
 
-        self.unclaim_item(guest_profile_id, item_id)
+        self.unclaim_item(
+            guest_profile_id, item_id, authorizing_profile_id=host_profile_id
+        )
 
     def unassign_items(
         self, host_profile_id: str, guest_profile_id: str, item_ids: list[str]
@@ -636,6 +679,8 @@ class UserService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not a member of this group",
             )
+        group = self.db.get(Group, group_id)
+        self._assert_group_mutable(profile_id, group)
         item = Item(
             group_id=group_id,
             receipt_id=receipt_id,
@@ -659,6 +704,8 @@ class UserService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not a member of this group",
             )
+        group = self.db.get(Group, group_id)
+        self._assert_group_mutable(profile_id, group)
         receipt = Receipt(
             group_id=group_id,
             image=None,

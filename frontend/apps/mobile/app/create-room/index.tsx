@@ -25,6 +25,7 @@ interface User {
   id: number;
   name: string;
   source: 'manual' | 'link' | 'qr';
+  accentColor: string;
 }
 
 export default function CreateRoomScreen() {
@@ -37,19 +38,25 @@ export default function CreateRoomScreen() {
     'You (Host)';
 
   const [users, setUsers] = useState<User[]>(() => [
-    { id: 1, name: hostName, source: 'link' },
+    { id: 1, name: hostName, source: 'link', accentColor: USER_COLOR_HEX[0] },
   ]);
   const [showAddUser, setShowAddUser] = useState(false);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [groupName, setGroupName] = useState('');
   const userEditedNameRef = useRef(false);
-  const getDefaultName = (count: number) => {
-    const date = new Date().toLocaleDateString('en-US', {
+  const getDefaultName = (_count: number) => {
+    const now = new Date();
+    const date = now.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
     });
-    return `Trip #${count}: ${date}`;
+    const time = now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return `${date}, ${time}`;
   };
   const [editingGroupName, setEditingGroupName] = useState(false);
 
@@ -68,7 +75,12 @@ export default function CreateRoomScreen() {
   const addUser = (name: string) => {
     setUsers((prev) => [
       ...prev,
-      { id: prev.length + 1, name, source: 'manual' },
+      {
+        id: prev.length + 1,
+        name,
+        source: 'manual',
+        accentColor: USER_COLOR_HEX[prev.length % USER_COLOR_HEX.length],
+      },
     ]);
   };
 
@@ -196,53 +208,49 @@ export default function CreateRoomScreen() {
           }}
           style={{ height: 84 }}
         >
-          {users.map((user) => {
-            const accentColor =
-              USER_COLOR_HEX[(user.id - 1) % USER_COLOR_HEX.length];
-            return (
-              <Pressable
-                key={user.id}
-                onPress={() => handleUserPress(user)}
-                className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
-                style={{ width: 140 }}
-              >
+          {users.map((user) => (
+            <Pressable
+              key={user.id}
+              onPress={() => handleUserPress(user)}
+              className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
+              style={{ width: 140 }}
+            >
+              <View
+                className='h-3'
+                style={{ backgroundColor: user.accentColor }}
+              />
+              <View className='flex-row items-center gap-3 px-3 py-3'>
                 <View
-                  className='h-3'
-                  style={{ backgroundColor: accentColor }}
-                />
-                <View className='flex-row items-center gap-3 px-3 py-3'>
-                  <View
-                    className='w-8 h-8 rounded-full items-center justify-center'
-                    style={{ backgroundColor: accentColor, opacity: 0.85 }}
-                  >
-                    <Text className='text-white text-sm font-bold'>
-                      {user.id}
-                    </Text>
-                  </View>
-                  <Text
-                    className='text-foreground font-bold text-sm flex-1'
-                    numberOfLines={2}
-                  >
-                    {user.name}
+                  className='w-8 h-8 rounded-full items-center justify-center'
+                  style={{ backgroundColor: user.accentColor, opacity: 0.85 }}
+                >
+                  <Text className='text-white text-sm font-bold'>
+                    {user.id}
                   </Text>
-                  {user.source === 'manual' && (
-                    <Pressable
-                      onPress={() =>
-                        setUsers((prev) => prev.filter((u) => u.id !== user.id))
-                      }
-                      hitSlop={8}
-                    >
-                      <MaterialCommunityIcons
-                        name='close'
-                        size={14}
-                        className='text-accent-dark'
-                      />
-                    </Pressable>
-                  )}
                 </View>
-              </Pressable>
-            );
-          })}
+                <Text
+                  className='text-foreground font-bold text-sm flex-1'
+                  numberOfLines={2}
+                >
+                  {user.name}
+                </Text>
+                {user.source === 'manual' && (
+                  <Pressable
+                    onPress={() =>
+                      setUsers((prev) => prev.filter((u) => u.id !== user.id))
+                    }
+                    hitSlop={8}
+                  >
+                    <MaterialCommunityIcons
+                      name='close'
+                      size={14}
+                      className='text-accent-dark'
+                    />
+                  </Pressable>
+                )}
+              </View>
+            </Pressable>
+          ))}
 
           <Pressable
             className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10 items-center justify-center active:opacity-70'

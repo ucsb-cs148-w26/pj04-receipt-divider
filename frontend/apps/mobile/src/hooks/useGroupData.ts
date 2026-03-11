@@ -54,7 +54,9 @@ export function useGroupData(groupId: string) {
     debtStatuses: entry.debtStatuses,
     profiles: entry.profiles,
     createdBy: entry.createdBy,
+    isFinished: entry.isFinished,
     isLoaded: entry.isLoaded,
+    hasError: entry.hasError,
     refetch,
   };
 }

@@ -32,6 +32,9 @@ const STATUS_COLORS: Record<RoomStatus, string> = {
 function getRoomStatus(g: GroupSummary): RoomStatus {
   if (g.allMembersPaid) return 'completed';
   if (!g.isFinished) return 'in-progress';
+  // Room is finished — if nobody owes anything, treat it as completed
+  if (Math.abs(g.totalUploaded) < 0.005 && Math.abs(g.totalClaimed) < 0.005)
+    return 'completed';
   return 'payment-pending';
 }
 
@@ -127,27 +130,76 @@ export default function HomeScreen() {
       g.paidStatus === 'requested' && g.totalUploaded - g.totalClaimed < -0.001,
   );
 
+  type PendingVerification = {
+    groupId: string;
+    groupName: string;
+    debtorId: string;
+    debtorName: string;
+  };
+  const [pendingVerifications, setPendingVerifications] = useState<
+    PendingVerification[]
+  >([]);
+
   // Show payment modal when next_nudge is due and there are pending payment requests
+  // or pending verification requests (members who have marked themselves as paid).
   useEffect(() => {
     if (myGroups === null || !user?.id) return;
-    if (requestedGroups.length === 0) return;
-    // If we already know we're within the cooldown window, skip the DB query.
+    // If we already know we're within the cooldown window, skip the work.
     if (nextNudgeRef.current > Date.now()) return;
-    void supabase
-      .from('profiles')
-      .select('next_nudge')
-      .eq('id', user.id)
-      .single()
-      .then(({ data }) => {
-        const now = Date.now();
-        const nextNudge = data?.next_nudge
-          ? new Date(data.next_nudge).getTime()
-          : 0;
-        nextNudgeRef.current = nextNudge;
-        if (now >= nextNudge) {
-          setShowPaymentModal(true);
+    void (async () => {
+      // Fetch debts where I'm the creditor and the member says they've paid
+      const { data: pendingDebts } = await supabase
+        .from('payment_debts')
+        .select('group_id, debtor_id')
+        .eq('creditor_id', user.id)
+        .eq('paid_status', 'pending');
+
+      const newPendingVerifications: PendingVerification[] = [];
+      if (pendingDebts && pendingDebts.length > 0) {
+        const debtorIds = [
+          ...new Set(pendingDebts.map((d) => d.debtor_id as string)),
+        ];
+        const { data: profileRows } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', debtorIds);
+        const profileMap = new Map(
+          (profileRows ?? []).map((p) => [
+            p.id as string,
+            (p.username as string) ?? 'Member',
+          ]),
+        );
+        for (const debt of pendingDebts) {
+          newPendingVerifications.push({
+            groupId: debt.group_id as string,
+            groupName:
+              myGroups.find((g) => g.groupId === debt.group_id)?.name ??
+              'Unknown Group',
+            debtorId: debt.debtor_id as string,
+            debtorName: profileMap.get(debt.debtor_id as string) ?? 'Member',
+          });
         }
-      });
+      }
+      setPendingVerifications(newPendingVerifications);
+
+      const hasActionableItems =
+        requestedGroups.length > 0 || newPendingVerifications.length > 0;
+      if (!hasActionableItems) return;
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('next_nudge')
+        .eq('id', user.id)
+        .single();
+      const now = Date.now();
+      const nextNudge = data?.next_nudge
+        ? new Date(data.next_nudge).getTime()
+        : 0;
+      nextNudgeRef.current = nextNudge;
+      if (now >= nextNudge) {
+        setShowPaymentModal(true);
+      }
+    })();
   }, [myGroups]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dismissPaymentModal = () => {
@@ -173,12 +225,14 @@ export default function HomeScreen() {
 
   const data: HistoryItem[] = activeTab === 'groups' ? groups : [];
 
-  const youAreOwed = groups
-    .filter((g) => g.amount > 0)
-    .reduce((sum, g) => sum + g.amount, 0);
-  const youOwe = groups
-    .filter((g) => g.amount < 0)
-    .reduce((sum, g) => sum + Math.abs(g.amount), 0);
+  // Aggregate gross amounts across all groups:
+  //   totalUploaded = what others owe the user (excludes self-claimed share & verified payments)
+  //   totalClaimed  = what the user owes others (only claims on others' receipts)
+  const youAreOwed = (myGroups ?? []).reduce(
+    (sum, g) => sum + g.totalUploaded,
+    0,
+  );
+  const youOwe = (myGroups ?? []).reduce((sum, g) => sum + g.totalClaimed, 0);
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
@@ -325,24 +379,26 @@ export default function HomeScreen() {
                       </Text>
                     </Text>
                   </View>
-                  <Text
-                    className={`font-semibold mr-1 ${
-                      item.status === 'completed'
-                        ? 'text-muted-foreground line-through'
-                        : item.amount >= 0
-                          ? 'text-amount-positive'
-                          : 'text-amount-negative'
-                    }`}
-                  >
-                    {item.amount >= 0 ? '+' : '-'}$
-                    {Math.abs(item.amount).toFixed(2)}
-                  </Text>
-                  <View pointerEvents='none'>
-                    <IconButton
-                      icon='chevron-right'
-                      bgClassName='bg-transparent shadow-none'
-                      iconClassName='text-accent-dark'
-                    />
+                  <View className='flex-row items-center -mr-6'>
+                    <Text
+                      className={`font-semibold -mr-2 ${
+                        item.status === 'completed'
+                          ? 'text-muted-foreground line-through'
+                          : item.amount >= 0
+                            ? 'text-amount-positive'
+                            : 'text-amount-negative'
+                      }`}
+                    >
+                      {item.amount >= 0 ? '+' : '-'}$
+                      {Math.abs(item.amount).toFixed(2)}
+                    </Text>
+                    <View pointerEvents='none'>
+                      <IconButton
+                        icon='chevron-right'
+                        bgClassName='bg-transparent shadow-none'
+                        iconClassName='text-accent-dark'
+                      />
+                    </View>
                   </View>
                 </Pressable>
               </View>
@@ -434,7 +490,7 @@ export default function HomeScreen() {
         </Pressable>
       </Modal>
 
-      {/* Payment Request Alert Modal */}
+      {/* Payment Activity Alert Modal */}
       <Modal
         transparent
         animationType='fade'
@@ -450,51 +506,123 @@ export default function HomeScreen() {
               {/* Header */}
               <View className='px-5 pt-5 pb-3'>
                 <Text className='text-foreground text-xl font-bold mb-1'>
-                  💳 Payment Requested
+                  💬 Payment Activity
                 </Text>
                 <Text className='text-muted-foreground text-sm'>
-                  The following rooms are requesting payment from you:
+                  {requestedGroups.length > 0 && pendingVerifications.length > 0
+                    ? 'You have pending payments and verification requests.'
+                    : requestedGroups.length > 0
+                      ? 'The following rooms are requesting payment from you:'
+                      : 'The following members are awaiting your payment verification:'}
                 </Text>
               </View>
 
               <View className='h-px bg-border mx-5' />
 
-              {/* List of rooms */}
-              {requestedGroups.map((g, index) => (
-                <View key={g.groupId}>
-                  {index > 0 && <View className='h-px bg-border mx-5' />}
-                  <Pressable
-                    className='flex-row items-center justify-between px-5 py-4 active:opacity-70'
-                    onPress={() => {
-                      dismissPaymentModal();
-                      router.navigate({
-                        pathname: '/receipt-detail',
-                        params: {
-                          id: g.groupId,
-                          name: g.name ?? 'Unnamed Group',
-                          amount: (g.totalUploaded - g.totalClaimed).toString(),
-                        },
-                      });
-                    }}
-                  >
-                    <View className='flex-1 mr-3'>
-                      <Text
-                        className='text-foreground font-semibold text-base'
-                        numberOfLines={1}
-                      >
-                        {g.name ?? 'Unnamed Group'}
-                      </Text>
-                      <Text className='text-status-pending text-sm'>
-                        You owe $
-                        {Math.abs(g.totalUploaded - g.totalClaimed).toFixed(2)}
+              {/* Payment requests — rooms where I owe money */}
+              {requestedGroups.length > 0 && (
+                <>
+                  {pendingVerifications.length > 0 && (
+                    <View className='px-5 pt-3 pb-1'>
+                      <Text className='text-muted-foreground text-xs font-semibold uppercase tracking-wider'>
+                        Requested from you
                       </Text>
                     </View>
-                    <Text className='text-primary font-medium text-sm'>
-                      View →
-                    </Text>
-                  </Pressable>
-                </View>
-              ))}
+                  )}
+                  {requestedGroups.map((g, index) => (
+                    <View key={g.groupId}>
+                      {index > 0 && <View className='h-px bg-border mx-5' />}
+                      <Pressable
+                        className='flex-row items-center justify-between px-5 py-4 active:opacity-70'
+                        onPress={() => {
+                          dismissPaymentModal();
+                          router.navigate({
+                            pathname: '/receipt-detail',
+                            params: {
+                              id: g.groupId,
+                              name: g.name ?? 'Unnamed Group',
+                              amount: (
+                                g.totalUploaded - g.totalClaimed
+                              ).toString(),
+                            },
+                          });
+                        }}
+                      >
+                        <View className='flex-1 mr-3'>
+                          <Text
+                            className='text-foreground font-semibold text-base'
+                            numberOfLines={1}
+                          >
+                            {g.name ?? 'Unnamed Group'}
+                          </Text>
+                          <Text className='text-status-pending text-sm'>
+                            You owe $
+                            {Math.abs(g.totalUploaded - g.totalClaimed).toFixed(
+                              2,
+                            )}
+                          </Text>
+                        </View>
+                        <Text className='text-primary font-medium text-sm'>
+                          View →
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {/* Divider between sections when both are visible */}
+              {requestedGroups.length > 0 &&
+                pendingVerifications.length > 0 && (
+                  <View className='h-px bg-border mx-5' />
+                )}
+
+              {/* Verification requests — members who say they've paid me */}
+              {pendingVerifications.length > 0 && (
+                <>
+                  {requestedGroups.length > 0 && (
+                    <View className='px-5 pt-3 pb-1'>
+                      <Text className='text-muted-foreground text-xs font-semibold uppercase tracking-wider'>
+                        Awaiting your verification
+                      </Text>
+                    </View>
+                  )}
+                  {pendingVerifications.map((v, index) => (
+                    <View key={`${v.groupId}-${v.debtorId}`}>
+                      {index > 0 && <View className='h-px bg-border mx-5' />}
+                      <Pressable
+                        className='flex-row items-center justify-between px-5 py-4 active:opacity-70'
+                        onPress={() => {
+                          dismissPaymentModal();
+                          router.navigate({
+                            pathname: '/receipt-detail',
+                            params: {
+                              id: v.groupId,
+                              name: v.groupName,
+                              amount: '0',
+                            },
+                          });
+                        }}
+                      >
+                        <View className='flex-1 mr-3'>
+                          <Text
+                            className='text-foreground font-semibold text-base'
+                            numberOfLines={1}
+                          >
+                            {v.groupName}
+                          </Text>
+                          <Text className='text-status-completed text-sm'>
+                            {v.debtorName} says they paid
+                          </Text>
+                        </View>
+                        <Text className='text-primary font-medium text-sm'>
+                          Verify →
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </>
+              )}
 
               <View className='h-px bg-border mx-5' />
 

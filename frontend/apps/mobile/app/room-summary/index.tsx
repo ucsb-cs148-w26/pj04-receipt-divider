@@ -16,7 +16,7 @@ import { IconButton } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGroupData } from '@/hooks';
 import { useAuth } from '@/providers';
-import { updatePaidStatus, finishGroup } from '@/services/groupApi';
+import { updateDebtStatus, finishGroup } from '@/services/groupApi';
 import { supabase } from '@/services/supabase';
 import type {
   GroupMember as DbGroupMember,
@@ -167,7 +167,7 @@ export default function RoomSummaryScreen() {
       );
       await Promise.all(
         nonGuestOwing.map((s) =>
-          updatePaidStatus(roomId, s.profileId, 'requested'),
+          updateDebtStatus(roomId, s.profileId, currentUserId, 'requested'),
         ),
       );
       await finishGroup(roomId);

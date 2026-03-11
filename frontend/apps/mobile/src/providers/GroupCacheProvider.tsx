@@ -50,7 +50,11 @@ export interface GroupEntry {
   createdBy: string;
   /** group name */
   username: string | null;
+  /** whether the host has marked this room as finished */
+  isFinished: boolean;
   isLoaded: boolean;
+  /** true when the last fetch attempt threw an unrecoverable error */
+  hasError: boolean;
 }
 
 export const EMPTY_ENTRY: GroupEntry = {
@@ -62,7 +66,9 @@ export const EMPTY_ENTRY: GroupEntry = {
   profiles: {},
   createdBy: '',
   username: null,
+  isFinished: false,
   isLoaded: false,
+  hasError: false,
 };
 
 // ─── Context type ──────────────────────────────────────────────────────────────
@@ -107,7 +113,7 @@ async function doFetchGroup(
           .order('created_at', { ascending: true }),
         supabase
           .from('groups')
-          .select('name, created_by')
+          .select('name, created_by, is_finished')
           .eq('id', groupId)
           .single(),
         supabase.from('payment_debts').select('*').eq('group_id', groupId),
@@ -125,6 +131,7 @@ async function doFetchGroup(
       : (debtsRes.data ?? []);
     const groupName = groupRes.data?.name ?? null;
     const createdBy = groupRes.data?.created_by ?? '';
+    const isFinished = groupRes.data?.is_finished ?? false;
 
     // Profiles fetched from backend API (bypasses RLS)
     const profiles: Record<string, ProfileWithColor> = {};
@@ -161,12 +168,18 @@ async function doFetchGroup(
       profiles,
       createdBy: finalCreatedBy,
       username: groupName,
+      isFinished,
       isLoaded: true,
+      hasError: false,
     };
     setEntries((prev) => ({ ...prev, [groupId]: entry }));
     return entry;
   } catch (err) {
     console.error('[GroupCache] doFetchGroup failed for', groupId, err);
+    setEntries((prev) => ({
+      ...prev,
+      [groupId]: { ...EMPTY_ENTRY, hasError: true },
+    }));
     return null;
   }
 }
@@ -337,14 +350,15 @@ export function GroupCacheProvider({
         entry.debtStatuses.length > 0 &&
         entry.debtStatuses.every((d) => d.paid_status === 'verified');
 
-      let totalClaimed = 0;
+      // Number of people who claimed each item (for computing pro-rata shares).
+      // claim.share in the DB is always 1 (a presence marker), so the actual
+      // per-person cost is: unit_price * amount / claimCount.
+      const claimCountMap = new Map<string, number>();
       for (const claim of entry.claims) {
-        if (claim.profile_id === profileId) {
-          const item = itemMap.get(claim.item_id);
-          if (item) {
-            totalClaimed += item.unit_price * claim.share;
-          }
-        }
+        claimCountMap.set(
+          claim.item_id,
+          (claimCountMap.get(claim.item_id) ?? 0) + 1,
+        );
       }
 
       const myReceiptIds = new Set(
@@ -359,6 +373,28 @@ export function GroupCacheProvider({
           )
           .map((item) => item.id),
       );
+
+      // User's pro-rata share of each item they claimed.
+      // Separate self-claims (from own receipts) from claims on others' receipts
+      // so the home-screen cards show gross owed-to-me and gross I-owe independently.
+      let selfClaimedAmount = 0; // user's own share of items on their own receipts
+      let claimsFromOthers = 0; // user's share of items on others' receipts
+      for (const claim of entry.claims) {
+        if (claim.profile_id === profileId) {
+          const item = itemMap.get(claim.item_id);
+          if (item) {
+            const claimCount = claimCountMap.get(claim.item_id) ?? 1;
+            const portion =
+              (item.unit_price * item.amount * claim.share) / claimCount;
+            if (myItemIds.has(claim.item_id)) {
+              selfClaimedAmount += portion;
+            } else {
+              claimsFromOthers += portion;
+            }
+          }
+        }
+      }
+
       // Members who have verified their payment to me (I am the creditor)
       const verifiedMemberIds = new Set(
         entry.debtStatuses
@@ -374,19 +410,28 @@ export function GroupCacheProvider({
           myItemIds.has(claim.item_id)
         ) {
           const item = itemMap.get(claim.item_id);
-          if (item) verifiedPaidAmount += item.unit_price * claim.share;
+          if (item) {
+            const claimCount = claimCountMap.get(claim.item_id) ?? 1;
+            verifiedPaidAmount +=
+              (item.unit_price * item.amount * claim.share) / claimCount;
+          }
         }
       }
+
+      // totalUploaded = what others genuinely owe the user:
+      //   full receipt value − the user's own share − already-verified payments
       let totalUploaded = 0;
       for (const item of entry.items) {
         if (item.receipt_id && myReceiptIds.has(item.receipt_id)) {
           totalUploaded += item.unit_price * item.amount;
         }
       }
-      totalUploaded -= verifiedPaidAmount;
-      // If the current user is verified in this group, they've already paid
+      totalUploaded -= selfClaimedAmount + verifiedPaidAmount;
+
+      // totalClaimed = what the user genuinely owes others (claims on others' receipts).
+      // Zero it out when the user has already verified paying all their debts.
       const effectiveTotalClaimed =
-        paidStatus === 'verified' ? 0 : totalClaimed;
+        paidStatus === 'verified' ? 0 : claimsFromOthers;
 
       summaries.push({
         groupId,

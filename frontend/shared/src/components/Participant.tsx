@@ -22,6 +22,8 @@ interface ParticipantsProps {
   isGuest?: boolean;
   /** Hex accent color to override the default avatar-X palette color */
   accentColor?: string;
+  /** Shows a "Host" badge on the participant card */
+  isHostParticipant?: boolean;
 }
 
 export function Participant({
@@ -35,6 +37,7 @@ export function Participant({
   isEditMode = true,
   isGuest = true,
   accentColor,
+  isHostParticipant = false,
 }: ParticipantsProps) {
   const ref = useRef<View>(null);
   const displayName = name || `Name ${id}`;
@@ -114,13 +117,32 @@ export function Participant({
             </Animated.View>
           </Pressable>
 
-          {/* Name */}
-          <Text
-            className='text-foreground font-bold text-sm flex-1'
-            numberOfLines={2}
-          >
-            {displayName}
-          </Text>
+          {/* Name (+ Host badge) */}
+          <View className='flex-1'>
+            <Text
+              className='text-foreground font-bold text-sm'
+              numberOfLines={isHostParticipant ? 1 : 2}
+            >
+              {displayName}
+            </Text>
+            {isHostParticipant && (
+              <View
+                className='rounded px-1 mt-0.5 self-start'
+                style={{
+                  backgroundColor: accentColor
+                    ? accentColor + '33'
+                    : '#3b82f633',
+                }}
+              >
+                <Text
+                  className='text-[10px] font-semibold'
+                  style={{ color: accentColor ?? '#3b82f6' }}
+                >
+                  Host
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Item count and total */}
