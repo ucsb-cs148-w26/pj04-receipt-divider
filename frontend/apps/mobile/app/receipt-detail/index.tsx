@@ -13,8 +13,21 @@ import {
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, IconButton } from '@eezy-receipt/shared';
-import type { PaidStatusDb } from '@eezy-receipt/shared';
+import {
+  Button,
+  IconButton,
+  calculateUserBalance,
+  netOwedAmount,
+  sendSMS,
+  splitAmountByRank,
+} from '@eezy-receipt/shared';
+import type {
+  PaidStatusDb,
+  GroupMember,
+  Item,
+  ItemClaim,
+  Receipt,
+} from '@eezy-receipt/shared';
 import { useGroupData } from '@/hooks';
 import { useAuth } from '@/providers';
 import {
@@ -50,6 +63,83 @@ function mapDbPaidStatus(
   return 'unrequested';
 }
 
+/** Build an SMS payment breakdown message for a guest participant. */
+function buildGuestPaymentMessage(
+  personId: string,
+  personName: string,
+  items: Item[],
+  claims: ItemClaim[],
+  receipts: Receipt[],
+  members: GroupMember[],
+  roomName: string,
+): string {
+  const memberJoinOrder = members.map((m) => m.profile_id);
+
+  const claimantsPerItem = new Map<string, string[]>();
+  for (const c of claims) {
+    const list = claimantsPerItem.get(c.item_id) ?? [];
+    list.push(c.profile_id);
+    claimantsPerItem.set(c.item_id, list);
+  }
+
+  const receiptItemCount = new Map<string, number>();
+  for (const item of items) {
+    if (item.receipt_id) {
+      receiptItemCount.set(
+        item.receipt_id,
+        (receiptItemCount.get(item.receipt_id) ?? 0) + 1,
+      );
+    }
+  }
+  const taxPerItem = new Map<string, number>();
+  for (const item of items) {
+    if (!item.receipt_id) continue;
+    const receipt = receipts.find((r) => r.id === item.receipt_id);
+    if (!receipt || receipt.tax == null || receipt.tax <= 0) continue;
+    const count = receiptItemCount.get(item.receipt_id) ?? 1;
+    taxPerItem.set(item.id, receipt.tax / count);
+  }
+
+  const personClaims = claims.filter((c) => c.profile_id === personId);
+  let subtotal = 0;
+  let taxTotal = 0;
+  const lineItems: string[] = [];
+
+  for (const claim of personClaims) {
+    const item = items.find((i) => i.id === claim.item_id);
+    if (!item) continue;
+    const fullPrice = item.unit_price * (item.amount ?? 1);
+    const claimants = claimantsPerItem.get(claim.item_id) ?? [personId];
+    const sorted = [...claimants].sort(
+      (a, b) => memberJoinOrder.indexOf(a) - memberJoinOrder.indexOf(b),
+    );
+    const rank = sorted.indexOf(personId) + 1;
+    const share = splitAmountByRank(fullPrice, claimants.length, rank);
+    subtotal += share;
+    const perItemTax = taxPerItem.get(claim.item_id);
+    if (perItemTax != null) {
+      taxTotal += splitAmountByRank(perItemTax, claimants.length, rank);
+    }
+    const label =
+      claimants.length > 1
+        ? `${item.name ?? 'Item'} (shared)`
+        : (item.name ?? 'Item');
+    lineItems.push(`  ${label}: $${share.toFixed(2)}`);
+  }
+
+  const total = subtotal + taxTotal;
+  const parts: string[] = [
+    `Hi ${personName}! Here's your total from "${roomName}":`,
+    '-------------------',
+    ...lineItems,
+    '-------------------',
+    `Subtotal: $${subtotal.toFixed(2)}`,
+  ];
+  if (taxTotal > 0.005) parts.push(`Tax: $${taxTotal.toFixed(2)}`);
+  parts.push(`Total: $${total.toFixed(2)}`);
+  return parts.join('\n');
+}
+
 export default function ReceiptDetailScreen() {
   const params = useLocalSearchParams<ReceiptDetailParams>();
   const { id, name, tab } = params;
@@ -78,44 +168,52 @@ export default function ReceiptDetailScreen() {
     Map<string, PaidStatusDb>
   >(new Map());
 
-  const myDebtsAsDebtor = useMemo(() => {
-    const creditorAmounts = new Map<string, number>();
-    for (const claim of claims) {
-      if (claim.profile_id !== currentUserId) continue;
-      const item = items.find((i) => i.id === claim.item_id);
-      if (!item || item.unit_price * claim.share <= 0) continue;
-      const receipt = receipts.find((r) => r.id === item.receipt_id);
-      if (!receipt || receipt.created_by === currentUserId) continue;
-      const creditorId = receipt.created_by;
-      creditorAmounts.set(
-        creditorId,
-        (creditorAmounts.get(creditorId) ?? 0) + item.unit_price * claim.share,
-      );
-    }
-    return Array.from(creditorAmounts.entries()).map(([creditorId, amount]) => {
-      const debtRecord = debtStatuses.find(
-        (d) => d.debtor_id === currentUserId && d.creditor_id === creditorId,
-      );
-      const overriddenStatus = localDebtOverrides.get(creditorId);
-      const paidStatus = (overriddenStatus ??
-        debtRecord?.paid_status ??
-        'unrequested') as PaidStatusDb;
-      return {
-        creditorId,
-        creditorName: profiles[creditorId]?.username ?? creditorId.slice(0, 8),
-        amount,
-        paidStatus,
-      };
+  // ── Centralised balance calculation ─────────────────────────────────────────
+  const userBalance = useMemo(() => {
+    const balanceItems = items.map((item) => ({
+      id: item.id,
+      unitPrice: item.unit_price,
+      amount: typeof item.amount === 'number' ? item.amount : 1,
+      receiptId: item.receipt_id ?? null,
+      claimantProfileIds: claims
+        .filter((c) => c.item_id === item.id)
+        .map((c) => c.profile_id),
+    }));
+    const balanceReceipts = receipts.map((r) => ({
+      id: r.id,
+      tax: r.tax ?? 0,
+      uploaderId: r.created_by,
+    }));
+    const memberJoinOrder = members.map((m) => m.profile_id);
+    return calculateUserBalance({
+      items: balanceItems,
+      receipts: balanceReceipts,
+      memberJoinOrder,
+      currentUserId,
     });
-  }, [
-    claims,
-    items,
-    receipts,
-    currentUserId,
-    debtStatuses,
-    profiles,
-    localDebtOverrides,
-  ]);
+  }, [items, claims, receipts, members, currentUserId]);
+
+  const myDebtsAsDebtor = useMemo(() => {
+    return Array.from(userBalance.owedAmounts.entries())
+      .map(([creditorId, pt]) => {
+        const amount = pt.price + pt.tax;
+        const debtRecord = debtStatuses.find(
+          (d) => d.debtor_id === currentUserId && d.creditor_id === creditorId,
+        );
+        const overriddenStatus = localDebtOverrides.get(creditorId);
+        const paidStatus = (overriddenStatus ??
+          debtRecord?.paid_status ??
+          'unrequested') as PaidStatusDb;
+        return {
+          creditorId,
+          creditorName:
+            profiles[creditorId]?.username ?? creditorId.slice(0, 8),
+          amount,
+          paidStatus,
+        };
+      })
+      .filter((d) => d.amount > 0);
+  }, [userBalance, currentUserId, debtStatuses, profiles, localDebtOverrides]);
 
   // Aggregate debt status for the self row in the people list
   const myAggregateDebtStatus = useMemo((): PersonStatus => {
@@ -325,6 +423,44 @@ export default function ReceiptDetailScreen() {
     setSelectedPerson(null);
   };
 
+  // ── Guest SMS payment request ─────────────────────────────────────────────────
+  // Guests can't mark themselves as paid in-app, so we open an SMS with their
+  // itemised total and immediately advance the status to "awaiting verification".
+  const handleGuestSmsRequest = async (person: {
+    id: string;
+    name: string;
+    amount: number;
+  }) => {
+    const message = buildGuestPaymentMessage(
+      person.id,
+      person.name,
+      items,
+      claims,
+      receipts,
+      members,
+      roomName,
+    );
+    setActionLoading('request');
+    const result = await sendSMS(message);
+    if (result === 'sent' || result === 'unknown') {
+      try {
+        // Skip "requested" and go straight to "pending" (DB) = "waiting" (UI)
+        // since guests cannot self-report payment.
+        await updateDebtStatus(id ?? '', person.id, currentUserId, 'pending');
+        setLocalStatusOverrides((prev) =>
+          new Map(prev).set(person.id, 'waiting'),
+        );
+      } catch (err) {
+        Alert.alert(
+          'Error',
+          err instanceof Error ? err.message : 'Failed to update status.',
+        );
+      }
+    }
+    setActionLoading(null);
+    setSelectedPerson(null);
+  };
+
   // ── Single-debt pay ──────────────────────────────────────────────────────────
   // Called from the "Your Debts" sub-list for each individual creditor.
   const handleSingleDebtPay = (
@@ -430,8 +566,46 @@ export default function ReceiptDetailScreen() {
   // people shown in list: others first (sorted), self pinned to bottom
   const people = selfPerson ? [...otherPeople, selfPerson] : otherPeople;
 
+  // Per-person: how much each member owes ME (computed via calculateUserBalance for each member)
+  const amountOwedToMePerPerson = useMemo(() => {
+    const result = new Map<string, number>();
+    const memberJoinOrder = members.map((m) => m.profile_id);
+    const balanceItems = items.map((item) => ({
+      id: item.id,
+      unitPrice: item.unit_price,
+      amount: typeof item.amount === 'number' ? item.amount : 1,
+      receiptId: item.receipt_id ?? null,
+      claimantProfileIds: claims
+        .filter((c) => c.item_id === item.id)
+        .map((c) => c.profile_id),
+    }));
+    const balanceReceipts = receipts.map((r) => ({
+      id: r.id,
+      tax: r.tax ?? 0,
+      uploaderId: r.created_by,
+    }));
+    for (const member of members) {
+      if (member.profile_id === currentUserId) continue;
+      const memberBalance = calculateUserBalance({
+        items: balanceItems,
+        receipts: balanceReceipts,
+        memberJoinOrder,
+        currentUserId: member.profile_id,
+      });
+      // How much this member owes ME = their owedAmounts entry for me
+      const owedToMe = memberBalance.owedAmounts.get(currentUserId);
+      result.set(
+        member.profile_id,
+        owedToMe ? owedToMe.price + owedToMe.tax : 0,
+      );
+    }
+    return result;
+  }, [items, claims, receipts, members, currentUserId]);
+
   // Counts / fractions exclude the current user and members who don't owe anything
-  const relevantPeople = otherPeople.filter((p) => p.amount > 0);
+  const relevantPeople = otherPeople.filter(
+    (p) => (amountOwedToMePerPerson.get(p.id) ?? 0) > 0,
+  );
   const completedCount = relevantPeople.filter(
     (p) => p.status === 'completed',
   ).length;
@@ -451,38 +625,7 @@ export default function ReceiptDetailScreen() {
   const pendingFraction = total > 0 ? pendingCount / total : 0;
   const unrequestedFraction = total > 0 ? unrequestedCount / total : 0;
 
-  // You Are Owed: total value of items from receipts uploaded by me, minus what I claimed
-  const myReceiptIds = new Set(
-    receipts.filter((r) => r.created_by === currentUserId).map((r) => r.id),
-  );
-  // Per-person: how much each member has claimed from MY receipts specifically
-  const myItemIds = new Set(
-    items
-      .filter((item) => myReceiptIds.has(item.receipt_id ?? ''))
-      .map((i) => i.id),
-  );
-  const amountOwedToMePerPerson = new Map<string, number>(
-    members.map((member) => {
-      const owed = claims
-        .filter(
-          (c) => c.profile_id === member.profile_id && myItemIds.has(c.item_id),
-        )
-        .reduce((sum, c) => {
-          const item = items.find((i) => i.id === c.item_id);
-          return sum + (item ? item.unit_price * c.share : 0);
-        }, 0);
-      return [member.profile_id, owed];
-    }),
-  );
-  const totalUploaded = items
-    .filter((item) => myReceiptIds.has(item.receipt_id ?? ''))
-    .reduce((sum, item) => sum + item.unit_price * item.amount, 0);
-  const myClaimed = claims
-    .filter((c) => c.profile_id === currentUserId)
-    .reduce((sum, c) => {
-      const item = items.find((i) => i.id === c.item_id);
-      return sum + (item ? item.unit_price * c.share : 0);
-    }, 0);
+  // Verified-paid amount: sum of what verified members owe me
   const verifiedPaidAmount = [...completedIds].reduce(
     (sum, memberId) => sum + (amountOwedToMePerPerson.get(memberId) ?? 0),
     0,
@@ -492,7 +635,9 @@ export default function ReceiptDetailScreen() {
     .filter((d) => d.paidStatus === 'verified')
     .reduce((sum, d) => sum + d.amount, 0);
   const displayAmount =
-    totalUploaded - myClaimed - verifiedPaidAmount + myVerifiedPaymentsAsDebtor;
+    netOwedAmount(userBalance) -
+    verifiedPaidAmount +
+    myVerifiedPaymentsAsDebtor;
 
   const statusParts: string[] = [];
   if (waitingCount > 0)
@@ -501,59 +646,73 @@ export default function ReceiptDetailScreen() {
   if (unrequestedCount > 0)
     statusParts.push(`${unrequestedCount} Not Yet Requested`);
 
-  // When user owes (didn't upload the receipt), progress bar reflects only self payment status
+  // When user owes, progress bar reflects how many creditors have been paid
   const isZeroBalance = Math.abs(displayAmount) < 0.005;
   const userOwes = displayAmount < -0.005;
-  const selfStatusForBar = selfPerson?.status ?? 'unrequested';
   // Only treat zero balance as "fully completed" if the room is actually finished;
   // while still in progress, fall through to the real group fractions
   const effectiveZero = isZeroBalance && isFinished;
+
+  // Per-creditor counts for the bar when the user owes
+  const myDebtorTotal = myDebtsAsDebtor.length;
+  const myDebtorCompletedCount = myDebtsAsDebtor.filter(
+    (d) => d.paidStatus === 'verified',
+  ).length;
+  const myDebtorWaitingCount = myDebtsAsDebtor.filter(
+    (d) => d.paidStatus === 'pending',
+  ).length;
+  const myDebtorPendingCount = myDebtsAsDebtor.filter(
+    (d) => d.paidStatus === 'requested',
+  ).length;
+  const myDebtorUnrequestedCount = myDebtsAsDebtor.filter(
+    (d) => d.paidStatus === 'unrequested',
+  ).length;
+
   const barCompletedFraction = effectiveZero
     ? 1
     : userOwes
-      ? selfStatusForBar === 'completed'
-        ? 1
+      ? myDebtorTotal > 0
+        ? myDebtorCompletedCount / myDebtorTotal
         : 0
       : completedFraction;
   const barWaitingFraction = effectiveZero
     ? 0
     : userOwes
-      ? selfStatusForBar === 'waiting'
-        ? 1
+      ? myDebtorTotal > 0
+        ? myDebtorWaitingCount / myDebtorTotal
         : 0
       : waitingFraction;
   const barPendingFraction = effectiveZero
     ? 0
     : userOwes
-      ? selfStatusForBar === 'pending'
-        ? 1
+      ? myDebtorTotal > 0
+        ? myDebtorPendingCount / myDebtorTotal
         : 0
       : pendingFraction;
   const barUnrequestedFraction = effectiveZero
     ? 0
     : userOwes
-      ? selfStatusForBar === 'unrequested'
-        ? 1
+      ? myDebtorTotal > 0
+        ? myDebtorUnrequestedCount / myDebtorTotal
         : 0
       : unrequestedFraction;
   const barCompletedCount = effectiveZero
     ? 1
     : userOwes
-      ? selfStatusForBar === 'completed'
-        ? 1
-        : 0
+      ? myDebtorCompletedCount
       : completedCount;
-  const barTotal = effectiveZero ? 1 : userOwes ? 1 : total;
+  const barTotal = effectiveZero ? 1 : userOwes ? myDebtorTotal : total;
+  const myDebtorStatusParts: string[] = [];
+  if (myDebtorWaitingCount > 0)
+    myDebtorStatusParts.push(`${myDebtorWaitingCount} Awaiting Verification`);
+  if (myDebtorPendingCount > 0)
+    myDebtorStatusParts.push(`${myDebtorPendingCount} Payment Requested`);
+  if (myDebtorUnrequestedCount > 0)
+    myDebtorStatusParts.push(`${myDebtorUnrequestedCount} Not Yet Paid`);
   const barStatusParts = effectiveZero
     ? []
     : userOwes
-      ? selfStatusForBar === 'completed'
-        ? []
-        : selfStatusForBar === 'waiting'
-          ? ['Awaiting Verification']
-          : selfStatusForBar === 'pending'
-            ? ['Payment Requested']
-            : ['Not Yet Paid']
+      ? myDebtorStatusParts
       : statusParts;
 
   const [roomName, setRoomName] = useState(name ?? '');
@@ -923,7 +1082,7 @@ export default function ReceiptDetailScreen() {
                       <Text className={`font-semibold mr-1 ${textColor}`}>
                         {completedIds.has(person.id)
                           ? '$0.00'
-                          : `+$${person.amount.toFixed(2)}`}
+                          : `+$${owedToMeByPerson.toFixed(2)}`}
                       </Text>
                     )}
                     {isSelf && myDebtsAsDebtor.length > 0 && (
@@ -1057,7 +1216,9 @@ export default function ReceiptDetailScreen() {
                         unclaimedItemCount > 0 ? 'bg-destructive' : 'bg-primary'
                       } rounded-2xl py-3.5 items-center active:opacity-80 mb-3`}
                       onPress={() =>
-                        handleRequestAction(selectedPerson, 'request')
+                        profiles[selectedPerson.id]?.isGuest
+                          ? void handleGuestSmsRequest(selectedPerson)
+                          : handleRequestAction(selectedPerson, 'request')
                       }
                       disabled={!!actionLoading}
                     >
@@ -1065,9 +1226,11 @@ export default function ReceiptDetailScreen() {
                         <ActivityIndicator color='white' />
                       ) : (
                         <Text className='text-primary-foreground font-semibold text-base'>
-                          {unclaimedItemCount > 0
-                            ? 'Request Money Anyway'
-                            : 'Request Money'}
+                          {profiles[selectedPerson.id]?.isGuest
+                            ? 'Send SMS'
+                            : unclaimedItemCount > 0
+                              ? 'Request Money Anyway'
+                              : 'Request Money'}
                         </Text>
                       )}
                     </Pressable>
@@ -1077,14 +1240,20 @@ export default function ReceiptDetailScreen() {
                     <>
                       <Pressable
                         className='bg-primary rounded-2xl py-3.5 items-center active:opacity-80 mb-3'
-                        onPress={() => void handleNudge(selectedPerson)}
+                        onPress={() =>
+                          profiles[selectedPerson.id]?.isGuest
+                            ? void handleGuestSmsRequest(selectedPerson)
+                            : void handleNudge(selectedPerson)
+                        }
                         disabled={!!actionLoading}
                       >
                         {actionLoading === 'nudge' ? (
                           <ActivityIndicator color='white' />
                         ) : (
                           <Text className='text-primary-foreground font-semibold text-base'>
-                            Nudge
+                            {profiles[selectedPerson.id]?.isGuest
+                              ? 'Re-send SMS'
+                              : 'Nudge'}
                           </Text>
                         )}
                       </Pressable>
@@ -1110,8 +1279,9 @@ export default function ReceiptDetailScreen() {
                     <>
                       <View className='bg-status-waiting/10 border border-status-waiting rounded-xl px-4 py-3 mb-3'>
                         <Text className='text-status-waiting text-sm text-center'>
-                          {selectedPerson.name} has logged a payment. If you
-                          haven&apos;t received it, you can re-request.
+                          {profiles[selectedPerson.id]?.isGuest
+                            ? `SMS sent to ${selectedPerson.name}. Verify once you've received their payment.`
+                            : `${selectedPerson.name} has logged a payment. If you haven't received it, you can re-request.`}
                         </Text>
                       </View>
                       <Pressable
@@ -1151,7 +1321,9 @@ export default function ReceiptDetailScreen() {
                       <Pressable
                         className='bg-destructive rounded-2xl py-3.5 items-center active:opacity-80 mb-3'
                         onPress={() =>
-                          handleRequestAction(selectedPerson, 'rerequst')
+                          profiles[selectedPerson.id]?.isGuest
+                            ? void handleGuestSmsRequest(selectedPerson)
+                            : handleRequestAction(selectedPerson, 'rerequst')
                         }
                         disabled={!!actionLoading}
                       >
@@ -1159,7 +1331,9 @@ export default function ReceiptDetailScreen() {
                           <ActivityIndicator color='white' />
                         ) : (
                           <Text className='text-primary-foreground font-semibold text-base'>
-                            Re-Request Payment
+                            {profiles[selectedPerson.id]?.isGuest
+                              ? 'Re-send SMS'
+                              : 'Re-Request Payment'}
                           </Text>
                         )}
                       </Pressable>

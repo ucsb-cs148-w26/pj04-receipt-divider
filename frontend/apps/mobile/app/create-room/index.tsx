@@ -4,43 +4,19 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  IconButton,
-  ReceiptPhotoPicker,
-  AddParticipantManualModal,
-} from '@eezy-receipt/shared';
-import { USER_COLOR_HEX } from '@shared/constants';
-import { useAuth, useGroupCache } from '@/providers';
+import { IconButton, ReceiptPhotoPicker } from '@eezy-receipt/shared';
+import { useGroupCache } from '@/providers';
 import { createGroup } from '@/services/groupApi';
 
-interface User {
-  id: number;
-  name: string;
-  source: 'manual' | 'link' | 'qr';
-  accentColor: string;
-}
-
 export default function CreateRoomScreen() {
-  const { user } = useAuth();
   const { myGroups } = useGroupCache();
-  const hostName =
-    user?.user_metadata?.full_name ??
-    user?.user_metadata?.name ??
-    user?.email ??
-    'You (Host)';
 
-  const [users, setUsers] = useState<User[]>(() => [
-    { id: 1, name: hostName, source: 'link', accentColor: USER_COLOR_HEX[0] },
-  ]);
-  const [showAddUser, setShowAddUser] = useState(false);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [groupName, setGroupName] = useState('');
   const userEditedNameRef = useRef(false);
@@ -65,59 +41,7 @@ export default function CreateRoomScreen() {
     setGroupName(getDefaultName(myGroups.length + 1));
   }, [myGroups]);
 
-  const [editingUserId, setEditingUserId] = useState<number | null>(null);
-  const [editUserName, setEditUserName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-
-  // roomId is null until the backend creates the group
-  const [roomId, setRoomId] = useState<string | null>(null);
-
-  const addUser = (name: string) => {
-    setUsers((prev) => [
-      ...prev,
-      {
-        id: prev.length + 1,
-        name,
-        source: 'manual',
-        accentColor: USER_COLOR_HEX[prev.length % USER_COLOR_HEX.length],
-      },
-    ]);
-  };
-
-  const handleAddManually = () => {
-    Alert.alert(
-      'Manual Participant',
-      "Adding a participant manually means they won't be linked to a real user account. When someone joins the room via link or QR code, they won't be able to claim this participant as themselves.",
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Add Anyway',
-          onPress: () => setShowAddUser(true),
-        },
-      ],
-    );
-  };
-
-  const handleUserPress = (user: User) => {
-    if (user.source !== 'manual') return;
-    setEditingUserId(user.id);
-    setEditUserName(user.name);
-  };
-
-  const saveUserName = () => {
-    if (editingUserId === null) return;
-    if (!editUserName.trim()) {
-      setEditingUserId(null);
-      return;
-    }
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === editingUserId ? { ...u, name: editUserName.trim() } : u,
-      ),
-    );
-    setEditingUserId(null);
-    setEditUserName('');
-  };
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
@@ -192,80 +116,6 @@ export default function CreateRoomScreen() {
         />
       </View>
 
-      {/* Users section — pinned above Create Room button */}
-      <View className='px-5 pt-4 pb-24'>
-        <Text className='text-foreground text-2xl font-bold mb-3'>Users</Text>
-
-        {/* Horizontal scroll of user boxes */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            gap: 10,
-            paddingVertical: 4,
-            flexGrow: 1,
-            justifyContent: 'center',
-          }}
-          style={{ height: 84 }}
-        >
-          {users.map((user) => (
-            <Pressable
-              key={user.id}
-              onPress={() => handleUserPress(user)}
-              className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10'
-              style={{ width: 140 }}
-            >
-              <View
-                className='h-3'
-                style={{ backgroundColor: user.accentColor }}
-              />
-              <View className='flex-row items-center gap-3 px-3 py-3'>
-                <View
-                  className='w-8 h-8 rounded-full items-center justify-center'
-                  style={{ backgroundColor: user.accentColor, opacity: 0.85 }}
-                >
-                  <Text className='text-white text-sm font-bold'>
-                    {user.id}
-                  </Text>
-                </View>
-                <Text
-                  className='text-foreground font-bold text-sm flex-1'
-                  numberOfLines={2}
-                >
-                  {user.name}
-                </Text>
-                {user.source === 'manual' && (
-                  <Pressable
-                    onPress={() =>
-                      setUsers((prev) => prev.filter((u) => u.id !== user.id))
-                    }
-                    hitSlop={8}
-                  >
-                    <MaterialCommunityIcons
-                      name='close'
-                      size={14}
-                      className='text-accent-dark'
-                    />
-                  </Pressable>
-                )}
-              </View>
-            </Pressable>
-          ))}
-
-          <Pressable
-            className='bg-card rounded-2xl overflow-hidden shadow-sm shadow-black/10 items-center justify-center active:opacity-70'
-            style={{ width: 100, minHeight: 68 }}
-            onPress={handleAddManually}
-          >
-            <MaterialCommunityIcons
-              name='plus'
-              size={28}
-              className='text-accent-dark'
-            />
-          </Pressable>
-        </ScrollView>
-      </View>
-
       {/* Create Room button */}
       <View className='absolute bottom-10 left-5 right-5'>
         <Pressable
@@ -281,15 +131,12 @@ export default function CreateRoomScreen() {
               const { groupId } = await createGroup(
                 groupName.trim() || 'New Room',
               );
-              setRoomId(groupId);
               router.dismissAll();
               router.navigate({
                 pathname: '/receipt-room',
                 params: {
                   roomId: groupId,
-                  participants: JSON.stringify(
-                    users.map((u) => ({ id: u.id, name: u.name })),
-                  ),
+                  participants: '[]',
                   photos: JSON.stringify(photoUris),
                 },
               });
@@ -311,64 +158,6 @@ export default function CreateRoomScreen() {
           </Text>
         </Pressable>
       </View>
-
-      <AddParticipantManualModal
-        visible={showAddUser}
-        onClose={() => setShowAddUser(false)}
-        onAdd={addUser}
-        addedParticipants={users}
-        lockedParticipantIds={users
-          .filter((u) => u.source !== 'manual')
-          .map((u) => u.id)}
-      />
-
-      {/* Edit User Name Modal */}
-      <Modal
-        transparent
-        animationType='fade'
-        visible={editingUserId !== null}
-        onRequestClose={() => setEditingUserId(null)}
-      >
-        <Pressable
-          className='flex-1 bg-black/50 justify-center items-center px-6'
-          onPress={() => setEditingUserId(null)}
-        >
-          <Pressable onPress={() => {}}>
-            <View className='bg-card rounded-2xl p-6 w-80'>
-              <View className='flex-row items-center justify-between mb-4'>
-                <Text className='text-foreground text-xl font-bold'>
-                  Edit Name
-                </Text>
-                <Pressable onPress={() => setEditingUserId(null)} hitSlop={8}>
-                  <MaterialCommunityIcons
-                    name='close'
-                    size={22}
-                    className='text-accent-dark'
-                  />
-                </Pressable>
-              </View>
-
-              <TextInput
-                placeholder='Name'
-                placeholderTextColor='var(--color-muted-foreground)'
-                value={editUserName}
-                onChangeText={setEditUserName}
-                onSubmitEditing={saveUserName}
-                returnKeyType='done'
-                className='border border-border rounded-xl px-4 py-3 text-foreground mb-4'
-                autoFocus
-              />
-
-              <Pressable
-                className='bg-primary rounded-xl py-3 items-center active:opacity-80'
-                onPress={saveUserName}
-              >
-                <Text className='text-primary-foreground font-bold'>Save</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }

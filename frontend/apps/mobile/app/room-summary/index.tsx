@@ -23,6 +23,7 @@ import type {
   ItemClaim as DbItemClaim,
   Item as DbItem,
 } from '@eezy-receipt/shared';
+import { splitAmountByRank } from '@eezy-receipt/shared';
 
 type RoomSummaryParams = { roomId: string };
 
@@ -81,11 +82,16 @@ export default function RoomSummaryScreen() {
       const count = receiptItemCount.get(item.receipt_id) ?? 1;
       taxPerItem.set(item.id, receipt.tax / count);
     }
-    // claimCount: itemId → number of claimants
-    const claimCount = new Map<string, number>();
+    // claimants per item (profile IDs)
+    const claimantsPerItem = new Map<string, string[]>();
     for (const c of claims) {
-      claimCount.set(c.item_id, (claimCount.get(c.item_id) ?? 0) + 1);
+      const list = claimantsPerItem.get(c.item_id) ?? [];
+      list.push(c.profile_id);
+      claimantsPerItem.set(c.item_id, list);
     }
+
+    // Member join order for rank computation
+    const memberJoinOrder = members.map((m) => m.profile_id);
 
     return members.map((member) => {
       const memberClaims = claims.filter(
@@ -95,16 +101,30 @@ export default function RoomSummaryScreen() {
         .map((claim) => {
           const item = items.find((i) => i.id === claim.item_id);
           if (!item) return null;
-          const amount = claim.share * item.unit_price * (item.amount ?? 1);
-          return { name: item.name ?? 'Item', price: amount.toFixed(2) };
+          const fullPrice = item.unit_price * (item.amount ?? 1);
+          const claimants = claimantsPerItem.get(claim.item_id) ?? [
+            member.profile_id,
+          ];
+          const sorted = [...claimants].sort(
+            (a, b) => memberJoinOrder.indexOf(a) - memberJoinOrder.indexOf(b),
+          );
+          const rank = sorted.indexOf(member.profile_id) + 1;
+          const share = splitAmountByRank(fullPrice, claimants.length, rank);
+          return { name: item.name ?? 'Item', price: share.toFixed(2) };
         })
         .filter((i): i is { name: string; price: string } => i !== null);
       const subtotal = memberItems.reduce((s, i) => s + parseFloat(i.price), 0);
       const tax = memberClaims.reduce((s, claim) => {
         const perItem = taxPerItem.get(claim.item_id);
         if (perItem == null) return s;
-        const n = claimCount.get(claim.item_id) ?? 1;
-        return s + perItem / n;
+        const claimants = claimantsPerItem.get(claim.item_id) ?? [
+          member.profile_id,
+        ];
+        const sorted = [...claimants].sort(
+          (a, b) => memberJoinOrder.indexOf(a) - memberJoinOrder.indexOf(b),
+        );
+        const rank = sorted.indexOf(member.profile_id) + 1;
+        return s + splitAmountByRank(perItem, claimants.length, rank);
       }, 0);
       return {
         profileId: member.profile_id,

@@ -69,7 +69,7 @@ class ProfileService:
 
         return self._issue_jwt(profile_id)
 
-    def create_profile_and_login(self, group_id: str, username: str) -> str:
+    def create_profile_and_login(self, group_id: str, username: str) -> tuple[str, str]:
         response = client.auth.sign_in_anonymously()
         profile = self.db.get(Profile, response.user.id)
         profile.username = username
@@ -77,8 +77,9 @@ class ProfileService:
         membership = GroupMember(group_id=group_id, profile_id=response.user.id)
         self.db.add(membership)
         self.db.commit()
+        self.db.refresh(profile)
 
-        return response.session.access_token
+        return response.session.access_token, profile.accent_color or ""
 
     def update_username(self, profile_id: str, username: str) -> None:
         profile = self.db.get(Profile, profile_id)

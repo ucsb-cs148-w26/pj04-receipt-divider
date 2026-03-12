@@ -144,10 +144,10 @@ def create_profile(
     payload: CreateGuestProfileRequest,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
-    token = profile_service.create_profile_and_login(
+    token, accent_color = profile_service.create_profile_and_login(
         str(payload.group_id), payload.username
     )
-    return CreateGuestProfileResponse(access_token=token)
+    return CreateGuestProfileResponse(access_token=token, accent_color=accent_color)
 
 
 @router.post("/receipt/add", response_model=AddReceiptResponse)

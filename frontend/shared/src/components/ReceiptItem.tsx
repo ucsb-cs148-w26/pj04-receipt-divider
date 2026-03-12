@@ -100,7 +100,7 @@ interface ReceiptItemProps extends DragProps {
     discount?: string;
     userTags?: number[];
   }) => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   onRemoveFromUser: (userId: number) => void;
 
   /** Function to get current item data (for overlay to get fresh data) */
@@ -129,6 +129,11 @@ interface ReceiptItemProps extends DragProps {
   /** Map from participant id (1-based) to their hex accent color. When provided,
    *  overrides the default avatar-X palette color on UserTag badges. */
   participantColors?: Record<number, string>;
+
+  /** Set of participant IDs whose tags may be removed. When undefined all tags
+   *  are removable (host / solo room). When provided, only matching IDs show
+   *  the X button in edit mode. */
+  removableTagIds?: Set<number>;
 }
 
 export function ReceiptItem({
@@ -167,6 +172,8 @@ export function ReceiptItem({
   scrollContext,
   // Participant accent colors
   participantColors,
+  // Removable tag IDs
+  removableTagIds,
 }: ReceiptItemProps) {
   /** ---------------- UI State ---------------- */
   const [uiState, setUIState] = useState<UIState>({
@@ -510,16 +517,20 @@ export function ReceiptItem({
             >
               <View className='w-full bg-card rounded-2xl p-4'>
                 <View className='flex-row items-center'>
-                  {/* Delete button */}
-                  <Pressable
-                    onPress={onDelete}
-                    className='w-10 h-10 items-center justify-center mr-3'
-                    accessibilityLabel='Delete item'
-                  >
-                    <Text className='text-destructive text-2xl font-bold'>
-                      ✕
-                    </Text>
-                  </Pressable>
+                  {/* Delete button — hidden when the current user doesn't own the receipt */}
+                  {onDelete ? (
+                    <Pressable
+                      onPress={onDelete}
+                      className='w-10 h-10 items-center justify-center mr-3'
+                      accessibilityLabel='Delete item'
+                    >
+                      <Text className='text-destructive text-2xl font-bold'>
+                        ✕
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <View className='w-10 h-10 mr-3' />
+                  )}
 
                   {/* Editable item name */}
                   <ScrollableTextInput
@@ -617,8 +628,8 @@ export function ReceiptItem({
             {/* ── Shared user tags (animate their own edit/claim appearance) ── */}
             {allDisplayTagIds.length > 0 && (
               <View
-                style={{ position: 'absolute', bottom: 0, left: 52 }}
-                className='flex-row flex-wrap gap-1'
+                style={{ position: 'absolute', top: 49, left: 52 }}
+                className='flex-row flex-wrap items-start justify-start gap-1 -ml-2 right-10'
               >
                 {allDisplayTagIds.map((userId) => (
                   <UserTag
@@ -629,6 +640,11 @@ export function ReceiptItem({
                     isExiting={exitingTagIds.has(userId)}
                     isEditMode={isEditMode}
                     accentColor={participantColors?.[userId]}
+                    canRemove={
+                      removableTagIds === undefined
+                        ? true
+                        : removableTagIds.has(userId)
+                    }
                   />
                 ))}
               </View>

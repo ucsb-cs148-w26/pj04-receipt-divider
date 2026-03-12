@@ -45,6 +45,7 @@ class CreateGuestProfileRequest(BaseRequest):
 
 class CreateGuestProfileResponse(BaseResponse):
     access_token: str
+    accent_color: str
 
 
 class RemoveMemberRequest(BaseRequest):

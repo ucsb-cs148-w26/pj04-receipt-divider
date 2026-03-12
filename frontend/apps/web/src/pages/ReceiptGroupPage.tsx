@@ -371,18 +371,6 @@ export default function ReceiptGroupPage() {
   // Derived
   // ---------------------------------------------------------------------------
 
-  const myTotal = items.reduce((sum, item) => {
-    const c = claims[item.id] ?? [];
-    if (!profileId || !c.includes(profileId)) return sum;
-    return sum + (item.unit_price * item.amount) / c.length;
-  }, 0);
-
-  const myItemCount = items.filter(
-    (item) => profileId && (claims[item.id] ?? []).includes(profileId),
-  ).length;
-
-  const me = participants.find((p) => p.profileId === profileId);
-
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -579,7 +567,7 @@ export default function ReceiptGroupPage() {
         )}
       </div>
 
-      {/* My profile card */}
+      {/* Participants section — current user first, others grayed out */}
       <div
         style={{
           ...styles.participantsSection,
@@ -588,40 +576,84 @@ export default function ReceiptGroupPage() {
         }}
       >
         <div
-          style={{ ...styles.participantCard, background: t.participantCard }}
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: 10,
+            overflowX: 'auto',
+            paddingBottom: 4,
+            WebkitOverflowScrolling: 'touch' as const,
+          }}
         >
-          <div
-            style={{
-              ...styles.participantBar,
-              background: me?.color ?? '#7C9FC9',
-            }}
-          />
-          <div style={styles.participantBody}>
-            <div
-              style={{
-                ...styles.participantAvatar,
-                background: me?.color ?? '#7C9FC9',
-              }}
-            >
-              <span style={styles.participantInitial}>
-                {me ? me.name[0].toUpperCase() : '?'}
-              </span>
-            </div>
-            <div style={styles.participantInfo}>
-              <span style={{ ...styles.participantName, color: t.text }}>
-                {me?.name ?? 'You'}
-              </span>
-              <span style={styles.participantCount}>
-                {myItemCount} item{myItemCount !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <div style={styles.participantTotalBlock}>
-              <span style={styles.participantTotalLabel}>My total</span>
-              <span style={{ ...styles.participantTotal, color: t.text }}>
-                ${myTotal.toFixed(2)}
-              </span>
-            </div>
-          </div>
+          {[...participants]
+            .sort((a, b) => {
+              if (a.profileId === profileId) return -1;
+              if (b.profileId === profileId) return 1;
+              return 0;
+            })
+            .map((p) => {
+              const isMe = p.profileId === profileId;
+              const pItemCount = items.filter((item) =>
+                (claims[item.id] ?? []).includes(p.profileId),
+              ).length;
+              const pTotal = items.reduce((sum, item) => {
+                const c = claims[item.id] ?? [];
+                if (!c.includes(p.profileId)) return sum;
+                return sum + (item.unit_price * item.amount) / c.length;
+              }, 0);
+              const accentColor = isMe ? (p.color ?? '#7C9FC9') : '#9ca3af';
+              return (
+                <div
+                  key={p.profileId}
+                  style={{
+                    ...styles.participantCard,
+                    background: t.participantCard,
+                    opacity: isMe ? 1 : 0.5,
+                    minWidth: 160,
+                    flexShrink: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      ...styles.participantBar,
+                      background: accentColor,
+                    }}
+                  />
+                  <div style={styles.participantBody}>
+                    <div
+                      style={{
+                        ...styles.participantAvatar,
+                        background: accentColor,
+                      }}
+                    >
+                      <span style={styles.participantInitial}>
+                        {p.name[0].toUpperCase()}
+                      </span>
+                    </div>
+                    <div style={styles.participantInfo}>
+                      <span
+                        style={{ ...styles.participantName, color: t.text }}
+                      >
+                        {p.name}
+                      </span>
+                      <span style={styles.participantCount}>
+                        {pItemCount} item{pItemCount !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div style={styles.participantTotalBlock}>
+                      <span style={styles.participantTotalLabel}>
+                        {isMe ? 'My total' : 'Total'}
+                      </span>
+                      <span
+                        style={{ ...styles.participantTotal, color: t.text }}
+                      >
+                        ${pTotal.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </div>
     </div>

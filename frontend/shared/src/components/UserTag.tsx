@@ -20,6 +20,7 @@ export function UserTag({
   isExiting = false,
   isEditMode = true,
   accentColor,
+  canRemove = true,
 }: {
   id: number;
   onRemove: () => void;
@@ -27,6 +28,8 @@ export function UserTag({
   isExiting?: boolean;
   isEditMode?: boolean;
   accentColor?: string;
+  /** When false, the tag always shows the number (no X) even in edit mode. */
+  canRemove?: boolean;
 }) {
   const scale = useSharedValue(isEntering ? 0 : 1);
   const editOpacity = useSharedValue(isEditMode ? 1 : 0);
@@ -39,8 +42,9 @@ export function UserTag({
     opacity: editOpacity.value,
   }));
 
+  // When canRemove is false the number is always visible regardless of mode.
   const claimStyle = useAnimatedStyle(() => ({
-    opacity: 1 - editOpacity.value,
+    opacity: canRemove ? 1 - editOpacity.value : 1,
   }));
 
   // Pop-in
@@ -66,16 +70,20 @@ export function UserTag({
   return (
     <Animated.View style={scaleStyle}>
       <Pressable
-        onPress={isEditMode ? onRemove : undefined}
+        onPress={isEditMode && canRemove ? onRemove : undefined}
         className={`${accentColor ? '' : `bg-${USER_COLORS[(id - 1) % USER_COLORS.length]}`} px-1 h-[25px] w-[28px] py-1 rounded-md justify-center items-center shadow-sm`}
         style={accentColor ? { backgroundColor: accentColor } : undefined}
         accessibilityLabel={
-          isEditMode ? `Tap to remove user ${id}` : `Claimed by user ${id}`
+          isEditMode && canRemove
+            ? `Tap to remove user ${id}`
+            : `Claimed by user ${id}`
         }
       >
-        <Animated.View style={[{ position: 'absolute' }, editStyle]}>
-          <Text className='text-white text-sm font-bold'>✕</Text>
-        </Animated.View>
+        {canRemove && (
+          <Animated.View style={[{ position: 'absolute' }, editStyle]}>
+            <Text className='text-white text-sm font-bold'>✕</Text>
+          </Animated.View>
+        )}
         <Animated.View style={claimStyle}>
           <Text className='text-white text-sm font-bold'>{id}</Text>
         </Animated.View>

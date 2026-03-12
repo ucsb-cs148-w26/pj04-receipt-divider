@@ -28,13 +28,18 @@ export async function sendSMS(
 /**
  * Generate a room invite message with the given room ID, group name, and invite URL.
  */
+const DEFAULT_APP_URL =
+  process.env.EXPO_PUBLIC_APP_URL ??
+  'https://testflight.apple.com/join/8bhMpGgZ';
+
 export function getRoomInviteMessage(
   roomId: string,
   groupName: string,
   url: string,
+  testflightLink: string = DEFAULT_APP_URL,
 ): string {
   const roomLabel = groupName ? `"${groupName}"` : 'my';
-  return `Join the ${roomLabel} Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nTap to join:\n${url}`;
+  return `Join the ${roomLabel} Eezy Receipt room!\n\nRoom ID: ${roomId}\n\nTap to join on Web:\n${url}\n\nOr download the APP here:\n${testflightLink}`;
 }
 
 /**
@@ -44,6 +49,7 @@ export async function sendRoomInviteSMS(
   roomId: string,
   groupName: string,
   url: string,
+  testflightLink: string = DEFAULT_APP_URL,
 ): Promise<'sent' | 'cancelled' | 'unknown' | 'unavailable'> {
-  return sendSMS(getRoomInviteMessage(roomId, groupName, url));
+  return sendSMS(getRoomInviteMessage(roomId, groupName, url, testflightLink));
 }

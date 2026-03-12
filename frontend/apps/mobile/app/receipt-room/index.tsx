@@ -45,7 +45,6 @@ import {
   useScrollToInput,
   calculateParticipantTotal,
 } from '@eezy-receipt/shared';
-import { USER_COLOR_HEX } from '@shared/constants';
 import { ReceiptConfidenceModal, type ConfidenceData } from '@/components';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Participant } from '@shared/components/Participant';
@@ -290,6 +289,18 @@ export default function ReceiptRoomScreen() {
   const [confidenceQueue, setConfidenceQueue] = useState<ConfidenceData[]>([]);
   const [showConfidenceModal, setShowConfidenceModal] = useState(false);
 
+  /** Receipt notification banner — shown when another user adds a receipt. */
+  const [receiptNotifMessage, setReceiptNotifMessage] = useState<string | null>(
+    null,
+  );
+  const receiptNotifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const prevReceiptsRef = useRef<typeof groupData.receipts>([]);
+
+  /** Guard against navigating to the items page more than once before returning. */
+  const isNavigatingToItemsRef = useRef(false);
+
   const handleRefresh = async () => {
     if (!isGroupRoom) return;
     setIsRefreshing(true);
@@ -419,6 +430,13 @@ export default function ReceiptRoomScreen() {
       }, 20_000);
       return () => clearTimeout(fallback);
     }, [params.roomId]),
+  );
+
+  // Reset navigation guard when this screen regains focus (user pressed back from items page)
+  useFocusEffect(
+    useCallback(() => {
+      isNavigatingToItemsRef.current = false;
+    }, []),
   );
 
   /**---------------- Participants Functions ---------------- */
@@ -805,22 +823,22 @@ export default function ReceiptRoomScreen() {
       accentColor: groupData.profiles[m.profile_id]?.accentColor || null,
     }));
     // Second pass: for members without an explicit color, assign a unique
-    // fallback from USER_COLOR_HEX that isn't already taken by someone whose
-    // color IS set — this prevents two cards from showing the same color
-    // (e.g. a non-host who picked #3b82f6 and a host whose fallback is also
-    // bg-avatar-1 = #3b82f6).
+    // hue-wheel color that isn't already taken by someone whose color IS set —
+    // this prevents two cards from showing the same color.
+    // Uses golden-angle spacing (137°) across the HSL wheel for max perceptual separation.
     const usedColors = new Set(
       rawParticipants.filter((p) => p.accentColor).map((p) => p.accentColor),
     );
     let colorCursor = 0;
     const participants: ParticipantType[] = rawParticipants.map((p) => {
       if (p.accentColor) return p as ParticipantType;
-      while (
-        usedColors.has(USER_COLOR_HEX[colorCursor % USER_COLOR_HEX.length])
-      ) {
+      let hue = Math.round((colorCursor * 137) % 360);
+      let fallback = `hsl(${hue}, 100%, 50%)`;
+      while (usedColors.has(fallback)) {
         colorCursor++;
+        hue = Math.round((colorCursor * 137) % 360);
+        fallback = `hsl(${hue}, 100%, 50%)`;
       }
-      const fallback = USER_COLOR_HEX[colorCursor % USER_COLOR_HEX.length];
       usedColors.add(fallback);
       colorCursor++;
       return { ...p, accentColor: fallback } as ParticipantType;
@@ -896,6 +914,36 @@ export default function ReceiptRoomScreen() {
       setShowConfidenceModal(true);
     }
   }, [confidenceQueue, showConfidenceModal]);
+
+  // Detect when another user adds a receipt and show a transient notification banner.
+  useEffect(() => {
+    if (!isGroupRoom || !groupData.isLoaded) {
+      prevReceiptsRef.current = groupData.receipts;
+      return;
+    }
+    const prev = prevReceiptsRef.current;
+    const curr = groupData.receipts;
+    const prevIds = new Set(prev.map((r) => r.id));
+    const newByOthers = curr.filter(
+      (r) => !prevIds.has(r.id) && r.created_by !== currentUserId,
+    );
+    if (newByOthers.length > 0 && prev.length > 0) {
+      const uploaderName =
+        groupData.profiles[newByOthers[0].created_by]?.username ?? 'Someone';
+      const msg =
+        newByOthers.length === 1
+          ? `${uploaderName} added a receipt`
+          : `${newByOthers.length} new receipts added`;
+      setReceiptNotifMessage(msg);
+      if (receiptNotifTimerRef.current)
+        clearTimeout(receiptNotifTimerRef.current);
+      receiptNotifTimerRef.current = setTimeout(
+        () => setReceiptNotifMessage(null),
+        4000,
+      );
+    }
+    prevReceiptsRef.current = curr;
+  }, [groupData.receipts, groupData.profiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayItems = receiptItems.items;
   const displayParticipants = isGroupRoom
@@ -1650,154 +1698,173 @@ export default function ReceiptRoomScreen() {
                               </Pressable>
                             ) : null;
                           })()}
-                          <Pressable
-                            onPress={() =>
-                              handleDeleteReceipt(
-                                receiptId,
-                                sectionItems.map((i) => i.id),
-                              )
-                            }
-                            className='active:opacity-50'
-                          >
-                            <MaterialCommunityIcons
-                              name='trash-can-outline'
-                              size={16}
-                              color='#ef4444'
-                            />
-                          </Pressable>
+                          {(!isGroupRoom ||
+                            isHost ||
+                            groupData.receipts.find((r) => r.id === receiptId)
+                              ?.created_by === currentUserId) && (
+                            <Pressable
+                              onPress={() =>
+                                handleDeleteReceipt(
+                                  receiptId,
+                                  sectionItems.map((i) => i.id),
+                                )
+                              }
+                              className='active:opacity-50'
+                            >
+                              <MaterialCommunityIcons
+                                name='trash-can-outline'
+                                size={16}
+                                color='#ef4444'
+                              />
+                            </Pressable>
+                          )}
                         </View>
                       )}
                     </View>
                   )}
-                  {sectionItems.map((item) => (
-                    <ReceiptItem
+                  {sectionItems.map((item, itemIndex) => (
+                    <View
                       key={item.id}
-                      item={item}
-                      onUpdate={(updates) =>
-                        updateReceiptItem(item.id, updates)
-                      }
-                      onDelete={() => deleteReceiptItem(item.id)}
-                      onRemoveFromUser={(userId) =>
-                        removeItemFromUser(item.id, userId)
-                      }
-                      participantLayouts={participantLayouts.current}
-                      scrollOffset={scrollOffset}
-                      onDragStart={
-                        isGroupRoom && !isHost && isRoomFinished
-                          ? undefined
-                          : (_itemId, initialPosition) =>
-                              handleItemDragStart(item.id, initialPosition)
-                      }
-                      onDragEnd={handleItemDragEnd}
-                      bannerTranslation={bannerTranslation}
-                      onDropOnParticipant={claimSelectedToParticipant}
-                      isDragging={
-                        dragState.selectedItemIds.includes(item.id) &&
-                        dragState.isDragging
-                      }
-                      dragPan={dragPan}
-                      onParticipantBoundsChange={handleParticipantBoundsChange}
-                      isInParticipantBoundsProp={false}
-                      getCurrentItemData={() =>
-                        displayItems.find((i) => i.id === item.id)!
-                      }
-                      isAnyTextFocused={isAnyTextFocused}
-                      onTextFocusChange={setIsAnyTextFocused}
-                      isEditMode={isEditMode}
-                      editModeAnim={editModeAnim}
-                      isSelected={selectedItemIds.has(item.id)}
-                      onToggleSelect={
-                        isGroupRoom && !isHost && isRoomFinished
-                          ? undefined
-                          : () => toggleItemSelection(item.id)
-                      }
-                      scrollContext={scrollCtx}
-                      participantColors={participantColors}
-                    />
+                      style={{ zIndex: sectionItems.length - itemIndex }}
+                    >
+                      <ReceiptItem
+                        item={item}
+                        onUpdate={(updates) =>
+                          updateReceiptItem(item.id, updates)
+                        }
+                        onDelete={
+                          isGroupRoom &&
+                          !isHost &&
+                          groupData.receipts.find(
+                            (r) => r.id === item.receiptId,
+                          )?.created_by !== currentUserId
+                            ? undefined
+                            : () => deleteReceiptItem(item.id)
+                        }
+                        onRemoveFromUser={(userId) =>
+                          removeItemFromUser(item.id, userId)
+                        }
+                        participantLayouts={participantLayouts.current}
+                        scrollOffset={scrollOffset}
+                        onDragStart={
+                          isGroupRoom && !isHost && isRoomFinished
+                            ? undefined
+                            : (_itemId, initialPosition) =>
+                                handleItemDragStart(item.id, initialPosition)
+                        }
+                        onDragEnd={handleItemDragEnd}
+                        bannerTranslation={bannerTranslation}
+                        onDropOnParticipant={claimSelectedToParticipant}
+                        isDragging={
+                          dragState.selectedItemIds.includes(item.id) &&
+                          dragState.isDragging
+                        }
+                        dragPan={dragPan}
+                        onParticipantBoundsChange={
+                          handleParticipantBoundsChange
+                        }
+                        isInParticipantBoundsProp={false}
+                        getCurrentItemData={() =>
+                          displayItems.find((i) => i.id === item.id)!
+                        }
+                        isAnyTextFocused={isAnyTextFocused}
+                        onTextFocusChange={setIsAnyTextFocused}
+                        isEditMode={isEditMode}
+                        editModeAnim={editModeAnim}
+                        isSelected={selectedItemIds.has(item.id)}
+                        onToggleSelect={
+                          isGroupRoom && !isHost && isRoomFinished
+                            ? undefined
+                            : () => toggleItemSelection(item.id)
+                        }
+                        scrollContext={scrollCtx}
+                        participantColors={participantColors}
+                        removableTagIds={
+                          isGroupRoom && !isHost && currentParticipantId > 0
+                            ? new Set([currentParticipantId])
+                            : undefined
+                        }
+                      />
+                    </View>
                   ))}
                   {/* Tax row — displayed at the bottom of each receipt section */}
-                  {isGroupRoom &&
-                    receiptId &&
-                    (receiptTaxMap.has(receiptId) ||
-                      isEditMode ||
-                      !!groupData.receipts.find((r) => r.id === receiptId)
-                        ?.is_manual) && (
-                      <View
-                        className={`flex-row items-center justify-between bg-card rounded-2xl px-4 py-3 border border-border${isEditMode ? '' : ' opacity-70'}`}
-                      >
-                        <View className='flex-row items-center gap-2'>
-                          <MaterialCommunityIcons
-                            name='percent-outline'
-                            size={16}
-                            color='#6b7280'
-                          />
-                          <Text className='text-muted-foreground text-sm font-medium'>
-                            Tax
-                          </Text>
-                        </View>
-                        {isEditMode ? (
-                          <View className='flex-row items-center justify-center'>
-                            <Text className='text-muted-foreground text-sm font-semibold'>
-                              $
-                            </Text>
-                            <PriceInput
-                              value={
-                                localTaxInputs.get(receiptId) ??
-                                (receiptTaxMap.get(receiptId) ?? 0).toFixed(2)
-                              }
-                              onValueChange={(val) => {
-                                setLocalTaxInputs((prev) => {
-                                  const next = new Map(prev);
-                                  next.set(receiptId, val);
-                                  return next;
-                                });
-                              }}
-                              onBlur={() => {
-                                const valStr = localTaxInputs.get(receiptId);
-                                if (valStr === undefined) return;
-                                const val = parseFloat(valStr) || 0;
-                                setLocalReceiptTaxOverrides((prev) => {
-                                  const next = new Map(prev);
-                                  if (val > 0) next.set(receiptId, val);
-                                  else next.delete(receiptId);
-                                  return next;
-                                });
-                                setLocalTaxInputs((prev) => {
-                                  const next = new Map(prev);
-                                  next.delete(receiptId);
-                                  return next;
-                                });
-                                updateReceiptTax(
-                                  receiptId,
-                                  val > 0 ? val : null,
-                                ).catch((err) => {
-                                  console.error(
-                                    'Failed to update receipt tax:',
-                                    err,
-                                  );
-                                });
-                              }}
-                              placeholder='0.00'
-                              placeholderTextColor='#9ca3af'
-                              className='text-muted-foreground text-sm font-semibold'
-                              style={{
-                                paddingBottom: 10,
-                                includeFontPadding: false,
-                                lineHeight: 20,
-                                minWidth: 20,
-                              }}
-                            />
-                          </View>
-                        ) : (
-                          <Text
-                            className='text-muted-foreground text-sm font-semibold'
-                            style={{ paddingBottom: 10 }}
-                          >
-                            ${(receiptTaxMap.get(receiptId) ?? 0).toFixed(2)}
-                          </Text>
-                        )}
+                  {isGroupRoom && receiptId && (
+                    <View
+                      className={`flex-row items-center justify-between bg-card rounded-2xl px-4 py-3 border border-border${isEditMode ? '' : ' opacity-70'}`}
+                    >
+                      <View className='flex-row items-center gap-2'>
+                        <MaterialCommunityIcons
+                          name='percent-outline'
+                          size={16}
+                          color='#6b7280'
+                        />
+                        <Text className='text-muted-foreground text-sm font-medium'>
+                          Tax
+                        </Text>
                       </View>
-                    )}
+                      {isEditMode ? (
+                        <View className='flex-row items-center justify-center'>
+                          <Text className='text-muted-foreground text-sm font-semibold'>
+                            $
+                          </Text>
+                          <PriceInput
+                            value={
+                              localTaxInputs.get(receiptId) ??
+                              (receiptTaxMap.get(receiptId) ?? 0).toFixed(2)
+                            }
+                            onValueChange={(val) => {
+                              setLocalTaxInputs((prev) => {
+                                const next = new Map(prev);
+                                next.set(receiptId, val);
+                                return next;
+                              });
+                            }}
+                            onBlur={() => {
+                              const valStr = localTaxInputs.get(receiptId);
+                              if (valStr === undefined) return;
+                              const val = parseFloat(valStr) || 0;
+                              setLocalReceiptTaxOverrides((prev) => {
+                                const next = new Map(prev);
+                                if (val > 0) next.set(receiptId, val);
+                                else next.delete(receiptId);
+                                return next;
+                              });
+                              setLocalTaxInputs((prev) => {
+                                const next = new Map(prev);
+                                next.delete(receiptId);
+                                return next;
+                              });
+                              updateReceiptTax(
+                                receiptId,
+                                val > 0 ? val : null,
+                              ).catch((err) => {
+                                console.error(
+                                  'Failed to update receipt tax:',
+                                  err,
+                                );
+                              });
+                            }}
+                            placeholder='0.00'
+                            placeholderTextColor='#9ca3af'
+                            className='text-muted-foreground text-sm font-semibold'
+                            style={{
+                              paddingBottom: 10,
+                              includeFontPadding: false,
+                              lineHeight: 20,
+                              minWidth: 20,
+                            }}
+                          />
+                        </View>
+                      ) : (
+                        <Text
+                          className='text-muted-foreground text-sm font-semibold'
+                          style={{ paddingBottom: 10 }}
+                        >
+                          ${(receiptTaxMap.get(receiptId) ?? 0).toFixed(2)}
+                        </Text>
+                      )}
+                    </View>
+                  )}
                 </React.Fragment>
               ),
             )}
@@ -1894,6 +1961,8 @@ export default function ReceiptRoomScreen() {
                       };
                     }}
                     goToYourItemsPage={() => {
+                      if (isNavigatingToItemsRef.current) return;
+                      isNavigatingToItemsRef.current = true;
                       router.push({
                         pathname: '../items',
                         params: {
@@ -1913,6 +1982,9 @@ export default function ReceiptRoomScreen() {
                             Object.fromEntries(taxPerItemMap),
                           ),
                           isReadOnly: isDisabled ? 'true' : 'false',
+                          isHost: isHost ? 'true' : 'false',
+                          isGuest:
+                            (participant.isGuest ?? false) ? 'true' : 'false',
                         } as YourItemsRoomParams,
                       });
                     }}
@@ -2302,7 +2374,7 @@ export default function ReceiptRoomScreen() {
       {undoToast && (
         <View
           className='absolute left-4 right-4 items-stretch'
-          style={{ zIndex: 50, bottom: 100 }}
+          style={{ zIndex: 50, bottom: 170 }}
           pointerEvents='box-none'
         >
           <View className='bg-card border border-border rounded-2xl px-4 py-3 flex-row items-center shadow-lg shadow-black/30'>
@@ -2332,6 +2404,25 @@ export default function ReceiptRoomScreen() {
             <ActivityIndicator size='small' color='#4999DF' />
             <Text className='text-muted-foreground text-sm font-medium'>
               Processing receipt…
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {receiptNotifMessage && !isLoadingPhoto && (
+        <View
+          className='absolute bottom-8 left-0 right-0 items-center'
+          style={{ zIndex: 1 }}
+          pointerEvents='none'
+        >
+          <View className='bg-card flex-row items-center gap-3 px-5 py-3 rounded-full shadow-md shadow-black/20'>
+            <MaterialCommunityIcons
+              name='receipt-text-plus-outline'
+              size={16}
+              color='#4999DF'
+            />
+            <Text className='text-muted-foreground text-sm font-medium'>
+              {receiptNotifMessage}
             </Text>
           </View>
         </View>

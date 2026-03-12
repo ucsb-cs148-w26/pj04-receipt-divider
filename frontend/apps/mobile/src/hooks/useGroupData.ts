@@ -45,6 +45,10 @@ export function useGroupData(groupId: string) {
   useRealtimeRefetch('group_members', debouncedRefetch, { filter });
   useRealtimeRefetch('receipts', debouncedRefetch, { filter });
   useRealtimeRefetch('payment_debts', debouncedRefetch, { filter });
+  // profiles: fires when a new guest's username is set after anonymous sign-in,
+  // ensuring the participant list updates on all clients (especially when a
+  // guest is created from the web profile-select page).
+  useRealtimeRefetch('profiles', debouncedRefetch);
 
   return {
     items: entry.items,

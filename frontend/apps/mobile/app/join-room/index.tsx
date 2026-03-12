@@ -22,6 +22,9 @@ export default function JoinRoomScreen() {
   const [scanned, setScanned] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  // Use a ref as the primary guard so the camera's rapid-fire callbacks are
+  // blocked even before React re-renders with the updated `scanned` state.
+  const scannedRef = useRef(false);
 
   const extractRoomId = (url: string): string | null => {
     try {
@@ -35,14 +38,21 @@ export default function JoinRoomScreen() {
   };
 
   const handleScanned = ({ data }: { type: string; data: string }) => {
-    if (scanned || isJoining) return;
+    if (scannedRef.current || isJoining) return;
+    scannedRef.current = true;
     setScanned(true);
     const roomId = extractRoomId(data);
     if (roomId) {
       validateAndNavigate(roomId);
     } else {
       Alert.alert('Invalid QR Code', 'This QR code does not link to a room.', [
-        { text: 'Try Again', onPress: () => setScanned(false) },
+        {
+          text: 'Try Again',
+          onPress: () => {
+            scannedRef.current = false;
+            setScanned(false);
+          },
+        },
       ]);
     }
   };
@@ -70,7 +80,15 @@ export default function JoinRoomScreen() {
       Alert.alert(
         isExpired ? 'Invite Expired' : 'Failed to Join',
         isExpired ? 'This invite link is no longer active.' : message,
-        [{ text: 'OK', onPress: () => setScanned(false) }],
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              scannedRef.current = false;
+              setScanned(false);
+            },
+          },
+        ],
       );
     } finally {
       setIsJoining(false);

@@ -153,7 +153,8 @@ class UserService:
 
         Rules:
         - 'pending'     : only the debtor may self-report payment.
-        - 'requested'   : only the creditor may request payment.
+        - 'requested'   : the creditor may request payment; the debtor may also
+                          set this to undo their own 'pending' self-report.
         - 'verified' / 'unrequested' : only the creditor may set these.
         """
         _VALID = {"verified", "pending", "requested", "unrequested"}
@@ -165,16 +166,31 @@ class UserService:
 
         if new_status == "pending":
             if caller_profile_id != debtor_id:
+                # Allow the creditor to mark a guest debtor as pending, since
+                # guests cannot log in to self-report payment.
+                debtor_profile = self.db.get(Profile, debtor_id)
+                is_guest_debtor = (
+                    debtor_profile is not None and not debtor_profile.email
+                )
+                if not is_guest_debtor or caller_profile_id != creditor_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Only the debtor can self-report payment",
+                    )
+        elif new_status == "requested":
+            # The creditor can request payment, and the debtor can undo their
+            # self-reported 'pending' status by reverting back to 'requested'.
+            if caller_profile_id != creditor_id and caller_profile_id != debtor_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the debtor can self-report payment",
+                    detail="Only the creditor or debtor can set this status",
                 )
         else:
-            # requested / verified / unrequested — caller must be the creditor
+            # verified / unrequested — only the creditor
             if caller_profile_id != creditor_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the creditor can request or verify payment",
+                    detail="Only the creditor can verify or unrequest payment",
                 )
 
         # Verify both parties are members of the group
@@ -216,6 +232,18 @@ class UserService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not a member of this group",
             )
+        # If the item belongs to a receipt, only the receipt owner or group host may delete it.
+        if item.receipt_id is not None:
+            receipt = self.db.get(Receipt, str(item.receipt_id))
+            if (
+                receipt is not None
+                and str(receipt.created_by) != profile_id
+                and not self._is_host(profile_id, str(item.group_id))
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the receipt owner or group host can delete items from this receipt",
+                )
         group = self.db.get(Group, str(item.group_id))
         self._assert_group_mutable(profile_id, group)
         self.db.delete(item)

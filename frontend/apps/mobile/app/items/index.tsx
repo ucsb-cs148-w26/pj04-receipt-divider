@@ -1,12 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
-import { View, Text, Pressable, Animated } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, Pressable, Animated, RefreshControl } from 'react-native';
 import {
   DefaultButtons,
   useScrollToInput,
   ScrollableTextInput,
   calculateParticipantShare,
   calculateParticipantTotal,
+  splitAmountByRank,
 } from '@eezy-receipt/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ReceiptItemData } from '@shared/types';
@@ -25,6 +26,10 @@ export type YourItemsRoomParams = {
   taxPerItem?: string;
   /** When true, the remove-item button is hidden (used when viewing another participant's items) */
   isReadOnly?: string;
+  /** When true, the current user is the host */
+  isHost?: string;
+  /** When true, the viewed participant is a guest profile */
+  isGuest?: string;
 };
 
 export default function YourItemScreen() {
@@ -33,6 +38,7 @@ export default function YourItemScreen() {
   const profileId = params.profileId ?? '';
   const isGroupRoom = !!params.roomId && /^[0-9a-f-]{36}$/i.test(params.roomId);
   const isReadOnly = params.isReadOnly === 'true';
+  const canRename = params.isHost === 'true' && params.isGuest === 'true';
   const receiptItemsContext = useReceiptItems();
 
   const scrollCtx = useScrollToInput({ resetOnBlur: true });
@@ -42,6 +48,17 @@ export default function YourItemScreen() {
   );
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(params.participantName ?? '');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    // Re-derive items from the shared receipt context (kept in sync with realtime)
+    const refreshedItems = receiptItemsContext.items.filter((item) =>
+      item.userTags?.includes(participantId),
+    );
+    setLocalItems(refreshedItems);
+    setRefreshing(false);
+  }, [receiptItemsContext.items, participantId]);
 
   // taxPerItem: receiptId → tax per item in that receipt (evenly split)
   const taxPerItemMap: Record<string, number> = params.taxPerItem
@@ -57,16 +74,22 @@ export default function YourItemScreen() {
   // Display copy: per-item prices adjusted to this participant's share (for rendering rows)
   const displayItems = localItems.map((item) => {
     const itemPrice = parseFloat(item.price) || 0;
+    const claimantIds = item.userTags;
     const claimCount =
-      item.userTags && item.userTags.length > 1 ? item.userTags.length : 1;
+      claimantIds && claimantIds.length > 1 ? claimantIds.length : 1;
     const priceShare = calculateParticipantShare(
       itemPrice,
       claimCount,
       participantId,
+      claimantIds,
     );
     const discountFull = parseFloat(item.discount || '0') || 0;
+    const sorted = claimantIds ? [...claimantIds].sort((a, b) => a - b) : [];
+    const rank = sorted.length > 0 ? sorted.indexOf(participantId) + 1 || 1 : 1;
     const discountShare =
-      claimCount > 1 ? (discountFull * (100 / claimCount)) / 100 : discountFull;
+      claimCount > 1
+        ? splitAmountByRank(discountFull, claimCount, rank)
+        : discountFull;
     return {
       ...item,
       price: priceShare.toFixed(2),
@@ -112,45 +135,59 @@ export default function YourItemScreen() {
           scrollEventThrottle={16}
           onContentSizeChange={scrollCtx.onContentSizeChange}
           contentContainerStyle={{ paddingBottom: scrollCtx.bottomPadding }}
+          refreshControl={
+            isGroupRoom ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+              />
+            ) : undefined
+          }
         >
           <View className='flex-row items-center w-full py-2'>
-            {editingName ? (
-              <>
-                <ScrollableTextInput
-                  scrollContext={scrollCtx}
-                  name='participant-name'
-                  value={nameValue}
-                  onChangeText={setNameValue}
-                  className='flex-1 border border-border rounded-xl px-4 py-2 text-foreground text-xl font-bold'
-                  autoFocus
-                  returnKeyType='done'
-                  onSubmitEditing={() => setEditingName(false)}
-                />
+            {canRename ? (
+              editingName ? (
+                <>
+                  <ScrollableTextInput
+                    scrollContext={scrollCtx}
+                    name='participant-name'
+                    value={nameValue}
+                    onChangeText={setNameValue}
+                    className='flex-1 border border-border rounded-xl px-4 py-2 text-foreground text-xl font-bold'
+                    autoFocus
+                    returnKeyType='done'
+                    onSubmitEditing={() => setEditingName(false)}
+                  />
+                  <Pressable
+                    onPress={() => setEditingName(false)}
+                    className='ml-2 p-2'
+                    accessibilityLabel='Confirm name change'
+                  >
+                    <Text className='text-primary text-base font-semibold'>
+                      Done
+                    </Text>
+                  </Pressable>
+                </>
+              ) : (
                 <Pressable
-                  onPress={() => setEditingName(false)}
-                  className='ml-2 p-2'
-                  accessibilityLabel='Confirm name change'
+                  onPress={() => setEditingName(true)}
+                  className='flex-row items-center gap-2'
+                  accessibilityLabel='Edit participant name'
                 >
-                  <Text className='text-primary text-base font-semibold'>
-                    Done
+                  <Text className='text-foreground text-xl font-bold'>
+                    {nameValue || 'Participant'}
                   </Text>
+                  <MaterialCommunityIcons
+                    name='pencil-outline'
+                    size={18}
+                    className='text-muted-foreground'
+                  />
                 </Pressable>
-              </>
+              )
             ) : (
-              <Pressable
-                onPress={() => setEditingName(true)}
-                className='flex-row items-center gap-2'
-                accessibilityLabel='Edit participant name'
-              >
-                <Text className='text-foreground text-xl font-bold'>
-                  {nameValue || 'Participant'}
-                </Text>
-                <MaterialCommunityIcons
-                  name='pencil-outline'
-                  size={18}
-                  className='text-muted-foreground'
-                />
-              </Pressable>
+              <Text className='text-foreground text-xl font-bold'>
+                {nameValue || 'Participant'}
+              </Text>
             )}
           </View>
 

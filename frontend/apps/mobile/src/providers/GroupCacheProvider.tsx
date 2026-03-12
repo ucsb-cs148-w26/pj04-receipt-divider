@@ -34,6 +34,7 @@ import type {
   PaymentDebt,
   Receipt,
 } from '@eezy-receipt/shared';
+import { calculateUserBalance, sumOwedAmounts } from '@eezy-receipt/shared';
 
 // ─── Per-group cache entry ─────────────────────────────────────────────────────
 
@@ -104,7 +105,11 @@ async function doFetchGroup(
     // Supabase reads run in parallel
     const [itemsRes, membersRes, receiptsRes, groupRes, debtsRes] =
       await Promise.all([
-        supabase.from('items').select('*').eq('group_id', groupId),
+        supabase
+          .from('items')
+          .select('*')
+          .eq('group_id', groupId)
+          .order('created_at', { ascending: true }),
         supabase.from('group_members').select('*').eq('group_id', groupId),
         supabase
           .from('receipts')
@@ -341,8 +346,6 @@ export function GroupCacheProvider({
 
       const memberCount = entry.members.length;
 
-      const itemMap = new Map(entry.items.map((i) => [i.id, i]));
-
       // A debt record exists only when a status has been explicitly set, so
       // "all paid" = all records that exist are verified (empty = no one has
       // requested payment yet, which is also a valid "settled" baseline).
@@ -350,50 +353,29 @@ export function GroupCacheProvider({
         entry.debtStatuses.length > 0 &&
         entry.debtStatuses.every((d) => d.paid_status === 'verified');
 
-      // Number of people who claimed each item (for computing pro-rata shares).
-      // claim.share in the DB is always 1 (a presence marker), so the actual
-      // per-person cost is: unit_price * amount / claimCount.
-      const claimCountMap = new Map<string, number>();
-      for (const claim of entry.claims) {
-        claimCountMap.set(
-          claim.item_id,
-          (claimCountMap.get(claim.item_id) ?? 0) + 1,
-        );
-      }
+      // ── Use centralised calculateUserBalance ──────────────────────────
+      const balanceItems = entry.items.map((item) => ({
+        id: item.id,
+        unitPrice: item.unit_price,
+        amount: typeof item.amount === 'number' ? item.amount : 1,
+        receiptId: item.receipt_id ?? null,
+        claimantProfileIds: entry.claims
+          .filter((c) => c.item_id === item.id)
+          .map((c) => c.profile_id),
+      }));
+      const balanceReceipts = entry.receipts.map((r) => ({
+        id: r.id,
+        tax: r.tax ?? 0,
+        uploaderId: r.created_by,
+      }));
+      const memberJoinOrder = entry.members.map((m) => m.profile_id);
 
-      const myReceiptIds = new Set(
-        entry.receipts
-          .filter((r) => r.created_by === profileId)
-          .map((r) => r.id),
-      );
-      const myItemIds = new Set(
-        entry.items
-          .filter(
-            (item) => item.receipt_id && myReceiptIds.has(item.receipt_id),
-          )
-          .map((item) => item.id),
-      );
-
-      // User's pro-rata share of each item they claimed.
-      // Separate self-claims (from own receipts) from claims on others' receipts
-      // so the home-screen cards show gross owed-to-me and gross I-owe independently.
-      let selfClaimedAmount = 0; // user's own share of items on their own receipts
-      let claimsFromOthers = 0; // user's share of items on others' receipts
-      for (const claim of entry.claims) {
-        if (claim.profile_id === profileId) {
-          const item = itemMap.get(claim.item_id);
-          if (item) {
-            const claimCount = claimCountMap.get(claim.item_id) ?? 1;
-            const portion =
-              (item.unit_price * item.amount * claim.share) / claimCount;
-            if (myItemIds.has(claim.item_id)) {
-              selfClaimedAmount += portion;
-            } else {
-              claimsFromOthers += portion;
-            }
-          }
-        }
-      }
+      const balance = calculateUserBalance({
+        items: balanceItems,
+        receipts: balanceReceipts,
+        memberJoinOrder,
+        currentUserId: profileId,
+      });
 
       // Members who have verified their payment to me (I am the creditor)
       const verifiedMemberIds = new Set(
@@ -403,35 +385,38 @@ export function GroupCacheProvider({
           )
           .map((d) => d.debtor_id),
       );
+
+      // Compute verified paid amount using calculateUserBalance for each verified member
       let verifiedPaidAmount = 0;
-      for (const claim of entry.claims) {
-        if (
-          verifiedMemberIds.has(claim.profile_id) &&
-          myItemIds.has(claim.item_id)
-        ) {
-          const item = itemMap.get(claim.item_id);
-          if (item) {
-            const claimCount = claimCountMap.get(claim.item_id) ?? 1;
-            verifiedPaidAmount +=
-              (item.unit_price * item.amount * claim.share) / claimCount;
-          }
+      for (const verifiedMemberId of verifiedMemberIds) {
+        const memberBalance = calculateUserBalance({
+          items: balanceItems,
+          receipts: balanceReceipts,
+          memberJoinOrder,
+          currentUserId: verifiedMemberId,
+        });
+        const owedToMe = memberBalance.owedAmounts.get(profileId);
+        if (owedToMe) {
+          verifiedPaidAmount += owedToMe.price + owedToMe.tax;
         }
       }
 
-      // totalUploaded = what others genuinely owe the user:
-      //   full receipt value − the user's own share − already-verified payments
-      let totalUploaded = 0;
-      for (const item of entry.items) {
-        if (item.receipt_id && myReceiptIds.has(item.receipt_id)) {
-          totalUploaded += item.unit_price * item.amount;
-        }
-      }
-      totalUploaded -= selfClaimedAmount + verifiedPaidAmount;
+      const owed = sumOwedAmounts(balance.owedAmounts);
+      const uploaded = balance.totalUploadedAmount;
+      const own = balance.ownClaimedAmount;
 
-      // totalClaimed = what the user genuinely owes others (claims on others' receipts).
+      // totalUploaded = what others owe the user from their receipts
+      //   (receipt total including tax − user's own share − verified payments)
+      const totalUploaded =
+        uploaded.price +
+        uploaded.tax -
+        (own.price + own.tax) -
+        verifiedPaidAmount;
+
+      // totalClaimed = what the user genuinely owes others (sum of owedAmounts).
       // Zero it out when the user has already verified paying all their debts.
       const effectiveTotalClaimed =
-        paidStatus === 'verified' ? 0 : claimsFromOthers;
+        paidStatus === 'verified' ? 0 : owed.price + owed.tax;
 
       summaries.push({
         groupId,

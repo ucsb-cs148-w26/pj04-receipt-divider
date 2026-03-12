@@ -256,7 +256,7 @@ export default function ProfileSelectPage() {
     setIsAddingProfile(true);
 
     let sessionToken: string | null = null;
-
+    let accentColor = '';
     try {
       const res = await fetch(
         `${import.meta.env.VITE_API_URL}/group/create-profile`,
@@ -283,6 +283,7 @@ export default function ProfileSelectPage() {
       const data = await res.json();
       console.log('[handleConfirm] create-profile response:', data);
       sessionToken = data.access_token ?? data.accessToken ?? null;
+      accentColor = data.accent_color ?? data.accentColor ?? '';
       if (!sessionToken) {
         console.error('[handleConfirm] no access_token in response:', data);
         isCreating.current = false;
@@ -315,7 +316,7 @@ export default function ProfileSelectPage() {
         id: participants.length + 1,
         profileId: payload.sub,
         name: newName.trim(),
-        color: getColor(participants.length + 1),
+        color: accentColor || getColor(participants.length + 1),
       };
       setParticipants((prev) => [...prev, newParticipant]);
       setSelectedId(newParticipant.id);

@@ -225,14 +225,18 @@ export default function HomeScreen() {
 
   const data: HistoryItem[] = activeTab === 'groups' ? groups : [];
 
-  // Aggregate gross amounts across all groups:
-  //   totalUploaded = what others owe the user (excludes self-claimed share & verified payments)
-  //   totalClaimed  = what the user owes others (only claims on others' receipts)
-  const youAreOwed = (myGroups ?? []).reduce(
-    (sum, g) => sum + g.totalUploaded,
-    0,
-  );
-  const youOwe = (myGroups ?? []).reduce((sum, g) => sum + g.totalClaimed, 0);
+  // Aggregate per-group net amounts:
+  //   net = totalUploaded − totalClaimed (positive = owed to me, negative = I owe)
+  //   youAreOwed = sum of positive nets
+  //   youOwe     = sum of |negative nets|
+  const youAreOwed = (myGroups ?? []).reduce((sum, g) => {
+    const net = g.totalUploaded - g.totalClaimed;
+    return net > 0 ? sum + net : sum;
+  }, 0);
+  const youOwe = (myGroups ?? []).reduce((sum, g) => {
+    const net = g.totalUploaded - g.totalClaimed;
+    return net < 0 ? sum + Math.abs(net) : sum;
+  }, 0);
 
   return (
     <SafeAreaView className='flex-1 bg-background'>
