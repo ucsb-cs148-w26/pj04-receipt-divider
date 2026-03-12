@@ -4,6 +4,7 @@ create table public.profiles (
   email text null default ''::text,
   username text null,
   accent_color text null,
+  next_nudge timestamp with time zone null,
   constraint profiles_pkey primary key (id),
   constraint profiles_email_key unique (email)
 ) TABLESPACE pg_default;
