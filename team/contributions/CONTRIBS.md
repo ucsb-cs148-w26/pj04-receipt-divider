@@ -81,6 +81,7 @@ Ken was the second most active contributor, focusing heavily on the backend and 
 Charlie contributed to front-end feature development and UX design:
 
 - **Your Items Page:** Built the "Your Items" page where users can see items assigned to them. Implemented the UI elements for splitting items and the logic to calculate individual totals when items are split among multiple people.
+- **Image Cropping:** Implemented the cropping feature when users take a photo of their receipt. 
 - **Tax Calculation:** Worked on tax calculation features to proportionally distribute taxes across assigned items.
 - **Code Reviews & Fixes:** Reverted problematic import changes to restore app builds. Fixed type compliance issues (e.g., changing ID types from string to number).
 - **Issue Cleanup:** Cleaned up old GitHub issue documentation files that were no longer needed.
