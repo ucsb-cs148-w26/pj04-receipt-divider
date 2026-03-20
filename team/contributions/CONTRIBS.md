@@ -16,6 +16,8 @@ The GitHub `/graphs/contributors` page lists 9 contributors. Of these, 7 are hum
 
 The contributors graph is broadly accurate in showing the relative distribution of commits, although it does not consolidate commits from alternate accounts/emails. The sections below explain each member's actual contributions, which go beyond what raw commit counts convey.
 
+Additional context from the linked companion repository (`masonle6080/-Eezy-Receipt`) shows related website/landing-page work (HTML + static assets), with visible contributions from Mason Le (`masonle-6080`) and Leifeng Chen (`Redstoneweewee`). This work includes website copy updates, architecture/team visual assets, and content polish that is adjacent to the main app repository.
+
 ---
 
 ## Leifeng Chen
@@ -34,6 +36,8 @@ Leifeng was the most active contributor by commit count. His work spanned the fu
 - **Testing:** Set up Jest testing infrastructure for the mobile app and wrote initial dependency/startup tests.
 - **DevOps & App Deployment:** Managed mobile app deployment via Expo and TestFlight. Created the v2.0.0 TestFlight beta build for iOS.
 - **MVP Demo:** Co-edited the MVP demo video with Mason.
+- **Mobile Wire-Up & Upload Flow (Late-Stage):** Drove integration work in `feat/wire-up-mobile`, including receipt upload flow stabilization and UI polish for mobile interactions.
+- **Final Integration/Polish Commits (Release Week):** Contributed multiple late integration and stabilization commits immediately before release branch convergence.
 
 ### Non-Code Contributions
 - Led Sprint 01 planning discussion and documented Sprint 02 planning.
@@ -64,6 +68,9 @@ Ken was the second most active contributor, focusing heavily on the backend and 
 - **Developer Tooling:** Set up pre-commit hooks (via Husky), backend linting with Ruff, pytest for backend testing, and CLI shortcuts for development workflows.
 - **Deployment Documentation:** Created `DEPLOY.md` documenting the deployment process.
 - **Receipt Image Storage:** Configured Supabase image bucket for receipt storage.
+- **Web Logout Plumbing (Late-Stage):** Added frontend/web logout functionality and shipped follow-up hotfixes.
+- **Backend Endpoint Completion (Release Week):** Finalized backend group/profile endpoint functionality and merge-time hotfixes.
+- **Deployment Stability Fixes:** Added release-adjacent web deployment fixes (including reroute/hotfix work) to keep production build paths stable.
 
 ### Non-Code Contributions
 - Scribed the Lec05 scrum meeting.
@@ -81,11 +88,13 @@ Ken was the second most active contributor, focusing heavily on the backend and 
 Charlie contributed to front-end feature development and UX design:
 
 - **Your Items Page:** Built the "Your Items" page where users can see items assigned to them. Implemented the UI elements for splitting items and the logic to calculate individual totals when items are split among multiple people.
-- **Image Cropping:** Implemented the cropping feature to make receipt extraction more accurate and faster.
 - **Tax Calculation:** Worked on tax calculation features to proportionally distribute taxes across assigned items.
 - **Code Reviews & Fixes:** Reverted problematic import changes to restore app builds. Fixed type compliance issues (e.g., changing ID types from string to number).
 - **Issue Cleanup:** Cleaned up old GitHub issue documentation files that were no longer needed.
 - **PR Reviews:** Reviewed and merged multiple pull requests as the designated code reviewer in Week 3.
+- **Image Cropping Feature (Late-Stage):** Implemented the image cropping workflow and supporting UI changes.
+- **Cropping + Tailwind Refinement:** Completed follow-up styling/theme migration for cropping views and expanded settings-page UI changes.
+- **Build Compatibility Fixes:** Contributed fixes for build issues encountered during integration (including `FileSystemUtilities`-related build breakage).
 
 ### Non-Code Contributions
 - Led Retro 01 as retro leader.
@@ -108,6 +117,9 @@ Roy focused on front-end components, participants functionality, and UI improvem
 - **Item Bug Fixes:** Fixed a bug where items could have duplicate IDs in certain scenarios.
 - **Remove Item Feature:** Added the remove item button on the "Your Items" page and the options button on the receipt room page with "assign to all" and "remove from all" functionality.
 - **Code Quality:** Ran formatting fixes, changed components from default exports to named exports to pass tests, and fixed various test issues.
+- **Claim/Unclaim Permissions Logic (Late-Stage):** Implemented logic so users can only claim/unclaim their own items, with host-only controls for claim-all/unclaim-all actions.
+- **Web UX Refinements:** Updated login/profile/logout web flows and improved claim-render behavior for responsiveness.
+- **Release-Week UI Integration:** Added and merged UI/API connection updates tied to web/mobile integration.
 
 ### Non-Code Contributions
 - Served as Testing/QA Coordinator, responsible for coordinating the team's testing strategy.
@@ -131,6 +143,9 @@ Edward worked across both mobile and web frontends, as well as backend integrati
 - **QR Code Generation:** Implemented QR code generation and room ID creation for receipt sharing.
 - **Close Room Flow:** Built the close room confirmation page with proper navigation (navigating to home instead of pushing a new page onto the stack).
 - **UI Fixes:** Fixed item ScrollView padding for devices with notches, ran code formatting, and various other UI improvements.
+- **Web Realtime + Persistence (Late-Stage):** Implemented and refined web realtime updates and item persistence behavior.
+- **Web Receipt Room Iteration:** Built and iterated receipt-room UI + fetch behavior to support multi-user live room updates.
+- **Optimistic Claim Rendering:** Added optimistic claim-render logic and related bug fixes.
 
 ### Non-Code Contributions
 - Scribed the Lec02 scrum meeting.
@@ -150,6 +165,8 @@ Mason's contributions focused on project setup, code reviews, and product manage
 - **Initial Project Setup:** Created the initial Hello World React Native Expo application during Sprint 01. Set up early project dependencies (`package-lock.json`) and updated the README.
 - **Code Reviews & PR Management:** Reviewed and merged a significant number of pull requests throughout the project, especially during Sprint 01. This includes merging PRs for participants, click-on-participants, receipt-context, claim-items, and other key features.
 - **MVP Demo Video:** Co-edited the MVP demo video with Leifeng (spending an entire weekend on it).
+- **Late UI Iteration Commits (Release Week):** Contributed release-period UI iteration commits on receipt-page and related frontend surfaces.
+- **Product-Level Finalization:** Continued product-owner coordination during release week while supporting final integration.
 
 ### Non-Code Contributions
 - Served as Product Owner, defining the product vision and user flow.
