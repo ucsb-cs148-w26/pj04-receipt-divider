@@ -5,6 +5,18 @@ Eezy Receipt lets you snap a photo of a receipt and quickly split costs with fri
 
 It is a cross-platform mobile application that simplifies expense splitting among roommates and friend groups by leveraging OCR and AI to automatically extract items from receipt photos and enable intuitive drag-and-drop assignment to individual users. The app automatically calculates each person's exact cost share, including proportional tax and fees, solving the friction point of manual receipt splitting that currently requires tedious spreadsheets or third-party apps. With a focus on iOS and expanding to Android and web, Eezy Receipt targets the massive roommate and group-travel markets by providing a frictionless, real-time solution to settle shared expenses.
 
+## Deployment Links
+- Landing Page: https://github.com/masonle6080/-Eezy-Receipt
+- iOS TestFlight: https://testflight.apple.com/join/8bhMpGgZ
+
+## What's New Since the Previous README Update
+- Final release milestone reached: `v3.0.0-Final-Release`
+- Added/expanded web room experience: realtime updates, optimistic claim rendering, and item persistence improvements
+- Added image cropping workflow and tailwind-based styling refinements
+- Added/updated logout flows and profile-related web UI improvements
+- Expanded claim permissions logic (host controls + user-specific claim/unclaim behavior)
+- Completed late-stage backend endpoint and deployment stability fixes
+
 ## Members: 
 **Yiheng Feng** (1274613951)\
 **Leifeng Chen** (Redstoneweewee)\
@@ -36,9 +48,9 @@ of the person who bought that item. Once all items have been dragged, the total 
 
 
 # Installation
-## v2.0.0 Testflight Build
+## v3.0.0 Testflight Build
 
-If you have an iOS device, you can install v2.0.0 directly on your phone through the Testflight app.
+If you have an iOS device, you can install the latest build directly on your phone through the Testflight app.
 
 1. Download the Testflight app on your phone
 2. Open this link on your phone: https://testflight.apple.com/join/8bhMpGgZ
@@ -50,13 +62,15 @@ And you're set!
 * Use light mode for the best experience
 * The testflight link is only set to accept a max of 10 users for now, so if it runs out, please tell us!
  
-## v2.0.0 Local Development
+## v3.0.0 Local Development
 
-These steps run the app locally. Features that rely on OCR/AI will require API keys. Please contact the developers for the keys.
+These steps run the full system locally (mobile app, web app, and FastAPI backend). Features that rely on OCR/AI require API keys. Please contact the developers for the keys.
 
 ### Requirements
 
 - **Node.js 18+** (includes npm)
+- **Python 3.12**
+- **uv** (Python package and environment manager)
 - **Git** (to clone the repo)
 - **Expo Go** on a mobile device (for testing the mobile app)
 
@@ -73,6 +87,41 @@ These steps run the app locally. Features that rely on OCR/AI will require API k
    npm install
    ```
 
+3. **Set up backend environment and dependencies:**
+   ```bash
+   cd backend
+   uv sync --locked
+   ```
+
+4. **Create backend environment variables (`backend/.env`)**
+
+   Add values for your local setup, including:
+   - Supabase URL + keys
+   - Database connection string
+   - OCR provider credentials (Google Vision)
+   - AI parser credentials (OpenAI)
+
+5. **Return to repository root (optional, for opening multiple terminals):**
+   ```bash
+   cd ..
+   ```
+
+### Run the backend API (FastAPI)
+
+```bash
+cd backend
+uv run fastapi dev app/main.py --host 0.0.0.0
+```
+
+Alternative:
+
+```bash
+cd backend
+uv run poe dev
+```
+
+The backend serves REST endpoints used by both mobile and web clients and provides OCR/auth/group/receipt services.
+
 ### Run the mobile app (Expo)
 
 ```bash
@@ -82,6 +131,8 @@ npm run start -w apps/mobile
 
 Then scan the QR code with Expo Go, or use an emulator
 
+Make sure the backend API is running before testing receipt upload/OCR, room sync, and claim/payment flows.
+
 ### Run the web app (Vite)
 
 ```bash
@@ -90,6 +141,8 @@ npm run dev -w apps/web
 ```
 
 Open the local URL printed by Vite in your browser.
+
+For collaborative room features, run web/mobile clients alongside the backend API.
 
 ## Functionality
 
@@ -163,7 +216,3 @@ Submit a pull request :D
 
 # License
 [license](./LICENSE.md)
-
-
-# Application Flow Diagram:
-![Wireframe](./resources/UI%20outline.png)
